@@ -1,0 +1,40 @@
+<root main_tree_to_execute = "ThreateningNavTree">
+
+    <TreeNodesModel>
+        <Action ID="ThreateningNav">
+            <input_port name="agent_id">identifier of the agent</input_port>
+            <input_port name="time_step">time step in seconds to compute movement</input_port>
+        </Action>
+        <Condition ID="IsRobotVisible">
+            <input_port name="agent_id">identifier of the agent</input_port>
+        </Condition>
+        <Condition ID="TimeExpiredCondition">
+            <input_port name="seconds">duration of the timer in seconds</input_port>
+            <input_port name="ts">time step to be accumulated</input_port>
+            <input_port name="only_once">boolean to indicate if the timer must be reset at the end or not</input_port>
+        </Condition>
+    </TreeNodesModel>
+
+    <include path="BTRegularNav.xml"/>
+
+    <BehaviorTree ID="ThreateningNavTree">
+        <Fallback name="ThreateningFallback">
+            <Sequence name="ThreadNav"> <!--ReactiveSequence-->
+                <IsRobotVisible agent_id="{id}" distance="4.0" />
+                <Sequence name="ThreadTimerNav">
+                    <Inverter>
+                        <TimeExpiredCondition seconds="40.0" ts="{dt}" only_once="True" />
+                    </Inverter>
+                    <ThreateningNav agent_id="{id}" time_step="{dt}" />
+                </Sequence>
+            </Sequence>
+            <Sequence name="RegNav">
+                <SetBlackboard output_key="agentid" value="{id}" />
+                <SetBlackboard output_key="timestep" value="{dt}" />
+                <SubTree ID="RegularNavTree" id="agentid" dt="timestep" />
+            </Sequence>
+        </Fallback>
+    </BehaviorTree>
+
+
+</root>

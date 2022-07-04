@@ -1,0 +1,28 @@
+<root main_tree_to_execute = "RegularNavTree">
+
+    <TreeNodesModel>
+        <Action ID="RegularNav">
+            <input_port name="agent_id">identifier of the agent</input_port>
+            <input_port name="time_step">time step in seconds to compute movement</input_port>
+        </Action>
+        <Action ID="UpdateGoal">
+            <input_port name="agent_id">identifier of the agent</input_port>
+        </Action>
+        <Condition ID="IsGoalReached">
+            <input_port name="agent_id">identifier of the agent</input_port>
+        </Condition>
+    </TreeNodesModel>
+
+    <BehaviorTree ID="RegularNavTree">
+        <Fallback name="RegularNavFallback">
+            <Sequence name="RegularNavigation">
+                <Inverter>
+                    <IsGoalReached agent_id="{id}" />
+                </Inverter>
+                <RegularNav agent_id="{id}" time_step="{dt}" />
+            </Sequence>
+            <UpdateGoal agent_id="{id}" />
+        </Fallback>
+    </BehaviorTree>
+
+</root>
