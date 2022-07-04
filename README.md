@@ -42,57 +42,11 @@ Besides, some human reactions to the presence of a robot has been included.
 
 ## Configuration
 
-(yaml)
+(yaml) TODO
 
 
 ## Example run
 
+TODO
 
-
-
-
-
-
-```
-The parameters that can be configured for each pedestrian are:
-
-### General params
-
-*  ```<velocity>```. Maximum velocity (*m/s*) of the pedestrian.
-*  ```<radius>```. Approximate radius of the pedestrian's body (m).
-*  ```<animation_factor>```. Factor employed to coordinate the animation with the walking velocity.
-* ```<people_distance>```.  Maximum detection distance of the surrounding pedestrians.
-
-### SFM Weights
-
-*  The weight factors that modify the navigation behavior. See the [Social Force Model](https://github.com/robotics-upo/lightsfm) for further information.
-
-### Obstacle params
-
-* ```<ignore_obstacles>```.  All the models that must be ignored as obstacles, must be indicated here. The other actors in the world are included automatically.
-
-### Trajectory params
-
-* ```<trajectory>```. The list of waypoints that the actor must reach must be indicated here. 
-
-	- ```<waypoint>```. Each waypoint must be indicated by its coordinates X, Y, Z in the world frame.
-	- ```<cyclic>```. If true, the actor will start the waypoint sequence when the last waypoint is reached.
-
-## Dependencies
-
-* Yo must download and install the Social Force Model library, lightsfm https://github.com/robotics-upo/lightsfm
-
-## Compilation
-
-* This is a ROS2 package so it must be placed inside a ROS2 workspace and compiled through the regular colcon compiler. 
-```sh
-colcon build --packages-select gazebo_sfm_plugin
-```
-
-## Example
-
-An example Gazebo world can be launched through:
-```sh
-ros2 launch gazebo_sfm_plugin cafe_ros2.launch.py
-```
 
