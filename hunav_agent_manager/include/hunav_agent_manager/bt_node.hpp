@@ -23,7 +23,7 @@
 // Social Force Model
 #include <lightsfm/sfm.hpp>
 
-namespace hunav_agent_manager {
+namespace hunav {
 
 class BTnode : public rclcpp::Node {
 public:
@@ -176,4 +176,4 @@ protected:
   rclcpp::Publisher<hunav_msgs::msg::Agents>::SharedPtr state_publisher_;
 };
 
-} // namespace hunav_agent_manager
+} // namespace hunav

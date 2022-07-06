@@ -5,7 +5,7 @@
 
 #include "hunav_agent_manager/time_expired_condition.hpp"
 
-namespace hunav_agent_manager {
+namespace hunav {
 
 TimeExpiredCondition::TimeExpiredCondition(const std::string &condition_name,
                                            const BT::NodeConfiguration &conf)
@@ -66,7 +66,7 @@ BT::NodeStatus TimeExpiredCondition::tick() {
   return BT::NodeStatus::SUCCESS;
 }
 
-} // namespace hunav_agent_manager
+} // namespace hunav
 
 // #include "behaviortree_cpp_v3/bt_factory.h"
 // BT_REGISTER_NODES(factory) {

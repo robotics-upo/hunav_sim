@@ -1,0 +1,96 @@
+hunav_loader:
+
+  ros__parameters:
+    # GLOBAL PARAMS
+    # 2D image map to be loaded.
+    # A Distance Transform will be created. 
+    map: 'cafe'
+    #base_world: cafe
+
+    # AGENTS
+    agents: 
+      - 'agent1'
+      - 'agent2'
+
+      # agent 1
+    agent1:
+      id: 1
+      skin: 1
+      behavior: 1
+      group_id: -1
+      max_vel: 1.5
+      radius: 0.4
+      init_pose:
+        x: -1.0
+        y: 2.0
+        z: 1.25
+        h: 0.0
+      goal_radius: 0.3
+      cyclic_goals: true
+      goals:
+        - 'g1'
+        - 'g2'
+        - 'g3'
+      g1:
+        x: -1.0
+        y: -8.0
+        h: 1.25
+      g2:
+        x: -1.0
+        y: 2.0
+        h: 1.25
+      g3:
+        x: 2.8
+        y: 0.5
+        h: 1.15
+      
+    agent2:
+      id: 2
+      skin: 2
+      behavior: 2
+      group_id: -1
+      max_vel: 1.1
+      radius: 0.4
+      init_pose:
+        x: 3.0
+        y: 0.0
+        z: 1.25
+        h: 1.57
+      goal_radius: 0.3
+      cyclic_goals: true
+      goals:
+        - 'g1'
+        - 'g2'
+        - 'g3'
+      g1:
+        x: -1.0
+        y: 2.0
+        h: 1.25
+      g2:
+        x: -1.0
+        y: -8.0
+        h: 1.25
+      g3:
+        x: 2.8
+        y: 0.5
+        h: 1.15
+
+        
+    
+
+# hunav_gazebo_wrapper:
+
+#   # if true, the agents' obstacles are filled
+#   # with the closest obstacle found by Gazebo.
+#   # Otherwise, the distance transform of a 
+#   # 2D map is employed.
+#   use_gazebo_obstacles: false
+#   update_rate:    100.0
+#   robot_name:     actor3
+#   global_frame_to_publish: map
+#   ignore_models: 
+#     - 'cafe'
+#     - 'ground_plane'
+
+
+    

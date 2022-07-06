@@ -27,7 +27,7 @@
 // Social Force Model
 #include <lightsfm/sfm.hpp>
 
-namespace hunav_agent_manager {
+namespace hunav {
 
 class BTfunctions {
 public:
@@ -88,4 +88,4 @@ private:
   AgentManager agent_manager_;
 };
 
-} // namespace hunav_agent_manager
+} // namespace hunav

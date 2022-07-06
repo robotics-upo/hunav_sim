@@ -18,6 +18,7 @@ uint8 BEH_ACTIVE_2=2
 
 int32 id
 uint8 type
+uint8 skin
 uint8 behavior
 string name
 uint8 behavior_state

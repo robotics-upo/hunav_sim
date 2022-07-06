@@ -44,7 +44,7 @@ Besides, some human reactions to the presence of robots have been included.
 
 The navigation behavior of the human agents spawned in a regular physics simulator can be controlled by HuNavSim. Therefore, HuNavSim can be "connected" to a popular simulators used in Robotics like Gazebo, Webots or Unity.
 
-To do so, we must programme a ROS2 wrapper of the particular simulator.At each simulation step, the wrapper must collect the current state of the human agents and the robot (positions and velocities), and send them to HuNavSim. The HuNavSim controller will compute and return the next state of the agents. Finally, the wrapper must update the agents' state in the simulation.
+To do so, we must programme a ROS2 wrapper of the particular simulator. At each simulation step, the wrapper must collect the current state of the human agents and the robot (positions and velocities), and send them to HuNavSim. The HuNavSim controller will compute and return the next state of the agents. Finally, the wrapper must update the agents' state in the simulation.
 
 That communication with HuNavSim can be easily done through different ROS2 services available. These services use the messages of the package hunav_msgs:
 
@@ -54,7 +54,9 @@ That communication with HuNavSim can be easily done through different ROS2 servi
 
 * *"/move_agent"*. The request includes the states of the human agents, the robot and id of the agent that must be computed. The response of HuNavSim is the udpated state of the indicated agent. 
 
-Moreover, the initial configuration parameters of the agents can be read from the *"/hunav_loader"* ROS2 node. This node loads the agents data from the yaml file *'agents.yaml'* located in the *config* directory of the package *hunav_agent_manager*. Then, the parameters can be retreived through the ROS2 service */hunav_loader/get_parameters*.
+Moreover, the initial configuration parameters of the agents can be read from the *"/hunav_loader"* ROS2 node. This node loads the agents data from the yaml file *'agents.yaml'* located in the *config* directory of the package *hunav_agent_manager*. Then, the parameters can be retreived through the ROS2 service */hunav_loader/get_parameters*. 
+
+ToDo: To programme a GUI for the generation of the configuration yaml file instead of modifiying the yaml manually. 
 
 ![](https://github.com/robotics-upo/hunav_sim/blob/master/images/HuNavSim.png)
 

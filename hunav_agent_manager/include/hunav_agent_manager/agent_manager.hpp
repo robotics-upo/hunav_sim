@@ -38,7 +38,7 @@
 // Social Force Model
 #include <lightsfm/sfm.hpp>
 
-namespace hunav_agent_manager {
+namespace hunav {
 
 struct agent {
   std::string name;
@@ -319,5 +319,5 @@ protected:
   // agents_srv_;
 };
 
-} // namespace hunav_agent_manager
+} // namespace hunav
 #endif // HUNAV_BEHAVIORS__AGENT_MANAGER_HPP_

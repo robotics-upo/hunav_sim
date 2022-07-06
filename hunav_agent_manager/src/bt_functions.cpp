@@ -1,7 +1,7 @@
 
 #include "hunav_agent_manager/bt_functions.hpp"
 
-namespace hunav_agent_manager {
+namespace hunav {
 
 BTfunctions::BTfunctions() {
   // int Box::objectCount = 0;
@@ -175,4 +175,4 @@ BT::NodeStatus BTfunctions::threateningNav(BT::TreeNode &self) {
   return BT::NodeStatus::SUCCESS;
 }
 
-} // namespace human_nav_agent_manager
+} // namespace hunav

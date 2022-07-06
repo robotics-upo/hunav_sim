@@ -4,7 +4,7 @@
 //   hunav_agent_manager::registerBTNodes(factory);
 // }
 
-namespace hunav_agent_manager {
+namespace hunav {
 
 using std::placeholders::_1;
 using std::placeholders::_2;
@@ -73,7 +73,7 @@ BTnode::~BTnode() {}
 void BTnode::registerBTNodes() {
 
   // Register the conditions
-  factory_.registerNodeType<hunav_agent_manager::TimeExpiredCondition>(
+  factory_.registerNodeType<hunav::TimeExpiredCondition>(
       "TimeExpiredCondition");
 
   BT::PortsList simple_port = {BT::InputPort<std::string>("agent_id")};
@@ -526,4 +526,4 @@ std_msgs::msg::ColorRGBA BTnode::getColor(double r, double g, double b,
   return color;
 }
 
-} // namespace hunav_agent_manager
+} // namespace hunav

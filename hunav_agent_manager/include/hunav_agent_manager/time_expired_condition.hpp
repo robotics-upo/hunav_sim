@@ -7,7 +7,7 @@
 #include "behaviortree_cpp_v3/condition_node.h"
 #include "rclcpp/rclcpp.hpp"
 
-namespace hunav_agent_manager {
+namespace hunav {
 
 /**
  * @brief A BT::ConditionNode that returns SUCCESS every time a specified
@@ -53,6 +53,6 @@ private:
   bool print_;
 };
 
-} // namespace hunav_agent_manager
+} // namespace hunav
 
 #endif // BEHAVIOR_MANAGER__TIME_EXPIRED_CONDITION_HPP_

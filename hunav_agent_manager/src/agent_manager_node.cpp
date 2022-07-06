@@ -4,8 +4,8 @@
 int main(int argc, char *argv[]) {
   rclcpp::init(argc, argv);
 
-  rclcpp::spin(std::make_shared<hunav_agent_manager::BTnode>());
-  
+  rclcpp::spin(std::make_shared<hunav::BTnode>());
+
   rclcpp::shutdown();
   return 0;
 }

@@ -1,6 +1,6 @@
 #include "hunav_agent_manager/agent_manager.hpp"
 
-namespace hunav_agent_manager {
+namespace hunav {
 
 // using std::placeholders::_1;
 // using std::placeholders::_2;
@@ -379,8 +379,7 @@ void AgentManager::initializeRobot(
   printf("SFM Robot initialized\n");
 }
 
-bool AgentManager::updateAgents(
-    const hunav_msgs::msg::Agents::SharedPtr msg) {
+bool AgentManager::updateAgents(const hunav_msgs::msg::Agents::SharedPtr msg) {
 
   // update velocities
   // if (agents_initialized_ && time_step_secs_ > 0.0) {
@@ -796,4 +795,4 @@ void AgentManager::updatePosition(int id, double dt) {
   // }
 }
 
-} // namespace hunav_agent_manager
+} // namespace hunav
