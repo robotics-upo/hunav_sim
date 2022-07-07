@@ -12,7 +12,9 @@ Besides, some human reactions to the presence of robots have been included.
 
 * Yo must download and install the Social Force Model library. Follow the instructions here: https://github.com/robotics-upo/lightsfm
 * The ROS2 packages *nav2-behavior-tree* and *behaviortree_cpp_v3* are also needed.
-
+  ```sh
+  sudo apt install ros-foxy-nav2-behavior-tree ros-foxy-behaviortree-cpp-v3
+  ```
 
 ## Features
 
