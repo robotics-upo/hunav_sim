@@ -11,6 +11,7 @@ Besides, some human reactions to the presence of robots have been included.
 ## Dependencies
 
 * Yo must download and install the Social Force Model library. Follow the instructions here: https://github.com/robotics-upo/lightsfm
+* The ROS2 packages *nav2-behavior-tree* and *behaviortree_cpp_v3* are also needed.
 
 
 ## Features
