@@ -19,7 +19,7 @@ Besides, some human reactions to the presence of robots have been included.
 
 * A core of human navigation behaviors which is independent of any simulator. The core can be used in different simulators by means of a wrapper.
 
-* A wrapper for Gazebo Simulator (tested in Gazebo 11) is provided here: XXXXXXX
+* A wrapper for Gazebo Simulator (tested in Gazebo 11) is provided here: https://github.com/robotics-upo/hunav_gazebo_wrapper
 
 * The simulator core is programmed under the new ROS2 framework (tested in Foxy distro).
 
@@ -61,9 +61,8 @@ ToDo: To programme a GUI for the generation of the configuration yaml file inste
 ![](https://github.com/robotics-upo/hunav_sim/blob/master/images/HuNavSim.png)
 
 
-A Gazebo (v11) wrapper is provided in: XXXXXXX
+A Gazebo (v11) wrapper is provided in: https://github.com/robotics-upo/hunav_gazebo_wrapper
  
-
 
 ## Configuration
 
