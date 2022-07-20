@@ -69,7 +69,7 @@ bool AgentManager::lineOfSight(int id) {
   float nry = -(rx - ax) * sin(yaw) + (ry - ay) * cos(yaw);
   float rangle = atan2(nry, nrx);
 
-  if (abs(rangle) > M_PI / 2.0) {
+  if (abs(rangle) > (M_PI / 2.0 + 0.17)) {
     // std::cout << "[AgentManager.lineOfSight] Agent " << id + 1
     //           << " can NOT see the robot!" << std::endl;
     return false;
@@ -132,11 +132,14 @@ void AgentManager::lookAtTheRobot(int id) {
   } else {
     agents_[id].sfmAgent.yaw = agents_[id].sfmAgent.yaw + robotYaw;
   }
+  agents_[id].behavior_state = 1;
 }
 
 void AgentManager::approximateRobot(int id, double dt) {
 
   std::lock_guard<std::mutex> guard(mutex_);
+
+  agents_[id].behavior_state = 1;
 
   // Robot position
   float rx = robot_.sfmAgent.position.getX();
@@ -192,6 +195,8 @@ void AgentManager::approximateRobot(int id, double dt) {
 void AgentManager::blockRobot(int id, double dt) {
 
   std::lock_guard<std::mutex> guard(mutex_);
+
+  agents_[id].behavior_state = 1;
 
   // Robot position
   float rx = robot_.sfmAgent.position.getX();
@@ -255,6 +260,8 @@ void AgentManager::blockRobot(int id, double dt) {
 void AgentManager::avoidRobot(int id, double dt) {
   std::lock_guard<std::mutex> guard(mutex_);
 
+  agents_[id].behavior_state = 1;
+
   // we decrease the maximum velocity
   double init_vel = agents_[id].sfmAgent.desiredVelocity;
   agents_[id].sfmAgent.desiredVelocity = 0.6;
@@ -310,6 +317,7 @@ void AgentManager::initializeAgents(
     ag.name = a.name;
     ag.type = a.type;
     ag.behavior = a.behavior;
+    ag.behavior_state = a.behavior_state;
     ag.sfmAgent.id = a.id;
     ag.sfmAgent.groupId = a.group_id;
     ag.sfmAgent.desiredVelocity = a.desired_velocity;
@@ -489,6 +497,7 @@ hunav_msgs::msg::Agent AgentManager::getUpdatedAgentMsg(int id) {
   a.name = agents_[id].name;
   a.type = agents_[id].type;
   a.behavior = agents_[id].behavior;
+  a.behavior_state = agents_[id].behavior_state;
   a.position.position.x = agents_[id].sfmAgent.position.getX();
   a.position.position.y = agents_[id].sfmAgent.position.getY();
   a.yaw = agents_[id].sfmAgent.yaw.toRadian();
@@ -734,6 +743,8 @@ bool AgentManager::canCompute() {
 void AgentManager::updatePosition(int id, double dt) {
 
   std::lock_guard<std::mutex> guard(mutex_);
+
+  agents_[id].behavior_state = 0;
 
   // double newyaw = atan2(agents_[id].sfmAgent.forces.globalForce.getY(),
   //                      agents_[id].sfmAgent.forces.globalForce.getX());

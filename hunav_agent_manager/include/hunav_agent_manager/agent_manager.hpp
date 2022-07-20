@@ -44,6 +44,7 @@ struct agent {
   std::string name;
   int type;
   int behavior;
+  int behavior_state;
   sfm::Agent sfmAgent;
 };
 
@@ -216,56 +217,6 @@ public:
       value -= 2 * M_PI;
     return value;
   }
-
-  // inline void computeSocialForce(sfm::Agent &me,
-  //                                std::vector<sfm::Agent> &agents) const {
-  //   // Agent& agent = agents[index];
-  //   // me.forces.socialForce.set(0, 0);
-  //   utils::Vector2d socforce;
-  //   for (unsigned i = 0; i < agents.size(); i++) {
-  //     if (agents[i].id == me.id) {
-  //       continue;
-  //     }
-  //     printf("[SOCFOR] me x: %.2f, y:%.2f -- agent[%i] x:%.2f, y:%.2f\n",
-  //            me.position.getX(), me.position.getY(), i,
-  //            agents[i].position.getX(), agents[i].position.getY());
-  //     utils::Vector2d diff = agents[i].position - me.position;
-  //     printf("\t[SOCFOR] position diff x: %.2f, y:%.2f\n", diff.getX(),
-  //            diff.getY());
-  //     utils::Vector2d diffDirection = diff.normalized();
-  //     // printf("[SOCFOR] DiffDirection norm: %.4f\n", diffDirection.norm());
-  //     utils::Vector2d velDiff = me.velocity - agents[i].velocity;
-  //     utils::Vector2d interactionVector =
-  //         me.params.lambda * velDiff + diffDirection;
-  //     printf("\t[SOCFOR] interactionVector x: %.2f, y:%.2f\n",
-  //            interactionVector.getX(), interactionVector.getY());
-  //     double interactionLength = interactionVector.norm();
-  //     printf("\t[SOCFOR] interactionLength: %.4f\n", interactionLength);
-  //     utils::Vector2d interactionDirection =
-  //         interactionVector / interactionLength;
-  //     utils::Angle theta = interactionDirection.angleTo(diffDirection);
-  //     double B = me.params.gamma * interactionLength;
-  //     double thetaRad = theta.toRadian();
-  //     double forceVelocityAmount =
-  //         -std::exp(-diff.norm() / B - PW(me.params.nPrime * B * thetaRad));
-  //     printf("\t[SOCFOR] forceVelocityAmount: %.4f\n", forceVelocityAmount);
-  //     double forceAngleAmount =
-  //         -theta.sign() *
-  //         std::exp(-diff.norm() / B - PW(me.params.n * B * thetaRad));
-  //     printf("\t[SOCFOR] forceAngleAmount: %.4f\n", forceAngleAmount);
-  //     utils::Vector2d forceVelocity =
-  //         forceVelocityAmount * interactionDirection;
-  //     utils::Vector2d forceAngle =
-  //         forceAngleAmount * interactionDirection.leftNormalVector();
-  //     // me.forces.socialForce +=
-  //     socforce += me.params.forceFactorSocial * (forceVelocity + forceAngle);
-  //     printf("\t[SOCFOR] socfor x: %.2f, y:%.2f\n", socforce.getX(),
-  //            socforce.getY());
-  //   }
-  //   printf("[SOCFOR] social force nr: %.4f, x:%.4f, y:%.4f\n",
-  //   socforce.norm(),
-  //          socforce.getX(), socforce.getY());
-  // }
 
   inline utils::Vector2d computeDesiredForce(sfm::Agent &agent) const {
     utils::Vector2d desiredDirection;
