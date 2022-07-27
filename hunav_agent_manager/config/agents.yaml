@@ -1,5 +1,13 @@
 hunav_loader:
 
+# Behaviors:
+# BEH_REGULAR=1
+# BEH_IMPASSIVE=2
+# BEH_SURPRISED=3
+# BEH_SCARED=4
+# BEH_CURIOUS=5
+# BEH_THREATENING=6
+
   ros__parameters:
     # GLOBAL PARAMS
     # 2D image map to be loaded.
@@ -16,7 +24,7 @@ hunav_loader:
     agent1:
       id: 1
       skin: 1
-      behavior: 1
+      behavior: 5
       group_id: -1
       max_vel: 1.5
       radius: 0.4
@@ -47,7 +55,7 @@ hunav_loader:
     agent2:
       id: 2
       skin: 2
-      behavior: 2
+      behavior: 3
       group_id: -1
       max_vel: 1.1
       radius: 0.4
@@ -76,21 +84,6 @@ hunav_loader:
         h: 1.15
 
         
-    
-
-# hunav_gazebo_wrapper:
-
-#   # if true, the agents' obstacles are filled
-#   # with the closest obstacle found by Gazebo.
-#   # Otherwise, the distance transform of a 
-#   # 2D map is employed.
-#   use_gazebo_obstacles: false
-#   update_rate:    100.0
-#   robot_name:     actor3
-#   global_frame_to_publish: map
-#   ignore_models: 
-#     - 'cafe'
-#     - 'ground_plane'
 
 
     

@@ -40,6 +40,7 @@ set(srv_files
   "srv/ComputeAgents.srv"
   "srv/ComputeAgent.srv"
   "srv/MoveAgent.srv"
+  "srv/GetAgents.srv"
 )
 
 
