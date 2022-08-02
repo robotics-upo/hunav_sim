@@ -6,6 +6,8 @@
 #include <tf2_ros/transform_broadcaster.h>
 #include <visualization_msgs/msg/marker_array.hpp>
 
+#include <people_msgs/msg/people.hpp>
+
 #include "hunav_agent_manager/bt_functions.hpp"
 
 #include "hunav_msgs/msg/agent.hpp"
@@ -118,14 +120,22 @@ protected:
                          const hunav_msgs::msg::Agents::SharedPtr msg);
 
   /**
-   * @brief Publish the TF of the robot and agents
+   * @brief Publish the agents states
    *
    * @param t time stamp
-   * @param robot robot state msg
    * @param msg agent states msg
    */
   void publish_agent_states(rclcpp::Time t,
                             const hunav_msgs::msg::Agents::SharedPtr msg);
+
+  /**
+   * @brief Publish the agents in the standard people msg
+   *
+   * @param t time stamp
+   * @param msg agent states msg
+   */
+  void publish_people(rclcpp::Time t,
+                      const hunav_msgs::msg::Agents::SharedPtr msg);
 
   /**
    * @brief Publish the set of SFM forces in RViz
@@ -165,6 +175,7 @@ protected:
   bool pub_tf_;
   bool pub_forces_;
   bool pub_agent_states_;
+  bool pub_people_;
 
   // BT::Tree tree_;
   // std::unique_ptr<BT::ParallelNode> root_;
@@ -174,6 +185,7 @@ protected:
   rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr
       forces_publisher_;
   rclcpp::Publisher<hunav_msgs::msg::Agents>::SharedPtr state_publisher_;
+  rclcpp::Publisher<people_msgs::msg::People>::SharedPtr people_publisher_;
 };
 
 } // namespace hunav

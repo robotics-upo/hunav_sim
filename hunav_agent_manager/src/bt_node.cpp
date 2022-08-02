@@ -30,6 +30,9 @@ BTnode::BTnode() : Node("hunav_agent_manager") {
   pub_agent_states_ =
       this->declare_parameter<bool>("publish_agent_states", true);
 
+  pub_people_ =
+      this->declare_parameter<bool>("hunav_loader.publish_people", true);
+
   prev_time_ = this->get_clock()->now();
   // btfunc_.init();
 
@@ -65,6 +68,10 @@ BTnode::BTnode() : Node("hunav_agent_manager") {
   if (pub_agent_states_) {
     state_publisher_ =
         this->create_publisher<hunav_msgs::msg::Agents>("human_states", 5);
+  }
+  if (pub_people_) {
+    people_publisher_ =
+        this->create_publisher<people_msgs::msg::People>("people", 5);
   }
 }
 
@@ -276,6 +283,8 @@ void BTnode::computeAgentsService(
     publish_agents_forces(t, ag);
   if (pub_agent_states_)
     publish_agent_states(t, ag);
+  if (pub_people_)
+    publish_people(t, ag);
 
   double time_step_secs =
       (rclcpp::Time(ag->header.stamp) - prev_time_).seconds(); // * 5.0;
@@ -332,6 +341,8 @@ void BTnode::moveAgentService(
     publish_agents_forces(t, ag);
   if (pub_agent_states_)
     publish_agent_states(t, ag);
+  if (pub_people_)
+    publish_people(t, ag);
 
   double time_step_secs =
       (rclcpp::Time(ag->header.stamp) - prev_time_).seconds();
@@ -417,6 +428,26 @@ void BTnode::publish_agent_states(
     rclcpp::Time t, const hunav_msgs::msg::Agents::SharedPtr msg) {
 
   state_publisher_->publish(*msg);
+}
+
+void BTnode::publish_people(rclcpp::Time t,
+                            const hunav_msgs::msg::Agents::SharedPtr msg) {
+
+  people_msgs::msg::People people;
+  people.header.stamp = t;
+  people.header.frame_id = msg->header.frame_id;
+  for (const auto &a : msg->agents) {
+    people_msgs::msg::Person person;
+    person.name = a.name;
+    person.position = a.position.position;
+    person.velocity.x = a.linear_vel * cos(a.yaw);
+    person.velocity.y = a.linear_vel * sin(a.yaw);
+    person.reliability = 1.0;
+    person.tags.push_back(std::to_string(a.id));
+    person.tagnames.push_back(std::to_string(a.behavior));
+    people.people.push_back(person);
+  }
+  people_publisher_->publish(people);
 }
 
 void BTnode::publish_agents_forces(

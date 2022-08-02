@@ -13,6 +13,7 @@
   <depend>geometry_msgs</depend>
   <depend>visualization_msgs</depend>
   <depend>hunav_msgs</depend>
+  <depend>people_msgs</depend>
   <depend>tf2</depend>
   <depend>tf2_ros</depend>
   <depend>nav2_behavior_tree</depend>

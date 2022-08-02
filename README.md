@@ -10,7 +10,8 @@ Besides, some human reactions to the presence of robots have been included.
 
 ## Dependencies
 
-* Yo must download and install the Social Force Model library. Follow the instructions here: https://github.com/robotics-upo/lightsfm
+* You must download and install the Social Force Model library. Follow the instructions here: https://github.com/robotics-upo/lightsfm
+* The ros people_msgs are also required. At the moment of this development, people_msgs were not still available to be installed from the apt ros-foxy package server. You can get the package from here: https://github.com/wg-perception/people/tree/ros2 
 * The ROS2 packages *nav2-behavior-tree* and *behaviortree_cpp_v3* are also needed.
   ```sh
   sudo apt install ros-foxy-nav2-behavior-tree ros-foxy-behaviortree-cpp-v3
