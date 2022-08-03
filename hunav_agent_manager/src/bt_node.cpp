@@ -442,6 +442,8 @@ void BTnode::publish_people(rclcpp::Time t,
     person.position = a.position.position;
     person.velocity.x = a.linear_vel * cos(a.yaw);
     person.velocity.y = a.linear_vel * sin(a.yaw);
+    // I add the angular velocity in the z coordinate
+    person.velocity.z = a.angular_vel;
     person.reliability = 1.0;
     person.tags.push_back(std::to_string(a.id));
     person.tags.push_back(std::to_string(a.group_id));
