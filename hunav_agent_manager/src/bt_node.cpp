@@ -444,7 +444,11 @@ void BTnode::publish_people(rclcpp::Time t,
     person.velocity.y = a.linear_vel * sin(a.yaw);
     person.reliability = 1.0;
     person.tags.push_back(std::to_string(a.id));
-    person.tagnames.push_back(std::to_string(a.behavior));
+    person.tags.push_back(std::to_string(a.group_id));
+    person.tags.push_back(std::to_string(a.behavior));
+    person.tagnames.push_back("id");
+    person.tagnames.push_back("group_id");
+    person.tagnames.push_back("behavior");
     people.people.push_back(person);
   }
   people_publisher_->publish(people);
