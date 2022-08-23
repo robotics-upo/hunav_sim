@@ -27,6 +27,8 @@ Besides, some human reactions to the presence of robots have been included.
 
 * The simulator core is programmed under the new ROS2 framework (tested in Foxy distro).
 
+* A GUI based on a RViz2 panel is employed to easily configure the human agents. 
+
 * Despite following the same human navigation model (SFM), the regular navigation behavior for each human agent is different by means of random initialization, or user specification, of some parameters of the model (within reasonable fixed boundaries). That provides a richer human navigation behavior closer to the real world.
 
 * A set of realistic human navigation reactions to the presence of a robot is provided:
