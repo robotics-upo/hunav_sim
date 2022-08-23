@@ -62,7 +62,6 @@ That communication with HuNavSim can be easily done through different ROS2 servi
 
 Moreover, the initial configuration parameters of the agents can be read from the *"/hunav_loader"* ROS2 node. This node loads the agents data from the yaml file *'agents.yaml'* located in the *config* directory of the package *hunav_agent_manager*. Then, the parameters can be retreived through the ROS2 service */hunav_loader/get_parameters*. 
 
-ToDo: To programme a GUI for the generation of the configuration yaml file instead of modifiying the yaml manually. 
 
 ![](https://github.com/robotics-upo/hunav_sim/blob/master/images/HuNavSim.png)
 
