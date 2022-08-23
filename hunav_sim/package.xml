@@ -14,6 +14,7 @@
   
   <exec_depend>hunav_msgs</exec_depend>
   <exec_depend>hunav_agent_manager</exec_depend>
+  <exec_depend>hunav_rviz2_panel</exec_depend>
   <!--<exec_depend>human_nav_behavior_trees</exec_depend>
   <exec_depend>human_nav_actions</exec_depend>-->
 
