@@ -134,8 +134,8 @@ protected:
    * @param t time stamp
    * @param msg agent msg representing the robot state
    */
-  void publish_robot_states(rclcpp::Time t,
-                            const hunav_msgs::msg::Agent::SharedPtr msg);
+  void publish_robot_state(rclcpp::Time t,
+                           const hunav_msgs::msg::Agent::SharedPtr msg);
 
   /**
    * @brief Publish the agents in the standard people msg
