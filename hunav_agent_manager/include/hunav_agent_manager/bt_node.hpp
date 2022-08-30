@@ -129,6 +129,15 @@ protected:
                             const hunav_msgs::msg::Agents::SharedPtr msg);
 
   /**
+   * @brief publish the robot state
+   *
+   * @param t time stamp
+   * @param msg agent msg representing the robot state
+   */
+  void publish_robot_states(rclcpp::Time t,
+                            const hunav_msgs::msg::Agent::SharedPtr msg);
+
+  /**
    * @brief Publish the agents in the standard people msg
    *
    * @param t time stamp
@@ -174,7 +183,7 @@ protected:
   // node parameters
   bool pub_tf_;
   bool pub_forces_;
-  bool pub_agent_states_;
+  // bool pub_agent_states_;
   bool pub_people_;
 
   // BT::Tree tree_;
@@ -184,7 +193,8 @@ protected:
   std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
   rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr
       forces_publisher_;
-  rclcpp::Publisher<hunav_msgs::msg::Agents>::SharedPtr state_publisher_;
+  rclcpp::Publisher<hunav_msgs::msg::Agents>::SharedPtr human_state_publisher_;
+  rclcpp::Publisher<hunav_msgs::msg::Agent>::SharedPtr robot_state_publisher_;
   rclcpp::Publisher<people_msgs::msg::People>::SharedPtr people_publisher_;
 };
 

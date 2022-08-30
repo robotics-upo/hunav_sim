@@ -27,8 +27,8 @@ BTnode::BTnode() : Node("hunav_agent_manager") {
   // node parameter declaration
   pub_tf_ = this->declare_parameter<bool>("publish_tf", true);
   pub_forces_ = this->declare_parameter<bool>("publish_sfm_forces", true);
-  pub_agent_states_ =
-      this->declare_parameter<bool>("publish_agent_states", true);
+  // pub_agent_states_ =
+  //    this->declare_parameter<bool>("publish_agent_states", true);
 
   pub_people_ =
       this->declare_parameter<bool>("hunav_loader.publish_people", true);
@@ -65,13 +65,15 @@ BTnode::BTnode() : Node("hunav_agent_manager") {
         this->create_publisher<visualization_msgs::msg::MarkerArray>(
             "sfm_forces", 5);
   }
-  if (pub_agent_states_) {
-    state_publisher_ =
-        this->create_publisher<hunav_msgs::msg::Agents>("human_states", 5);
-  }
+  // if (pub_agent_states_) {
+  human_state_publisher_ =
+      this->create_publisher<hunav_msgs::msg::Agents>("human_states", 1);
+  robot_state_publisher_ =
+      this->create_publisher<hunav_msgs::msg::Agent>("robot_states", 1);
+  //}
   if (pub_people_) {
     people_publisher_ =
-        this->create_publisher<people_msgs::msg::People>("people", 5);
+        this->create_publisher<people_msgs::msg::People>("people", 1);
   }
 }
 
@@ -281,8 +283,9 @@ void BTnode::computeAgentsService(
     publish_agents_tf(t, ro, ag);
   if (pub_forces_)
     publish_agents_forces(t, ag);
-  if (pub_agent_states_)
-    publish_agent_states(t, ag);
+  // if (pub_agent_states_)
+  publish_agent_states(t, ag);
+  publish_robot_state(t, ro);
   if (pub_people_)
     publish_people(t, ag);
 
@@ -339,8 +342,9 @@ void BTnode::moveAgentService(
     publish_agents_tf(t, ro, ag);
   if (pub_forces_)
     publish_agents_forces(t, ag);
-  if (pub_agent_states_)
-    publish_agent_states(t, ag);
+  // if (pub_agent_states_)
+  publish_agent_states(t, ag);
+  publish_robot_state(t, ro);
   if (pub_people_)
     publish_people(t, ag);
 
@@ -427,7 +431,13 @@ void BTnode::publish_agents_tf(rclcpp::Time t,
 void BTnode::publish_agent_states(
     rclcpp::Time t, const hunav_msgs::msg::Agents::SharedPtr msg) {
 
-  state_publisher_->publish(*msg);
+  human_state_publisher_->publish(*msg);
+}
+
+void BTnode::publish_robot_state(rclcpp::Time t,
+                                 const hunav_msgs::msg::Agent::SharedPtr msg) {
+
+  robot_state_publisher_->publish(*msg);
 }
 
 void BTnode::publish_people(rclcpp::Time t,
