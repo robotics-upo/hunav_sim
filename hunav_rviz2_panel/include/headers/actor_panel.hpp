@@ -26,18 +26,22 @@
 
 #include <rviz_common/message_filter_display.hpp>
 
+#include <tf2/LinearMath/Quaternion.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+
 class QLineEdit;
 
 namespace hunav_rviz2_panel
 {
 
-class ActorPanel: public rviz_common::Panel, public rclcpp::Node/*public rviz_common::MessageFilterDisplay<geometry_msgs::msg::PointStamped>*/
+class ActorPanel: public rviz_common::Panel, public rclcpp::Node
 {
 
 Q_OBJECT
 public:
 
   ActorPanel( QWidget* parent = 0 );
+  ~ActorPanel();
 
   virtual void load(const rviz_common::Config& config );
   virtual void save(rviz_common::Config config ) const;
@@ -51,14 +55,14 @@ protected Q_SLOTS:
   void addActor();
   void exitWindow();
   void updateTopic();
-  void topic_callback(const geometry_msgs::msg::PointStamped::SharedPtr msg);
   int processMouseEvent(rviz_common::ViewportMouseEvent &event);
   void onInitialPose(double x, double y, double theta, QString frame);
   void onNewGoal(double x, double y, double theta, QString frame);
-  void getCoordinates();
+  void getNewGoal();
   void closeGoalsWindow();
   void setInitialPose();
-
+  void closeInitialPoseWindow();
+  int checkComboBox();
 
 public:
 
@@ -86,24 +90,42 @@ public:
   QWidget *window = nullptr;
   QWidget *window1 = nullptr;
   QWidget *window2 = nullptr;
+  QComboBox *behavior_combobox;
   
   bool first_actor = true;
   int num_actors;
   int iterate_actors = 1;
-  int num_coordinates = 0;
+  int goals_number = 1;
+  int marker_id = 0;
+
+  QObject *initial_pose_connection;
+  QObject *goals_connection;
 
   geometry_msgs::msg::PoseStamped initial_pose;
   std::vector<geometry_msgs::msg::PoseStamped> poses;
   geometry_msgs::msg::PoseStamped pose;
+  geometry_msgs::msg::PoseStamped oldPose;
+  geometry_msgs::msg::PoseStamped stored_pose;
+  bool first_cube = true;
 
-  rclcpp::Subscription<geometry_msgs::msg::PointStamped>::SharedPtr subscription_;
-  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr wp_navigation_markers_pub_;
-  rclcpp::Node::SharedPtr g_node = nullptr;
+  
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr initial_pose_publisher;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr goals_publisher;
   
   rclcpp::Node::SharedPtr client_node_;
 
-  std::string flag_resource;
+  //std::unique_ptr<visualization_msgs::msg::MarkerArray> initial_pose_marker_array;
+  //std::unique_ptr<visualization_msgs::msg::MarkerArray> initial_pose_marker_array = std::make_unique<visualization_msgs::msg::MarkerArray>();
+  std::unique_ptr<visualization_msgs::msg::MarkerArray> marker_array = std::make_unique<visualization_msgs::msg::MarkerArray>();
 
+  QMetaObject::Connection* conn_delete = new QMetaObject::Connection();
+
+  std::vector<double> rgb{255,0};
+  double red;
+  double green;
+  double blue;
+
+  
 };
 
 }

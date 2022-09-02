@@ -65,6 +65,7 @@ set(dependencies
   rviz_rendering
   std_msgs
   tf2_geometry_msgs
+  visualization_msgs
 )
 
 ament_target_dependencies(${library_name}
@@ -102,6 +103,14 @@ install(
 install(
   DIRECTORY include/
   DESTINATION include/
+)
+
+install(DIRECTORY launch/
+   DESTINATION share/${PROJECT_NAME}/launch
+)
+
+install(DIRECTORY maps/
+   DESTINATION share/${PROJECT_NAME}/maps
 )
 
 if(BUILD_TESTING)

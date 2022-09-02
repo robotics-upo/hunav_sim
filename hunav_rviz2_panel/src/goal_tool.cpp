@@ -23,7 +23,7 @@ GoalTool::~GoalTool()
 void GoalTool::onInitialize()
 {
   PoseTool::onInitialize();
-  setName("ActorCoordinates");
+  setName("HunavGoals");
   setIcon(rviz_common::loadPixmap("package://rviz_default_plugins/icons/classes/SetGoal.png"));
 }
 

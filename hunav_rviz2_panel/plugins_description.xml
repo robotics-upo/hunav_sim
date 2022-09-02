@@ -1,12 +1,12 @@
 <library path="hunav_rviz2_panel">
   
-  <class name="hunav_rviz2_panel/ActorCoordinates"
+  <class name="hunav_rviz2_panel/HunavGoals"
          type="hunav_rviz2_panel::GoalTool"
          base_class_type="rviz_common::Tool">
     <description>The HuNavSim rviz tool</description>
   </class>
   
-  <class name="hunav_rviz2_panel/ActorPanel"
+  <class name="hunav_rviz2_panel/HunavPanel"
          type="hunav_rviz2_panel::ActorPanel"
          base_class_type="rviz_common::Panel">
     <description>The HuNavSim rviz panel.</description>
