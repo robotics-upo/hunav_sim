@@ -15,8 +15,8 @@ A ROS2 python package to compute different navigation metrics about the simulati
 
 This package subscribes to a set of topic published by the Hunav Agent Manager:
 
-    - ```/human_states``` this topic publishes messages of type *hunav_msgs/msg/Agents* with the status of the human agents for each time step.
-    - ```/robot_states``` this topic publishes messages of type *hunav_msgs/msg/Agent* with the status of the robot for each time step.
+* ```/human_states``` this topic publishes messages of type *hunav_msgs/msg/Agents* with the status of the human agents for each time step.
+* ```/robot_states``` this topic publishes messages of type *hunav_msgs/msg/Agent* with the status of the robot for each time step.
     
 This information is stored and then is employed to compute a set of metrics related to the social robot navigation. 
 
