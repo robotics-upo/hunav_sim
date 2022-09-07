@@ -2,7 +2,7 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>hunav_sim</name>
-  <version>1.0.1</version>
+  <version>1.0.0</version>
   <description>
     A set of ROS2 packages for the simulation of human pedestrians
   </description>
@@ -15,8 +15,7 @@
   <exec_depend>hunav_msgs</exec_depend>
   <exec_depend>hunav_agent_manager</exec_depend>
   <exec_depend>hunav_rviz2_panel</exec_depend>
-  <!--<exec_depend>human_nav_behavior_trees</exec_depend>
-  <exec_depend>human_nav_actions</exec_depend>-->
+  <exec_depend>hunav_evaluator</exec_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

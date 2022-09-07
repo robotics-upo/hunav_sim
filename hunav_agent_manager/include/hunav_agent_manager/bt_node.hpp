@@ -162,16 +162,6 @@ protected:
   rclcpp::Service<hunav_msgs::srv::ComputeAgent>::SharedPtr agent_srv_;
   rclcpp::Service<hunav_msgs::srv::MoveAgent>::SharedPtr move_agent_srv_;
 
-  // void agentsCallback(const hunav_msgs::msg::Agents &msg);
-  // void agentRobotCallback(const hunav_msgs::msg::Agent &msg);
-
-  // rclcpp::Subscription<hunav_msgs::msg::Agents>::SharedPtr agents_sub_;
-  // rclcpp::Subscription<hunav_msgs::msg::Agent>::SharedPtr
-  // agent_robot_sub_;
-  // rclcpp::Publisher<hunav_msgs::msg::Agent>::SharedPtr agent_pub_;
-  // std::vector<rclcpp::Publisher<hunav_msgs::msg::Agent>::SharedPtr>
-  //    publishers_;
-
   bool initialized_;
   BTfunctions btfunc_;
   std::string pkg_shared_tree_dir_;
@@ -183,7 +173,6 @@ protected:
   // node parameters
   bool pub_tf_;
   bool pub_forces_;
-  // bool pub_agent_states_;
   bool pub_people_;
 
   // BT::Tree tree_;
