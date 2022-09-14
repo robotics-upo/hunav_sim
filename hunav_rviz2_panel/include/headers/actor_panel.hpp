@@ -63,6 +63,10 @@ protected Q_SLOTS:
   void setInitialPose();
   void closeInitialPoseWindow();
   int checkComboBox();
+  int checkComboBoxSkin();
+  void parseYamlFile();
+  void randomRGB();
+  visualization_msgs::msg::Marker createArrowMarker(double point1_x, double point1_y, double point2_x, double point2_y, double ids);
 
 public:
 
@@ -73,6 +77,7 @@ public:
   QLineEdit* coordinates;
   QLineEdit* coordinates1;
   QLineEdit* coordinates2;
+  QLineEdit* num_goals_set;
 
   std::vector<YAML::Node> actors_info;
   std::vector<std::string> names;
@@ -91,12 +96,14 @@ public:
   QWidget *window1 = nullptr;
   QWidget *window2 = nullptr;
   QComboBox *behavior_combobox;
+  QComboBox *skin_combobox;
   
   bool first_actor = true;
   int num_actors;
   int iterate_actors = 1;
   int goals_number = 1;
   int marker_id = 0;
+  int agent_count = 1;
 
   QObject *initial_pose_connection;
   QObject *goals_connection;
@@ -125,7 +132,12 @@ public:
   double green;
   double blue;
 
+  QPushButton *save_button;
+  QPushButton *goals_button;
+
+  std::string pkg_shared_tree_dir_;
   
+  QVBoxLayout *topic_layout_init_pose;
 };
 
 }
