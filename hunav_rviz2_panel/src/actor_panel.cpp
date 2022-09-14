@@ -64,7 +64,7 @@ namespace hunav_rviz2_panel
     topic_button->addWidget(actor_button);
 
     connect(actor_button, SIGNAL(clicked()), this, SLOT(addActor()));
-    connect(open_button, SIGNAL(clicked()), this, SLOT(parseYamlFile()));
+    connect(open_button, SIGNAL(clicked()), this, SLOT(parseYaml()));
 
     QHBoxLayout *layout = new QHBoxLayout;
     layout->addLayout(topic_button);
@@ -555,12 +555,16 @@ namespace hunav_rviz2_panel
         hunav_loader["hunav_loader"]["ros__parameters"][names[names_counter]] = *i;
         names_counter++;
       }
+
+      RCLCPP_INFO(this->get_logger(), "Generating agents.yaml");
         
       //Writes hunav_loader node to file
       file << hunav_loader;
 
       // Close file
       file.close();
+
+      RCLCPP_INFO(this->get_logger(), "Agents.yaml generated");
 
     }
     else{
@@ -579,20 +583,19 @@ namespace hunav_rviz2_panel
 
   }
 
-  void ActorPanel::parseYamlFile(){
-
+  void ActorPanel::parseYaml(){
     try {
-      pkg_shared_tree_dir_ =
-          ament_index_cpp::get_package_share_directory("hunav_agent_manager");
+        pkg_shared_tree_dir_ =
+            ament_index_cpp::get_package_share_directory("hunav_agent_manager");
 
-    } catch (const char* msg) {
-      RCLCPP_ERROR(this->get_logger(),
-                  "Package hunav_agent_manager not found in dir: %s!!!",
-                  pkg_shared_tree_dir_.c_str());
-    }
-    pkg_shared_tree_dir_ = pkg_shared_tree_dir_ + "/config/agents.yaml";
+      } catch (const char* msg) {
+        RCLCPP_ERROR(this->get_logger(),
+                    "Package hunav_agent_manager not found in dir: %s!!!",
+                    pkg_shared_tree_dir_.c_str());
+      }
+      pkg_shared_tree_dir_ = pkg_shared_tree_dir_ + "/config/agents.yaml";
 
-    auto marker_array = std::make_unique<visualization_msgs::msg::MarkerArray>();
+      auto marker_array = std::make_unique<visualization_msgs::msg::MarkerArray>();
     
     YAML::Node yaml_file = YAML::LoadFile(pkg_shared_tree_dir_);
     std::vector<std::string> agents_vector;
@@ -651,9 +654,6 @@ namespace hunav_rviz2_panel
       for(int j = 0; j < static_cast<int>(current_goals.size()); j++){
         current_goals_vector.push_back(current_agent["goals"][j].as<std::string>());
       }
-
-      std::ofstream file;
-      file.open("/home/roberto/Desktop/prueba.txt");
 
       for(int k = 0; k < static_cast<int>(current_goals_vector.size()); k++){
 
@@ -723,6 +723,7 @@ namespace hunav_rviz2_panel
     }
 
     initial_pose_publisher->publish(std::move(marker_array));
+
     
   }
 

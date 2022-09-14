@@ -64,7 +64,7 @@ protected Q_SLOTS:
   void closeInitialPoseWindow();
   int checkComboBox();
   int checkComboBoxSkin();
-  void parseYamlFile();
+  void parseYaml();
   void randomRGB();
   visualization_msgs::msg::Marker createArrowMarker(double point1_x, double point1_y, double point2_x, double point2_y, double ids);
 
