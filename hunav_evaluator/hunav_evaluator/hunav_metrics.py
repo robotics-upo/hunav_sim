@@ -114,7 +114,6 @@ def cumulative_heading_changes(agents, robot):
         chc = chc + (robot[i].yaw - robot[i+1].yaw)
     return chc
 
-# I don't know if initial position is needed, I think it is.
 def avg_closest_person(agents, robot):
     avg_closest = 0
     robot_goals_num = len(robot[0].goals)
@@ -183,7 +182,7 @@ def personal_space_intrusions(agents, robot):
             if indicator == 1:
                 space_intrusions = space_intrusions + 1
 
-    n = 1/(len(robot[0].goals))
+    n = 1/(len(robot[0].goals)) # + 1 in case of initial position
     space_intrusions = space_intrusions * n
     percentage = space_intrusions * 100
         
@@ -205,7 +204,7 @@ def interaction_space_intrusions(agents, robot):
         if indicator == 1:
             space_intrusions = space_intrusions + 1
 
-    n = 1/(len(robot[0].goals))
+    n = 1/(len(robot[0].goals)) # +1 in case of initial position
     space_intrusions = space_intrusions * n
     percentage = space_intrusions * 100
         
