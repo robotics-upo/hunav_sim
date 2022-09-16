@@ -593,9 +593,9 @@ namespace hunav_rviz2_panel
                     "Package hunav_agent_manager not found in dir: %s!!!",
                     pkg_shared_tree_dir_.c_str());
       }
-      pkg_shared_tree_dir_ = pkg_shared_tree_dir_ + "/config/agents.yaml";
+    pkg_shared_tree_dir_ = pkg_shared_tree_dir_ + "/config/agents.yaml";
 
-      auto marker_array = std::make_unique<visualization_msgs::msg::MarkerArray>();
+    auto marker_array = std::make_unique<visualization_msgs::msg::MarkerArray>();
     
     YAML::Node yaml_file = YAML::LoadFile(pkg_shared_tree_dir_);
     std::vector<std::string> agents_vector;
@@ -666,7 +666,6 @@ namespace hunav_rviz2_panel
         marker.type = shape;
         marker.action = visualization_msgs::msg::Marker::ADD;
 
-        //file << current_agent[current_goals_vector[k]]["x"];
         marker.pose.position.x = current_agent[current_goals_vector[k]]["x"].as<double>();
         marker.pose.position.y = current_agent[current_goals_vector[k]]["y"].as<double>();
         marker.pose.position.z = 0;//current_agent["init_pose"]["z"].as<double>();
