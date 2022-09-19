@@ -91,6 +91,7 @@ def indicator_function(norm, k):
     else:
         return 0
 
+# Robot does not have header and stamp attributes
 def total_time(agents, robot):
     secs = (robot[len(robot)-1].header.stamp - robot[0].header.stamp).sec
     return secs
@@ -110,8 +111,8 @@ def robot_path_length(agents, robot):
 
 def cumulative_heading_changes(agents, robot):
     chc = 0
-    for i in range(len(robot) - 1):
-        chc = chc + (robot[i].yaw - robot[i+1].yaw)
+    for i in range(len(robot)):
+        chc = chc + (robot[i].yaw)#- robot[i+1].yaw)
     return chc
 
 def avg_closest_person(agents, robot):
@@ -124,7 +125,8 @@ def avg_closest_person(agents, robot):
 
     for i in range(robot_goals_num):
         agent = closest_person(agents, robot[0], i)
-        avg_closest = avg_closest + euclidean_distance(robot[0].goals[i], agent.goals[i])
+        if i < len(agent.goals):
+            avg_closest = avg_closest + euclidean_distance(robot[0].goals[i], agent.goals[i])
     
     n = 1/robot_goals_num  # +1 in case of initial position
 
@@ -141,7 +143,8 @@ def min_distance_to_people(agents, robot):
 
     for i in range(len(robot[0].goals)):
         agent = closest_person(agents, robot[0], i)
-        min_distance.append(euclidean_distance(robot[0].goals[i], agent.goals[i]))
+        if i < len(agent.goals):
+            min_distance.append(euclidean_distance(robot[0].goals[i], agent.goals[i]))
     
     return min(min_distance)
 
@@ -155,8 +158,8 @@ def max_distance_to_people(agents, robot):
 
     for i in range(len(robot[0].goals)):
         agent = closest_person(agents, robot[0], i)
-        max_distance.append(euclidean_distance(robot[0].goals[i], agent.goals[i]))
-        current_agent = current_agent + 1
+        if i < len(agent.goals):
+            max_distance.append(euclidean_distance(robot[0].goals[i], agent.goals[i]))
     
     return max(max_distance)
 
@@ -186,7 +189,7 @@ def personal_space_intrusions(agents, robot):
     space_intrusions = space_intrusions * n
     percentage = space_intrusions * 100
         
-    return percentage
+    return percentage, k
 
 def interaction_space_intrusions(agents, robot):
     # Choose k (intimate, personal, social, public)
@@ -213,7 +216,44 @@ def interaction_space_intrusions(agents, robot):
 # SEAN 2.0: Formalizing and Generating Social Situations for Robot Navigation
 # Nathan Tsoi, Alec Xiang, Peter Yu, Samuel S. Sohn, Greg Schwartz, Subashri Ramesh, Mohamed Hussein, Anjali W. Gupta, Mubbasir Kapadia, and Marynel Vázquez
 
+def robot_on_person_collision(agents, robot):
 
+    collision_count = 0
+    
+    for i in range(len(robot)):
+        # If initial pose needed:
+        agent = closest_initial_pose(agents, robot[i])
+        if euclidean_distance(robot[i].position, agent.position) == 0:
+            collision_count = collision_count + 1
+
+        for j in range(len(robot[i].goals)):
+            agent = closest_person(agents, robot[i], j)
+            if j < len(agent.goals):
+                if euclidean_distance(robot[i].goals[j], agent.goals[j]) == 0:
+                    collision_count = collision_count + 1
+    
+    return collision_count
+
+
+def person_on_robot_collision(agents, robot):
+    
+    collision_dict = dict()
+    collision = 0
+
+    for i in range(len(agents)):
+        # If initial pose needed:
+        if euclidean_distance(robot[0].position, agents[i].position) == 0:
+            collision = collision + 1
+            collision_dict[agents[i].id] = collision
+
+        for j in range(len(agents[i].goals)):
+            if j < len(robot[0].goals):
+                if euclidean_distance(robot[0].goals[j], agents[i].goals[j]) == 0:
+                    collision = collision + 1
+                    collision_dict[agents[i].id] = collision
+        collision = 0
+
+    return collision_dict
 
 def main():
 
@@ -223,30 +263,34 @@ def main():
     robot.behavior_state = Agent.BEH_NO_ACTIVE
     robot.skin = 1
     robot.behavior = 3
-    robot.group_id = -1
+    robot.group_id = 1
     robot.desired_velocity = 1.5
     robot.radius = 0.4
+    robot.yaw = 3.2
+
     robot.position.position.x = 0.0
     robot.position.position.y = 0.0
     robot.position.position.z = 1.250000
-    pose = Pose()
-    pose.position.x = 1.0
-    pose.position.y = 1.0
-    pose.position.z = 1.250000
     
-    pose1 = Pose()
-    pose1.position.x = 2.0
-    pose1.position.y = 2.0
-    pose1.position.z = 1.250000
+    pose_robot = Pose()
+    pose_robot.position.x = 1.0
+    pose_robot.position.y = 1.0
+    pose_robot.position.z = 1.250000
 
-    pose7 = Pose()
-    pose7.position.x = 5.0
-    pose7.position.y = 5.0
-    pose7.position.z = 1.250000
+    pose_robot_1 = Pose()
+    pose_robot_1.position.x = 2.0
+    pose_robot_1.position.y = 2.0
+    pose_robot_1.position.z = 1.250000
 
-    robot.goals.append(pose)
-    robot.goals.append(pose1)
-    robot.goals.append(pose7)
+    pose_robot_2 = Pose()
+    pose_robot_2.position.x = 3.5
+    pose_robot_2.position.y = 3.5
+    pose_robot_2.position.z = 1.250000
+
+    robot.goals.append(pose_robot)
+    robot.goals.append(pose_robot_1)
+    robot.goals.append(pose_robot_2)
+
 
     agent = Agent()
     agent.id = 0
@@ -257,28 +301,18 @@ def main():
     agent.group_id = -1
     agent.desired_velocity = 1.5
     agent.radius = 0.4
-    agent.position.position.x = -2.819170
-    agent.position.position.y = 1.610966
+    agent.yaw = 2.2
+    agent.position.position.x = 0.0
+    agent.position.position.y = 0.0
     agent.position.position.z = 1.250000
 
-    pose2 = Pose()
-    pose2.position.x = 1.141170
-    pose2.position.y = 1.010966
-    pose2.position.z = 1.250000
+    pose_agent = Pose()
+    pose_agent.position.x = 5.6
+    pose_agent.position.y = 3.1
+    pose_agent.position.z = 1.250000
     
-    pose3 = Pose()
-    pose3.position.x = 2.132697
-    pose3.position.y = 2.040503
-    pose3.position.z = 1.250000
 
-    pose6 = Pose()
-    pose6.position.x = 7.3455
-    pose6.position.y = 6.4566
-    pose6.position.z = 1.25000
-
-    agent.goals.append(pose2)
-    agent.goals.append(pose3)
-    agent.goals.append(pose6)
+    agent.goals.append(pose_agent)
 
     agent1 = Agent()
     agent1.id = 1
@@ -289,22 +323,29 @@ def main():
     agent1.group_id = -1
     agent1.desired_velocity = 1.5
     agent1.radius = 0.4
-    agent1.position.position.x = -5.441170
-    agent1.position.position.y = 3.110966
+    agent1.yaw = 1.8
+    agent1.position.position.x = 0.0
+    agent1.position.position.y = 0.0
     agent1.position.position.z = 1.25000012
 
-    pose4 = Pose()
-    pose4.position.x = 1.1
-    pose4.position.y = 1.0
-    pose4.position.z = 1.250000
-    
-    pose5 = Pose()
-    pose5.position.x = 2.332697
-    pose5.position.y = 2.840503
-    pose5.position.z = 1.250000
+    pose_agent_1 = Pose()
+    pose_agent_1.position.x = 3.0
+    pose_agent_1.position.y = 4.0
+    pose_agent_1.position.z = 1.250000
 
-    agent1.goals.append(pose4)
-    agent1.goals.append(pose5)
+    pose_agent_1_1 = Pose()
+    pose_agent_1_1.position.x = 2.0
+    pose_agent_1_1.position.y = 2.4
+    pose_agent_1_1.position.z = 1.250000
+
+    pose_agent_1_2 = Pose()
+    pose_agent_1_2.position.x = 3.5
+    pose_agent_1_2.position.y = 3.5
+    pose_agent_1_2.position.z = 1.250000
+
+    agent1.goals.append(pose_agent_1)
+    agent1.goals.append(pose_agent_1_1)
+    agent1.goals.append(pose_agent_1_2)
 
     robots = list()
     robots.append(robot)
@@ -313,16 +354,24 @@ def main():
     agents.append(agent)
     agents.append(agent1)
 
-    for i in range(len(robots[0].goals)):
-        print("\nClosest current agent: " + str(closest_person(agents, robots[0], i)))
-
-    print("Robot path length: " + str(robot_path_length(agents, robots)))
+    # Metrics from Teaching Robot Navigation Behaviors to Optimal RRT Plannersx
+    print("\nMetrics from # Teaching Robot Navigation Behaviors to Optimal RRT Planners\n")
+    print("\nRobot path length: " + str(robot_path_length(agents, robots)))
     print("\nCumulative heading changes: " + str(cumulative_heading_changes(agents, robots)))
     print("\nAverage distance to closest person: " + str(avg_closest_person(agents, robots)))
     print("\nMinimun distance to closest person: " + str(min_distance_to_people(agents, robots)))
     print("\nMaximun distance to people: " + str(max_distance_to_people(agents, robots)))
-    print("\nPersonal space intrusions: " + str(personal_space_intrusions(agents, robots)) + "%")
+    p_space = personal_space_intrusions(agents, robots)
+    print("\nPersonal space intrusions: " + str(p_space[0]) + "%" + " k: " + str(p_space[1]))
     print("\nInteracion space intrusions: " + str(interaction_space_intrusions(agents, robots)) + "%")
+
+    # Metrics from SEAN 2.0
+    print("\n\nMetrics from # SEAN 2.0: Formalizing and Generating Social Situations for Robot Navigation\n")
+    print("\nRobot on Person Collision: " + str(robot_on_person_collision(agents, robots)))
+    print("\nPerson on Robot Collision:")
+    person_collision = person_on_robot_collision(agents, robots)
+    for key in person_collision:
+        print("\n\tAgent: " + str(key) + " --> Collisions count: " + str(person_collision[key]))
 
 if __name__ == "__main__":
     main()
