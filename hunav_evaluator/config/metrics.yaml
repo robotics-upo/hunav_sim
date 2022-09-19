@@ -1,0 +1,40 @@
+/hunav_evaluator_node:
+  ros__parameters:
+
+    # Specify the frecuency of data capture (Hz).
+    # value 0.0 indicates that data is captured as the same 
+    # freq than data is published.
+    frequency: 1.0
+
+    # optional tag that can be used to identify among 
+    # different scenarios or goal trajectories
+    experiment_tag: '1'
+
+    # A .txt file will be created with this name (indicate the full path).
+    # If the file already exists, the file will be open
+    # and a new line of results will be added at the end
+    # of the file. 
+    result_file: 'test.txt'
+
+    # the list of metrics to be computed.
+    # Just comment/uncomment the desired ones.
+    metrics: 
+      - time_to_reach_goal
+      - path_length
+      - cumulative_heading_changes
+
+      #- avg_distance_to_closest_person
+      #- minimum_distance_to_people
+      #- intimate_space_intrusions
+      #- personal_space_intrusions
+      #- social_space_intrusions
+
+      # N. Tsoi et al., "SEAN 2.0: Formalizing and Generating Social Situations
+      # for Robot Navigation," in IEEE Robotics and Automation Letters, vol. 7,
+      # no. 4, pp. 11047-11054, Oct. 2022, doi: 10.1109/LRA.2022.3196783.
+
+      # metrics from:
+      # Pérez-Higueras, N., Caballero, F. & Merino, L. 
+      # Teaching Robot Navigation Behaviors to Optimal RRT Planners. 
+      # Int.J. of Soc. Robotics 10, 235–249 (2018). https://doi.org/10.1007/s12369-017-0448-1
+

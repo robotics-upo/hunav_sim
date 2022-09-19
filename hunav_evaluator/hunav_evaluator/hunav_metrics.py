@@ -1,4 +1,6 @@
 from importlib.resources import path
+from sqlite3 import Time
+from time import time
 from tokenize import group
 import numpy as np
 import math
@@ -92,27 +94,44 @@ def indicator_function(norm, k):
         return 0
 
 def total_time(agents, robot):
-    secs = (robot[len(robot)-1].header.stamp - robot[0].header.stamp).sec
+    t2 = rclpy.time.Time.from_msg(agents[len(agents)-1].header.stamp)
+    t1 = rclpy.time.Time.from_msg(agents[0].header.stamp)
+    secs = (t2 - t1).to_msg().sec #.nanoseconds() #/1e9
+    print('time_to_reach_goal computed: %.2f secs' % secs)
     return secs
 
 def robot_path_length(agents, robot):
     path_length = 0
-    goals_n = 0
+    #goals_n = 0
 
-    for i in range(len(robot)):
-        
-        path_length = path_length + math.sqrt(abs((robot[i].position.position.x - robot[i].goals[goals_n].position.x)**2 + (robot[i].position.position.y - robot[i].goals[goals_n].position.y)**2))
-        
-        for j in range(len(robot[i].goals) - 1):    
-            path_length = path_length + math.sqrt(abs((robot[i].goals[j].position.x - robot[i].goals[j+1].position.x)**2 + (robot[i].goals[j].position.y - robot[i].goals[j+1].position.y)**2))
-            
+    for i in range(len(robot)-1):
+        path_length += math.sqrt(
+            (robot[i+1].position.position.x - robot[i].position.position.x)**2 
+            + (robot[i+1].position.position.y - robot[i].position.position.y)**2)
+        # for j in range(len(robot[i].goals) - 1):    
+        #     path_length = path_length + math.sqrt(abs((robot[i].goals[j].position.x - robot[i].goals[j+1].position.x)**2 + (robot[i].goals[j].position.y - robot[i].goals[j+1].position.y)**2))
+    print('path_length computed: %.2f m' % path_length)
     return path_length
+
 
 def cumulative_heading_changes(agents, robot):
     chc = 0
     for i in range(len(robot) - 1):
-        chc = chc + (robot[i].yaw - robot[i+1].yaw)
+        norm = normalize_angle(robot[i].yaw - robot[i+1].yaw)
+        if norm < 0.0:
+            norm *= -1
+        chc += norm
+
+    print('cumulative_heading_changes: %.2f rads' % chc)
     return chc
+
+
+def normalize_angle(ang):
+    while (ang <= -math.pi): 
+      ang += 2 * math.pi
+    while (ang > math.pi):
+      ang -= 2 * math.pi
+    return ang
 
 def avg_closest_person(agents, robot):
     avg_closest = 0
