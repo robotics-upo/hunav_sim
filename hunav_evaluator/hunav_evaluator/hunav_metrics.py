@@ -153,7 +153,7 @@ def avg_closest_person(agents, robot):
                 min_dist = d
         if(len(agents[i].agents)>0):
             avg_dist += min_dist
-    return avg_dist
+    return avg_dist/len(robot)
 
 
 
