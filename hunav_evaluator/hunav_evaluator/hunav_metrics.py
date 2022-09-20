@@ -126,23 +126,36 @@ def normalize_angle(ang):
     return ang
 
 def avg_closest_person(agents, robot):
-    avg_closest = 0
-    robot_goals_num = len(robot[0].goals)
+    # avg_closest = 0
+    # robot_goals_num = len(robot[0].goals)
 
-    # If initial_pose is needed add:
-    #agent = closest_initial_pose(agents, robot[0])
-    #avg_closest = avg_closest + euclidean_distance(robot[0].position, agent.position)
+    # # If initial_pose is needed add:
+    # #agent = closest_initial_pose(agents, robot[0])
+    # #avg_closest = avg_closest + euclidean_distance(robot[0].position, agent.position)
 
-    for i in range(robot_goals_num):
-        agent = closest_person(agents, robot[0], i)
-        if i < len(agent.goals):
-            avg_closest = avg_closest + euclidean_distance(robot[0].goals[i], agent.goals[i])
+    # for i in range(robot_goals_num):
+    #     agent = closest_person(agents, robot[0], i)
+    #     if i < len(agent.goals):
+    #         avg_closest = avg_closest + euclidean_distance(robot[0].goals[i], agent.goals[i])
     
-    n = 1/robot_goals_num  # +1 in case of initial position
+    # n = 1/robot_goals_num  # +1 in case of initial position
 
-    avg_closest = avg_closest * n
+    # avg_closest = avg_closest * n
 
-    return avg_closest
+    # return avg_closest
+
+    avg_dist = 0
+    for i in range(len(robot)):
+        min_dist = 10000; 
+        for agent in agents[i].agents:
+            d = euclidean_distance(robot[i], agent)
+            if(d < min_dist):
+                min_dist = d
+        if(len(agents[i].agents)>0):
+            avg_dist += min_dist
+    return avg_dist
+
+
 
 def min_distance_to_people(agents, robot):
     min_distance = list()

@@ -19,10 +19,13 @@
     # the list of metrics to be computed.
     # Just comment/uncomment the desired ones.
     metrics: 
+      # metrics from:
+      # Pérez-Higueras, N., Caballero, F. & Merino, L. 
+      # Teaching Robot Navigation Behaviors to Optimal RRT Planners. 
+      # Int.J. of Soc. Robotics 10, 235–249 (2018). https://doi.org/10.1007/s12369-017-0448-1
       - time_to_reach_goal
       - path_length
       - cumulative_heading_changes
-
       #- avg_distance_to_closest_person
       #- minimum_distance_to_people
       #- intimate_space_intrusions
@@ -33,8 +36,5 @@
       # for Robot Navigation," in IEEE Robotics and Automation Letters, vol. 7,
       # no. 4, pp. 11047-11054, Oct. 2022, doi: 10.1109/LRA.2022.3196783.
 
-      # metrics from:
-      # Pérez-Higueras, N., Caballero, F. & Merino, L. 
-      # Teaching Robot Navigation Behaviors to Optimal RRT Planners. 
-      # Int.J. of Soc. Robotics 10, 235–249 (2018). https://doi.org/10.1007/s12369-017-0448-1
+      
 
