@@ -28,7 +28,7 @@ The map that is being used is a generated map. It's stored in the maps directory
 
 Afterwards, the following will be shown:
 
-![](https://github.com/robotics-upo/hunav_sim/hunav_rviz2_panel/images/RVizPanelGlobal.png)
+![](https://github.com/robotics-upo/hunav_sim/blob/master/hunav_rviz2_panel/images/RVizPanelGlobal.png)
 
 Once it has been launched, two options are available:
 
@@ -42,7 +42,7 @@ The first option allows to open a Yaml file that has already been generated. It 
 
 The second option allows to generate human agents. Each human agent has a name, behavior, skin, initial pose and goals as can be seen in the following image:
 
-![](https://github.com/robotics-upo/hunav_sim/hunav_rviz2_panel/images/HumanAgentwindow.png)
+![](https://github.com/robotics-upo/hunav_sim/blob/master/hunav_rviz2_panel/images/HumanAgentWindow.png)
 
 Human agent's initial pose and goals are stored by using the HuNav RViz tool. To do so, click the "Set initial pose" button, and then, from the tool's panel, select HunavGoals.
 
