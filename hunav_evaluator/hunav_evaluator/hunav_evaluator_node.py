@@ -21,11 +21,15 @@ class HunavEvaluatorNode(Node):
         self.robot_list = []
         self.robot_goal = None
         self.metrics_to_compute = {}
-        self.metrics = {
+    
+        """self.metrics = {
             'time_to_reach_goal': hunav_metrics.total_time,
             'path_length': hunav_metrics.robot_path_length,
-            'cumulative_heading_changes': hunav_metrics.cumulative_heading_changes
-        }
+            'cumulative_heading_changes': hunav_metrics.cumulative_heading_changes,
+            'avg_distance_to_closest_person': hunav_metrics.avg_closest_person,
+            'minimum_distance_to_people': hunav_metrics.minimum_distance_to_people,
+            'personal_space_intrusions': hunav_metrics.personal_space_intrusions
+        }"""
 
         # Two modes:
         # 1- The user start/stop the recording through the
@@ -166,7 +170,7 @@ class HunavEvaluatorNode(Node):
         self.get_logger().info("Hunav evaluator. Collected %i messages of agents and %i of robot" % (agents_size, robot_size))
         self.get_logger().info("Computing metrics...")
         for m in self.metrics_to_compute.keys():
-            self.metrics_to_compute[m] = self.metrics[m](self.agents_list, self.robot_list)
+            self.metrics_to_compute[m] = hunav_metrics.metrics[m](self.agents_list, self.robot_list)
         print('Metrics computed:')
         print(self.metrics_to_compute)
 

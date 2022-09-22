@@ -26,11 +26,14 @@
       - time_to_reach_goal
       - path_length
       - cumulative_heading_changes
-      #- avg_distance_to_closest_person
-      #- minimum_distance_to_people
-      #- intimate_space_intrusions
-      #- personal_space_intrusions
+      - avg_distance_to_closest_person
+      - minimum_distance_to_people
+      - intimate_space_intrusions
+      - personal_space_intrusions
       #- social_space_intrusions
+      - robot_on_person_collision
+      - person_on_robot_collision
+      - time_not_moving
 
       # N. Tsoi et al., "SEAN 2.0: Formalizing and Generating Social Situations
       # for Robot Navigation," in IEEE Robotics and Automation Letters, vol. 7,

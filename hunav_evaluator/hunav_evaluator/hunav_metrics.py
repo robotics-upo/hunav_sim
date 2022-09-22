@@ -8,7 +8,6 @@ from hunav_msgs.msg import Agents
 from hunav_msgs.msg import Agent
 from geometry_msgs.msg import Pose
 
-
 # Teaching Robot Navigation Behaviors to Optimal RRT Planners
 # Noé Pérez-Higueras, Fernando Caballero & Luis Merino
 
@@ -66,7 +65,6 @@ def indicator_function(norm, k):
     else:
         return 0
 
-# Robot does not have header and stamp attributes
 def total_time(agents, robot):
     t2 = rclpy.time.Time.from_msg(agents[len(agents)-1].header.stamp)
     t1 = rclpy.time.Time.from_msg(agents[0].header.stamp)
@@ -77,7 +75,7 @@ def total_time(agents, robot):
 def robot_path_length(agents, robot):
     path_length = 0
     for i in range(len(robot)-1):
-        path_length += euclidean_distance(robot[i+1].position, robot[i].position)
+        path_length += euclidean_distance(robot[i+1].position, robot[i].position)# - robot[i+1].radius - robot[i].radius
     print('\nPath_length computed: %.2f m' % path_length)
     return path_length
 
@@ -104,7 +102,7 @@ def avg_closest_person(agents, robot):
     for i in range(len(robot)):
         min_dist = 10000 
         for agent in agents[i].agents:
-            d = euclidean_distance(robot[i].position, agent.position)
+            d = euclidean_distance(robot[i].position, agent.position) - robot[i].radius - agent.radius
             if(d < min_dist):
                 min_dist = d
         if(len(agents[i].agents)>0):
@@ -119,7 +117,7 @@ def minimum_distance_to_people(agents, robot):
 
     for i in range(len(robot)):
         for agent in agents[i].agents:
-            min_distance.append(euclidean_distance(robot[i].position, agent.position))
+            min_distance.append(euclidean_distance(robot[i].position, agent.position) - robot[i].radius - agent.radius) 
     
     min_dist = min(min_distance)
     
@@ -132,7 +130,7 @@ def maximum_distance_to_people(agents, robot):
 
     for i in range(len(robot)):
         for agent in agents[i].agents:
-            max_distance.append(euclidean_distance(robot[i].position, agent.position))
+            max_distance.append(euclidean_distance(robot[i].position, agent.position) - robot[i].radius - agent.radius)
     
     max_dist = max(max_distance)
     
@@ -142,21 +140,23 @@ def maximum_distance_to_people(agents, robot):
 
 def personal_space_intrusions(agents, robot):
     # Choose k (intimate, personal, social, public)
-    k = "social"
+    k = "intimate"
     space_intrusions = 0
 
     for i in range(len(robot)):
         min_dist = 10000
         
         for agent in agents[i].agents:
-            d = euclidean_distance(robot[i].position, agent.position)
+            d = euclidean_distance(robot[i].position, agent.position) - robot[i].radius - agent.radius
             if d < min_dist:
-                indicator = indicator_function(d, k)
-                if indicator == 1:
-                    space_intrusions = space_intrusions + 1
+                min_dist = d
 
-    n = 1/(len(agents[0].agents))
-    space_intrusions = space_intrusions * n
+        indicator = indicator_function(min_dist, k)
+        if indicator == 1:
+            space_intrusions += 1
+
+    n = 1/len(robot)
+    space_intrusions *= n
     percentage = space_intrusions * 100
 
     print('Personal_space_intrusions: %.2f' % percentage + "% " + "K: %s" % k)
@@ -177,12 +177,15 @@ def interaction_space_intrusions(agents, robot):
         people_group = get_group_center(agents, robot[i], i, group_id, distance)
         d = euclidean_distance(robot[i].position, people_group)
         if d < min_dist:
-            indicator = indicator_function(d, k)
+            min_dist = d
+            indicator = indicator_function(min_dist, k)
             if indicator == 1:
-                space_intrusions = space_intrusions + 1
+                space_intrusions += 1
+        
 
-    n = 1/(len(robot)) 
-    space_intrusions = space_intrusions * n
+    n = 1/len(robot)
+
+    space_intrusions *= n
     percentage = space_intrusions * 100
 
     print('Interaction_space_intrusions: %.2f' % percentage + "% " + "K: %s" % k)
@@ -192,14 +195,20 @@ def interaction_space_intrusions(agents, robot):
 # SEAN 2.0: Formalizing and Generating Social Situations for Robot Navigation
 # Nathan Tsoi, Alec Xiang, Peter Yu, Samuel S. Sohn, Greg Schwartz, Subashri Ramesh, Mohamed Hussein, Anjali W. Gupta, Mubbasir Kapadia, and Marynel Vázquez
 
+
+# The metrics Robot on Person Personal Distance Violation, Person on Robot Personal Distance Violation, Intimate Distance Violation and
+# Person on Robot Intimate Distance Violation have already been implemented in the Personal_space_intrusions function.
+# Instead of returning the number of times, it returns a percentage of distance violation.
+
 def robot_on_person_collision(agents, robot):
 
     collision_count = 0
     
     for i in range(len(robot)):
         for agent in agents[i].agents:
-            if euclidean_distance(robot[i].position, agent.position) == 0:
-                collision_count = collision_count + 1
+            d = euclidean_distance(robot[i].position, agent.position) - robot[i].radius - agent.radius
+            if d <= 0.05:
+                collision_count += 1
     
     print('Robot_on_person_collision: %i' % collision_count)
 
@@ -208,92 +217,50 @@ def robot_on_person_collision(agents, robot):
 
 def person_on_robot_collision(agents, robot):
     
-    collision_dict = dict()
     collision = 0
 
     for i in range(len(agents)):
         for agent in agents[i].agents:
             for r in robot:
-                if euclidean_distance(r.position, agent.position) == 0:
-                    collision = collision + 1
-                    collision_dict[agent.id] = collision
-            collision = 0
+                d = euclidean_distance(r.position, agent.position) - r.radius - agent.radius 
+                if d <= 0.05:
+                    collision += 1
 
-    return collision_dict
+    return collision
 
-def main():
-
-    robot = Agent()
-    robot.id = 0
-    robot.type = Agent.ROBOT
-    robot.behavior_state = Agent.BEH_NO_ACTIVE
-    robot.skin = 1
-    robot.behavior = 3
-    robot.group_id = 1
-    robot.desired_velocity = 1.5
-    robot.radius = 0.4
-    robot.yaw = 3.2
-
-    robot.position.position.x = 5.0
-    robot.position.position.y = 6.0
-    robot.position.position.z = 1.250000
+def time_not_moving(agents, robot):
     
-    agent = Agent()
-    agent.id = 0
-    agent.type = Agent.PERSON
-    agent.behavior_state = Agent.BEH_NO_ACTIVE
-    agent.skin = 1
-    agent.behavior = 3
-    agent.group_id = -1
-    agent.desired_velocity = 1.5
-    agent.radius = 0.4
-    agent.yaw = 7.0
-    agent.position.position.x = 20.0
-    agent.position.position.y = 6.0
-    agent.position.position.z = 1.250000
+    avg_time = total_time(agents, robot)/len(agents)
 
-    agent1 = Agent()
-    agent1.id = 1
-    agent1.type = Agent.PERSON
-    agent1.behavior_state = Agent.BEH_NO_ACTIVE
-    agent1.skin = 1
-    agent1.behavior = 3
-    agent1.group_id = -1
-    agent1.desired_velocity = 1.5
-    agent1.radius = 0.4
-    agent1.yaw = 1.8
-    agent1.position.position.x = 7.0
-    agent1.position.position.y = 6.0
-    agent1.position.position.z = 1.25000012
+    count = 0
+    for r in robot:
+        if(r.linear_vel < 0.01 and abs(r.angular_vel < 0.02)):
+            count=count+1
+    time_stopped = avg_time*count
+            
+    return time_stopped
 
-    robots = list()
-    robots.append(robot)
+#ToDo
+def path_irregularity(agents, robot):
+    pass
 
-    agents = Agents()
-    agents.agents.append(agent)
-    agents.agents.append(agent1)
+#ToDo
+def path_efficiency(agents, robot):
+    pass
 
-    agents_list = list()
-    agents_list.append(agents)
+metrics = {
+    'time_to_reach_goal': total_time,
+    'path_length': robot_path_length,
+    'cumulative_heading_changes': cumulative_heading_changes,
+    'avg_distance_to_closest_person': avg_closest_person,
+    'minimum_distance_to_people': minimum_distance_to_people,
+    'personal_space_intrusions': personal_space_intrusions,
+    'intimate_space_intrusions': interaction_space_intrusions,
+    'robot_on_person_collision': robot_on_person_collision,
+    'person_on_robot_collision': person_on_robot_collision,
+    'time_not_moving': time_not_moving
+}
 
-
-    #total_time(agents_list, robots)
-    robot_path_length(agents_list, robots)
-    cumulative_heading_changes(agents_list, robots)
-    avg_closest_person(agents_list, robots)
-    minimum_distance_to_people(agents_list, robots)
-    maximum_distance_to_people(agents_list, robots)
-    personal_space_intrusions(agents_list, robots)
-    interaction_space_intrusions(agents_list, robots)
-    robot_on_person_collision(agents_list, robots)
-    
-    person_collision = person_on_robot_collision(agents_list, robots)
-    print('Person_on_robot_collision:')
-    for key in person_collision:
-        print("\tAgent: " + str(key) + " --> Collisions count: " + str(person_collision[key]))
-
-if __name__ == "__main__":
-    main()
 
 # def compute_metrics(agents, robot):
 #     if(tt_enable):
@@ -302,4 +269,3 @@ if __name__ == "__main__":
 #     if(rpl_enable):
 #         length = robot_path_length(agents, robot)
 
-        

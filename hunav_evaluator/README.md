@@ -25,6 +25,14 @@ The recording process is automatic.
 It starts when the first message in the subscribed topics is received.
 The recording stops when a certain time passes without receiving data through the topics.
 
+## Add new metrics
+
+To add a new metric, it is needed to add the function to the hunav_metrics.py file.
+
+After it has been added, the function's name must be added to the metrics global variable.
+
+Once the hunav_metrics.py file has been updated, the function's name has to be added to the metrics.yaml file.
+
 
 ## Parameters
 
@@ -33,9 +41,6 @@ The recording stops when a certain time passes without receiving data through th
 
 ## TODO:
 
-* Create a yaml file to select the metrics and frequency.
-* Add a service to start/stop the recording so the user can decide when to record.
 * Program a visual interface (probably a RViz panel) to configure the evaluation and the metrics to be computed.
-* Think about an easy way to add new metrics by the user.
 
 
