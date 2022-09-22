@@ -11,7 +11,7 @@ A ROS2 C++ package to generate human agents to use in the HuNav Simulator.
 
 ## Description
 
-This package provides a RViz panel which allows to create human agents and store them in a Yaml file that will be used by the HuNav Simulator.
+This package provides a RViz panel which allows to create human agents and save them in a Yaml file that will be used by the HuNav Simulator.
 
 This package makes use of nav2-map-server to load the map that is going to be used.
 
@@ -24,7 +24,7 @@ A launch file for testing is provided to launch the panel:
 ros2 launch hunav_rviz2_panel hunav_rviz2_launch.py
 ```
 
-The map that is being used is a generated map. It's stored in the maps directory of this repository.
+The map that is being used is a generated map. It is stored in the maps directory of this repository.
 
 Afterwards, the following will be shown:
 
@@ -52,5 +52,6 @@ Same procedure for the agent's goals. This goals are published as a MarkerArray 
 
 ## TODO
 
-* Update initial pose and goals windows
-* Allow to modify Yaml file while is being shown
+* Update initial pose and goals windows.
+* Allow to modify Yaml file while is being shown.
+* Allow to save Yaml file in other directories.
