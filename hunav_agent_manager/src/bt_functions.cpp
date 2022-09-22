@@ -51,8 +51,8 @@ BT::NodeStatus BTfunctions::goalReached(BT::TreeNode &self) {
   }
   int id = msg.value();
   if (agent_manager_.goalReached(id)) {
-    std::cout << "BTfunctions.GoalReached. agent: " << id << " Goal Reached!"
-              << std::endl;
+    // std::cout << "BTfunctions.GoalReached. agent: " << id << " Goal Reached!"
+    //          << std::endl;
     return BT::NodeStatus::SUCCESS;
   } else {
     // std::cout << "BTfunctions.GoalReached. agent: " << id << " Goal not

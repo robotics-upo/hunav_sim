@@ -290,7 +290,7 @@ bool AgentManager::goalReached(int id) {
       (agents_[id].sfmAgent.goals.front().center -
        agents_[id].sfmAgent.position)
               .norm() <= (agents_[id].sfmAgent.goals.front().radius + 0.1)) {
-    printf("Agent %s goal reached!", agents_[id].name.c_str());
+    // printf("Agent %s goal reached!", agents_[id].name.c_str());
     return true;
   } else
     return false;
@@ -299,7 +299,7 @@ bool AgentManager::goalReached(int id) {
 bool AgentManager::updateGoal(int id) {
   std::lock_guard<std::mutex> guard(mutex_);
 
-  printf("Updating goal for agent %i\n\n", id);
+  // printf("Updating goal for agent %i\n\n", id);
   sfm::Goal g = agents_[id].sfmAgent.goals.front();
   agents_[id].sfmAgent.goals.pop_front();
   if (agents_[id].sfmAgent.cyclicGoals) {

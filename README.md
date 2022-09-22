@@ -5,13 +5,13 @@ A controller of human navigation behaviors for Robotics based on ROS2.
 **Tested in ROS2 Foxy** 
 
 The simulated people are affected by the obstacles and other people using the [Social Force Model](https://github.com/robotics-upo/lightsfm).
-Besides, some human reactions to the presence of robots have been included.
+Besides, a set of human reactions to the presence of robots have been included.
 
 
 ## Dependencies
 
 * You must download and install the Social Force Model library. Follow the instructions here: https://github.com/robotics-upo/lightsfm
-* The ros people_msgs are also required. At the moment of this development, people_msgs were not still available to be installed from the apt ros-foxy package server. You can get the package from here: https://github.com/wg-perception/people/tree/ros2 
+* The ros people_msgs are also required. At the moment of this development, people_msgs were not still available to be installed from the apt ros-foxy package server. You can get the package from here: https://github.com/wg-perception/people/tree/ros2. Please, copy it and put it in your workspace.
 * The ROS2 packages *nav2-behavior-tree* and *behaviortree_cpp_v3* are also needed.
   ```sh
   sudo apt install ros-foxy-nav2-behavior-tree ros-foxy-behaviortree-cpp-v3
@@ -27,9 +27,7 @@ Besides, some human reactions to the presence of robots have been included.
 
 * The simulator core is programmed under the new ROS2 framework (tested in Foxy distro).
 
-* A GUI based on a RViz2 panel is employed to easily configure the human agents. 
-
-* Despite following the same human navigation model (SFM), the regular navigation behavior for each human agent is different by means of random initialization, or user specification, of some parameters of the model (within reasonable fixed boundaries). That provides a richer human navigation behavior closer to the real world.
+* A GUI based on a RViz2 panel is employed to easily configure the human agents. For instructions, please check the [hunav_rviz2_panel](https://github.com/robotics-upo/hunav_sim/tree/master/hunav_rviz2_panel) 
 
 * A set of realistic human navigation reactions to the presence of a robot is provided:
 
@@ -42,13 +40,13 @@ Besides, some human reactions to the presence of robots have been included.
 
 * The navigation behavior defined by the user for each human agent is led by a configurable behavior tree.
 
-* Finally, a set of metrics for social navigation evaluation are provided (ongoing work). This set includes the metrics found in the literature plus some other ones. Moreover, the metrics computed can be easily configured and extended by the user.
+* Finally, a set of metrics for social navigation evaluation are provided. This set includes the metrics found in the literature plus some other ones. Moreover, the metrics computed can be easily configured and extended by the user. Further information is provided in the [hunav_evaluator](https://github.com/robotics-upo/hunav_sim/tree/master/hunav_evaluator)
 
 
 
 ## Steps to use HuNavSim with a robotic simulator
 
-The navigation behavior of the human agents spawned in a regular physics simulator can be controlled by HuNavSim. Therefore, HuNavSim can be "connected" to a popular simulators used in Robotics like Gazebo, Webots or Unity.
+The navigation behavior of the human agents spawned in a regular physics simulator can be controlled by HuNavSim. Therefore, HuNavSim can be "connected" to a popular simulators used in Robotics like Gazebo, Webots, Morse or Unity.
 
 To do so, we must programme a ROS2 wrapper of the particular simulator. At each simulation step, the wrapper must collect the current state of the human agents and the robot (positions and velocities), and send them to HuNavSim. The HuNavSim controller will compute and return the next state of the agents. Finally, the wrapper must update the agents' state in the simulation.
 
@@ -71,13 +69,94 @@ A Gazebo (v11) wrapper is provided in: https://github.com/robotics-upo/hunav_gaz
 
 ## Configuration
 
-(yaml) TODO
+The user must define the desired number and properties of hunav agents. This is done through the file agents.yaml. The user can edit this file directly, o can create it through a GUI, check the [hunav_rviz2_panel](https://github.com/robotics-upo/hunav_sim/tree/master/hunav_rviz2_panel).   
 
-ros parameters and ROS topic publications...
+An example snippet of a agents.yaml file with two agents can be seen next:
+
+```yaml
+hunav_loader:
+  ros__parameters:
+    map: cafe
+    publish_people: true
+    agents:
+      - agent1
+      - agent2
+    agent1:
+      id: 1
+      skin: 2
+      behavior: 5
+      group_id: -1
+      max_vel: 1.5
+      radius: 0.4
+      init_pose:
+        x: -3.973340
+        y: -8.576801
+        z: 1.250000
+        h: 0.0
+      goal_radius: 0.3
+      cyclic_goals: true
+      goals:
+        - g0
+        - g1
+        - g2
+      g0:
+        x: -3.133759
+        y: -4.166653
+        h: 1.250000
+      g1:
+        x: 0.997901
+        y: -4.131655
+        h: 1.250000
+      g2:
+        x: -0.227549
+        y: -10.187146
+        h: 1.250000
+    agent2:
+      id: 2
+      skin: 3
+      behavior: 6
+      group_id: -1
+      max_vel: 1.5
+      radius: 0.4
+      init_pose:
+        x: 2.924233
+        y: 5.007970
+        z: 1.250000
+        h: 0.0
+      goal_radius: 0.3
+      cyclic_goals: true
+      goals:
+        - g0
+        - g1
+      g0:
+        x: -2.644067
+        y: 2.066231
+        h: 1.250000
+      g1:
+        x: -1.663169
+        y: -3.291318
+        h: 1.250000
+```
+
+### Global Parameters
+
+
+
+### Agent parameters
+
+
+
+
+The user can also configure the set of metrics to be computed. Check the [hunav_evaluator](https://github.com/robotics-upo/hunav_sim/tree/master/hunav_evaluator) to know how.
+
 
 
 ## Example run
 
-TODO
+Some example launch to run the HuNavSim with Gazebo can be found in the documentation of the [hunav_gazebo_wrapper](https://github.com/robotics-upo/hunav_gazebo_wrapper) 
+
+## TODOs
+
+* 
 
 

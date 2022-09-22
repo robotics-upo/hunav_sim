@@ -21,15 +21,6 @@ class HunavEvaluatorNode(Node):
         self.robot_list = []
         self.robot_goal = None
         self.metrics_to_compute = {}
-    
-        """self.metrics = {
-            'time_to_reach_goal': hunav_metrics.total_time,
-            'path_length': hunav_metrics.robot_path_length,
-            'cumulative_heading_changes': hunav_metrics.cumulative_heading_changes,
-            'avg_distance_to_closest_person': hunav_metrics.avg_closest_person,
-            'minimum_distance_to_people': hunav_metrics.minimum_distance_to_people,
-            'personal_space_intrusions': hunav_metrics.personal_space_intrusions
-        }"""
 
         # Two modes:
         # 1- The user start/stop the recording through the
@@ -149,7 +140,7 @@ class HunavEvaluatorNode(Node):
     def timer_end_callback(self):
         if(self.init == True):
             secs = (self.get_clock().now() - self.last_time).to_msg().sec
-            self.get_logger().info("secs: %.2f" % secs)
+            #self.get_logger().info("secs: %.2f" % secs)
             if(secs >= self.time_period):
                 self.recording == False
                 self.get_logger().info("Hunav evaluator stopping recording!")
@@ -158,7 +149,7 @@ class HunavEvaluatorNode(Node):
 
     def timer_record_callback(self):
         if(self.recording == True and self.init == True):
-            self.get_logger().info("Saving data...")
+            #self.get_logger().info("Saving data...")
             self.agents_list.append(self.agents)
             self.robot_list.append(self.robot)
 
@@ -227,9 +218,7 @@ class HunavEvaluatorNode(Node):
             while(len(self.robot_list) > len(self.agents_list)):
                 self.robot_list.pop()
             
-        # check that the robot msg contains a goal
-        #self.agents_list, self.robot_list
-
+        # check that the robot msg contains a goal?
         # check when the robot reaches the goal?
 
 
