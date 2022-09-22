@@ -142,7 +142,7 @@ hunav_loader:
 
 As global parameters the user must indicate:
 
-* ```map```. Name of the map (ROS 2d map used by the ROS map_server) that corresponds to the scenario that is going to be loaded in the base simulator (Gazebo, Webots or similar). **Curretly this parameters is not being used**. 
+* ```map```. Name of the map (ROS 2d map used by the ROS map_server) that corresponds to the scenario that is going to be loaded in the base simulator (Gazebo, Webots or similar). **Curretly this parameter is not being used**. 
 * ```publish_people```. Boolean to indicate whether the hunav agents must be published in the topic /people using the message People of the people_msgs. This can be useful if other nodes need to receive information about the people around the robot. 
 * ```agents```. This is a list with the names of the agents to be spawned. 
 
@@ -168,7 +168,7 @@ The user must provide the following data under the identification name of each a
 * ```cyclic_goals```. Boolean to indicate whether the final goal has been reached, the agent must be begin the goal list again. 
 * ```goals```. List with the identifiers (strings) of the agent's goals. For each goal, the user must provide under the related identifier the 2D position of the goal and a heading.  
   
-  
+
 ### Metrics parameters  
 
 The user can also configure the set of metrics to be computed. Check the [hunav_evaluator](https://github.com/robotics-upo/hunav_sim/tree/master/hunav_evaluator) to know how.
