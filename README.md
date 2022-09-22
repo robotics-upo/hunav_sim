@@ -140,23 +140,50 @@ hunav_loader:
 
 ### Global Parameters
 
+As global parameters the user must indicate:
+
+* ```map```. Name of the map (ROS 2d map used by the ROS map_server) that corresponds to the scenario that is going to be loaded in the base simulator (Gazebo, Webots or similar). **Curretly this parameters is not being used**. 
+* ```publish_people```. Boolean to indicate whether the hunav agents must be published in the topic /people using the message People of the people_msgs. This can be useful if other nodes need to receive information about the people around the robot. 
+* ```agents```. This is a list with the names of the agents to be spawned. 
 
 
 ### Agent parameters
 
+The user must provide the following data under the identification name of each agent. The names must match the names list indicated in the parameter *agents*:
 
-
+* ```id```. Integer value that must be unique for each agent.
+* ```skin```. Integer value to indicate the 3d model to represent the hunav agent. Currently, it is used for the 3d models spawned in Gazebo only. It must be in the range [0-4].
+* ```behavior```. Integer value to identify one of the six available navigation behaviors:
+  * **1** - Regular
+  * **2** - Impassive
+  * **3** - Surprised
+  * **4** - Scared
+  * **5** - Curious
+  * **6** - Threatening
+* ```group_id```. Integer value to identy a walking group. It must be shared by the members of the same group. Value *-1* indicates the agent is not walking in group.  
+* ```max_vel```. The maximum velocity of the agent in m/s.
+* ```radius```. Radius in meters of the circunference that circumbscribes the agent's footprint.
+* ```init_pose```. It contains the coordinates in meters of the agent's initial position in the scenario (*x*, *y* and *z*) and also the heading in radians. 
+* ```goal_radius```. Radius in meters of the goal. This value is employed to decide when the agent has reached a goal.
+* ```cyclic_goals```. Boolean to indicate whether the final goal has been reached, the agent must be begin the goal list again. 
+* ```goals```. List with the identifiers (strings) of the agent's goals. For each goal, the user must provide under the related identifier the 2D position of the goal and a heading.  
+  
+  
+### Metrics parameters  
 
 The user can also configure the set of metrics to be computed. Check the [hunav_evaluator](https://github.com/robotics-upo/hunav_sim/tree/master/hunav_evaluator) to know how.
-
 
 
 ## Example run
 
 Some example launch to run the HuNavSim with Gazebo can be found in the documentation of the [hunav_gazebo_wrapper](https://github.com/robotics-upo/hunav_gazebo_wrapper) 
 
+
 ## TODOs
 
-* 
+* Augmenting the number navigation reactions of the agents.
+* Including configurable small variations of the Social Force Model weights to enrich the variety of the agents navigation.
+* Programming another RViz Panel to select the metrics to be computed.
+* Completing the set of metrics included.  
 
 
