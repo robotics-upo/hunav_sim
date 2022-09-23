@@ -71,7 +71,7 @@ def robot_path_length(agents, robot):
     path_length = 0
     for i in range(len(robot)-1):
         path_length += euclidean_distance(robot[i+1].position, robot[i].position)# - robot[i+1].radius - robot[i].radius
-    print('\nPath_length computed: %.2f m' % path_length)
+    print('Path_length computed: %.2f m' % path_length)
     return path_length
 
 def cumulative_heading_changes(agents, robot):
@@ -103,8 +103,9 @@ def avg_closest_person(agents, robot):
         if(len(agents[i].agents)>0):
             avg_dist += min_dist
 
-    print('Average_closest_person: %.2f' % avg_dist)
-    return avg_dist/len(robot)
+    avg_dist = avg_dist/len(robot)
+    print('Average_closest_person: %.2f m' % avg_dist)
+    return avg_dist
 
 
 def minimum_distance_to_people(agents, robot):
@@ -116,7 +117,7 @@ def minimum_distance_to_people(agents, robot):
     
     min_dist = min(min_distance)
     
-    print('Minimum_distance_to_people: %.2f' % min_dist)
+    print('Minimum_distance_to_people: %.2f m' % min_dist)
 
     return min_dist
 
@@ -129,7 +130,7 @@ def maximum_distance_to_people(agents, robot):
     
     max_dist = max(max_distance)
     
-    print('Maximum_distance_to_people: %.2f' % max_dist)
+    print('Maximum_distance_to_people: %.2f m' % max_dist)
 
     return max_dist
 
@@ -156,17 +157,17 @@ def space_intrusions(agents, robot, k):
 
 def intimate_space_intrusions(agents, robot):
     percentage =  space_intrusions(agents, robot, 'intimate')
-    print('Intimate_space_intrusions: %.2f' % percentage)
+    print('Intimate_space_intrusions: %.2f %% of the total time' % percentage)
     return percentage
 
 def personal_space_intrusions(agents, robot):
     percentage =  space_intrusions(agents, robot, 'personal')
-    print('Personal_space_intrusions: %.2f' % percentage)
+    print('Personal_space_intrusions: %.2f %% of the total time' % percentage)
     return percentage
     
 def social_space_intrusions(agents, robot):
     percentage =  space_intrusions(agents, robot, 'social')
-    print('Social_space_intrusions: %.2f' % percentage)
+    print('Social_space_intrusions: %.2f %% of the total time' % percentage)
     return percentage
 
 
@@ -206,17 +207,17 @@ def group_space_intrusions(agents, robot, k):
 
 def group_intimate_space_intrusions(agents, robot):
     percentage =  group_space_intrusions(agents, robot, 'intimate')
-    print('Group_intimate_space_intrusions: %.2f' % percentage)
+    print('Group_intimate_space_intrusions: %.2f %% of the total time' % percentage)
     return percentage
 
 def group_personal_space_intrusions(agents, robot):
     percentage =  group_space_intrusions(agents, robot, 'personal')
-    print('Group_personal_space_intrusions: %.2f' % percentage)
+    print('Group_personal_space_intrusions: %.2f %% of the total time' % percentage)
     return percentage
 
 def group_social_space_intrusions(agents, robot):
     percentage =  group_space_intrusions(agents, robot, 'social')
-    print('Group_social_space_intrusions: %.2f' % percentage)
+    print('Group_social_space_intrusions: %.2f %% of the total time' % percentage)
     return percentage           
 
 
@@ -274,7 +275,7 @@ def robot_on_person_collision(agents, robot):
             if d <= 0.05:
                 collision_count += 1
     
-    print('Robot_on_person_collision: %i' % collision_count)
+    print('Robot_on_person_collision: %i times' % collision_count)
 
     return collision_count
 
@@ -291,7 +292,7 @@ def person_on_robot_collision(agents, robot):
                 d = euclidean_distance(r.position, agent.position) - r.radius - agent.radius 
                 if d <= 0.05:
                     collision += 1
-
+    print('Person_on_robot_collision: %i times' % collision)
     return collision
 
 
@@ -301,10 +302,10 @@ def time_not_moving(agents, robot):
 
     count = 0
     for r in robot:
-        if(r.linear_vel < 0.01 and abs(r.angular_vel < 0.02)):
+        if(r.linear_vel < 0.001 and abs(r.angular_vel < 0.01)):
             count=count+1
     time_stopped = time_step*count
-            
+    print('Time stopped: %i secs' % time_stopped)
     return time_stopped
 
 
@@ -314,8 +315,8 @@ def goal_reached(agents, robot):
             d = euclidean_distance(robot[-1].position, g) - robot[-1].goal_radius
             if d<0.0:
                 return True
-    else:
-        return False
+    return False
+   
 
 def final_goal_distance(agents, robot):
     min_dist = 10000

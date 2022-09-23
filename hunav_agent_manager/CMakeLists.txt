@@ -52,7 +52,7 @@ install(TARGETS
   DESTINATION lib/${PROJECT_NAME}
 )
 
-install(DIRECTORY behavior_trees config launch
+install(DIRECTORY behavior_trees config
    DESTINATION share/${PROJECT_NAME}/
 )
 
