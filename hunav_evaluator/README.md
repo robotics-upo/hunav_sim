@@ -27,11 +27,18 @@ The recording stops when a certain time passes without receiving data through th
 
 ## Add new metrics
 
-To add a new metric, it is needed to add the function to the hunav_metrics.py file.
+Metrics can be found in the ```hunav_metrics.py``` file. 
 
-After it has been added, the function's name must be added to the metrics global variable.
+Each function takes two parameters:
 
-Once the hunav_metrics.py file has been updated, the function's name has to be added to the metrics.yaml file.
+* ```robot``` a list where all information recorded about the social robot is stored.
+* ```agents``` a list where all information recorded about the human agents are stored.
+
+To add a new metric, add a function to the hunav_metrics.py file.
+
+After it has been added, the function's name must be added to the *metrics* global variable.
+
+Once the ```hunav_metrics.py``` file has been updated, the function's name has to be added to the ```metrics.yaml``` file.
 
 
 ## Parameters
