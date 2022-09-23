@@ -52,8 +52,8 @@ public Q_SLOTS:
   
 protected Q_SLOTS:
 
-  void addActor();
-  void exitWindow();
+  void addAgent();
+  void saveAgents();
   void updateTopic();
   int processMouseEvent(rviz_common::ViewportMouseEvent &event);
   void onInitialPose(double x, double y, double theta, QString frame);
