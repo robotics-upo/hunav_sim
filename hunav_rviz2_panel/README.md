@@ -53,6 +53,9 @@ Once HunavGoals is active, position your mouse inside the map that is being show
 
 Same procedure for the agents' goals. This goals are published as a MarkerArray (Squares) on ```/hunav_goals``` topic.
 
+Example:
+![](https://github.com/robotics-upo/hunav_sim/blob/master/hunav_rviz2_panel/images/GenerateAgents.mp4)
+
 ## TODO
 
 * In this moment, initial pose and goals windows don't update point after receiving a point (Close and open the window to update it). We are fixing it.
