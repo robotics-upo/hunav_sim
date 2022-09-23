@@ -41,9 +41,10 @@ using std::placeholders::_1;
 
 namespace hunav_rviz2_panel
 {
-
+  // To get the coordinates when the map is clicked.
   GoalPoseUpdater GoalUpdater;
 
+  // Constructor, creates the panel.
   ActorPanel::ActorPanel(QWidget *parent)
       : rviz_common::Panel(parent), rclcpp::Node("hunav_agents")
   {
@@ -63,18 +64,22 @@ namespace hunav_rviz2_panel
     QPushButton *actor_button = new QPushButton("Create agents");
     topic_button->addWidget(actor_button);
 
-    connect(actor_button, SIGNAL(clicked()), this, SLOT(addActor()));
+    connect(actor_button, SIGNAL(clicked()), this, SLOT(addAgent()));
     connect(open_button, SIGNAL(clicked()), this, SLOT(parseYaml()));
 
     QHBoxLayout *layout = new QHBoxLayout;
     layout->addLayout(topic_button);
     setLayout(layout);
 
+    // Create publisher for agents' 
+    // Agents' intial pose are published in /hunav_agent topic.
     initial_pose_publisher = this->create_publisher<visualization_msgs::msg::MarkerArray>("hunav_agent", rclcpp::QoS(1).transient_local());
+    // Agents' goals are published in /hunav_goals.
     goals_publisher = this->create_publisher<visualization_msgs::msg::MarkerArray>("hunav_goals", rclcpp::QoS(1).transient_local());
 
   }
 
+  // Destructor, close and disconnect windows.
   ActorPanel::~ActorPanel(){
     window->close();
     window1->close();
@@ -83,7 +88,8 @@ namespace hunav_rviz2_panel
     disconnect(&GoalUpdater, SIGNAL(updateGoal(double,double,double,QString)), this, SLOT(onNewGoal(double,double,double,QString)));
   }
 
-  void ActorPanel::addActor(){
+  // Shows the agent creation window.
+  void ActorPanel::addAgent(){
     QObject *button = QObject::sender();
 
     if (button)
@@ -94,7 +100,7 @@ namespace hunav_rviz2_panel
       QVBoxLayout *topic_layout = new QVBoxLayout(window);
       QHBoxLayout *layout = new QHBoxLayout;
 
-      // By default creates 1 agent
+      // If user does not provides number of agents, by default creates 1 agent.
       if(actors->text().isEmpty()){
         topic_layout->addWidget(new QLabel("Agent " + QString::number(agent_count) + "/" + QString::number(1)));
       }
@@ -109,6 +115,7 @@ namespace hunav_rviz2_panel
 
       topic_layout->addWidget(new QLabel("Behavior:"));
 
+      // Combobox for behavior selection.
       behavior_combobox = new QComboBox();
 
       behavior_combobox->addItem("Regular");
@@ -118,11 +125,11 @@ namespace hunav_rviz2_panel
       behavior_combobox->addItem("Curious");
       behavior_combobox->addItem("Threathening");
 
-      //behavior_combobox->setCurrentIndex(0);
-
       topic_layout->addWidget(behavior_combobox);
 
       topic_layout->addWidget(new QLabel("Skin:"));
+      
+      // Combobox for skin selection.
       skin_combobox = new QComboBox();
       
       skin_combobox->addItem("Blue jeans");
@@ -154,12 +161,13 @@ namespace hunav_rviz2_panel
 
       window->show();
 
-      connect(save_button, SIGNAL(clicked()), this, SLOT(exitWindow()));
+      connect(save_button, SIGNAL(clicked()), this, SLOT(saveAgents()));
       connect(goals_button, SIGNAL(clicked()), this, SLOT(getNewGoal()));
       connect(initial_pose_button, SIGNAL(clicked()), this, SLOT(setInitialPose()));
     }
   }
 
+  // Window that allow user to start using the HuNavGoal tool to select the agent's initial pose.
   void ActorPanel::setInitialPose(){
     
     initial_pose_connection = new QObject();
@@ -172,13 +180,14 @@ namespace hunav_rviz2_panel
 
     
     topic_layout_init_pose->addWidget(new QLabel("Initial pose"));
-
+    topic_layout_init_pose->addWidget(new QLabel("Use HunavGoals tool to select the initial pose"));
+    /*
     topic_layout_init_pose->addWidget(new QLabel("x: " + QString::fromStdString(std::to_string(initial_pose.pose.position.x))));
         
     topic_layout_init_pose->addWidget(new QLabel("y: " + QString::fromStdString(std::to_string(initial_pose.pose.position.y))));
     
     topic_layout_init_pose->addWidget(new QLabel("z: " + QString::fromStdString(std::to_string(initial_pose.pose.position.z))));
-
+    */
     QPushButton *close_button = new QPushButton("Close");
     topic_layout_init_pose->addWidget(close_button);
     
@@ -192,6 +201,7 @@ namespace hunav_rviz2_panel
     connect(close_button, SIGNAL(clicked()), this, SLOT(closeInitialPoseWindow()));
   }
 
+  // Window that allow users to start using the HuNavGoal tool to select the agent's goals.
   void ActorPanel::getNewGoal(){
 
     client_node_ = std::make_shared<rclcpp::Node>("_");
@@ -199,11 +209,6 @@ namespace hunav_rviz2_panel
     goals_connection = new QObject();
     goals_connection->connect(&GoalUpdater, SIGNAL(updateGoal(double,double,double,QString)),
     this, SLOT(onNewGoal(double,double,double,QString)));
-
-/*
-    QObject::connect(
-    &GoalUpdater, SIGNAL(updateGoal(double,double,double,QString)),
-    this, SLOT(onNewGoal(double,double,double,QString)));*/
 
     window1 = new QWidget();
     QVBoxLayout *topic_layout = new QVBoxLayout(window1);
@@ -213,9 +218,8 @@ namespace hunav_rviz2_panel
 
     QString goal = "Goals";
     std::vector<QString> goals;
-    int i = 0;
+    //int i = 0;
 
-    topic_layout->addWidget(new QLabel("Please, select all three goals at the same time."));
     topic_layout->addWidget(new QLabel(goal));
 
     // If num_goals not set, by default will be 3 goals.
@@ -228,6 +232,8 @@ namespace hunav_rviz2_panel
       goals.push_back("G" + QString::number(j));
     }
 
+    topic_layout->addWidget(new QLabel("Use HunavGoals tool to select goals"));
+    /*
     // Iterate goal's vector to show selected goals
     for(QString aux : goals){
       topic_layout->addWidget(new QLabel(aux));  
@@ -246,7 +252,7 @@ namespace hunav_rviz2_panel
         topic_layout->addWidget(new QLabel("No goals yet"));
       }
 
-    }
+    }*/
 
     QPushButton *close_button = new QPushButton("Close");
     topic_layout->addWidget(close_button);
@@ -265,6 +271,7 @@ namespace hunav_rviz2_panel
     
   }
 
+  // Get point from map to store it in initial pose.
   void ActorPanel::onInitialPose(double x, double y, double theta, QString frame)
   {
     initial_pose = geometry_msgs::msg::PoseStamped();
@@ -324,6 +331,7 @@ namespace hunav_rviz2_panel
     window2->activateWindow();
   }
 
+  // Get point from map to store goals.
   void ActorPanel::onNewGoal(double x, double y, double theta, QString frame)
   {
 
@@ -357,7 +365,7 @@ namespace hunav_rviz2_panel
     marker.color.r = rgb[red];
     marker.color.g = rgb[green];
     marker.color.b = rgb[blue];
-    marker.color.a = 1.0; // alpha has to be non-zero
+    marker.color.a = 1.0; // alpha has to be non-zero.
 
     marker.lifetime = rclcpp::Duration(0);
     marker.frame_locked = false;
@@ -368,39 +376,9 @@ namespace hunav_rviz2_panel
     
     visualization_msgs::msg::Marker arrow_marker;
 
-    arrow_marker.header.frame_id = "/map";
-    arrow_marker.header.stamp = rclcpp::Node::now();
-    arrow_marker.id = marker_id;
-    arrow_marker.type = visualization_msgs::msg::Marker::ARROW;
-    arrow_marker.action = visualization_msgs::msg::Marker::ADD;
+    arrow_marker = createArrowMarker(oldPose.pose.position.x, oldPose.pose.position.y, x, y, marker_id);
 
-    geometry_msgs::msg::Point point1;
-    point1.x = oldPose.pose.position.x;
-    point1.y = oldPose.pose.position.y;
-    point1.z = 0.0;
-
-    geometry_msgs::msg::Point point2;
-    point2.x = x-0.2;
-    point2.y = y-0.2;
-    point2.z = 0.0;
-    
-    arrow_marker.points.push_back(point1);
-    arrow_marker.points.push_back(point2);
-
-    arrow_marker.scale.x = 0.1;
-    arrow_marker.scale.y = 0.3;
-    arrow_marker.scale.z = 0.3;
-
-    //arrow_marker.color.r = 1.0;
-    arrow_marker.color.r = rgb[red];
-    arrow_marker.color.g = rgb[green];
-    arrow_marker.color.b = rgb[blue];
-    arrow_marker.color.a = 1.0f;
-
-    arrow_marker.lifetime = rclcpp::Duration(0);
-    arrow_marker.frame_locked = false;
-
-    // Increment marker id for next marker
+    // Increment marker id for next marker.
     marker_id++;
     
     int marker_array_size = static_cast<int>(marker_array->markers.size());
@@ -412,41 +390,11 @@ namespace hunav_rviz2_panel
     marker_array->markers.push_back(marker);
     marker_array->markers.push_back(arrow_marker);
 
-    // If goals == num_goals_set means that another arrow has to be added to close the path
+    // If goals == num_goals_set means that another arrow has to be added to close the path.
     if(goals_number == num_goals_set->text().toInt()){
       visualization_msgs::msg::Marker arrow_marker1;
 
-      arrow_marker1.header.frame_id = "/map";
-      arrow_marker1.header.stamp = rclcpp::Node::now();
-      arrow_marker1.id = marker_id;
-      arrow_marker1.type = visualization_msgs::msg::Marker::ARROW;
-      arrow_marker1.action = visualization_msgs::msg::Marker::ADD;
-
-      geometry_msgs::msg::Point point3;
-      point3.x = x;
-      point3.y = y;
-      point3.z = 0.0;
-
-      geometry_msgs::msg::Point point4;
-      point4.x = stored_pose.pose.position.x;
-      point4.y = stored_pose.pose.position.y;
-      point4.z = 0.0;
-      
-      arrow_marker1.points.push_back(point3);
-      arrow_marker1.points.push_back(point4);
-
-      arrow_marker1.scale.x = 0.1;
-      arrow_marker1.scale.y = 0.3;
-      arrow_marker1.scale.z = 0.3;
-
-      //arrow_marker1.color.r = 1.0;
-      arrow_marker1.color.r = rgb[red];
-      arrow_marker1.color.g = rgb[green];
-      arrow_marker1.color.b = rgb[blue];
-      arrow_marker1.color.a = 1.0f;
-
-      arrow_marker1.lifetime = rclcpp::Duration(0);
-      arrow_marker1.frame_locked = false;
+      arrow_marker1 = createArrowMarker(x,y,stored_pose.pose.position.x, stored_pose.pose.position.y, marker_id);
 
       marker_array->markers.push_back(arrow_marker1);
     }
@@ -458,8 +406,6 @@ namespace hunav_rviz2_panel
 
     goals_number++;
 
-    //disconnect(&GoalUpdater, SIGNAL(updateGoal(double,double,double,QString)), this, SLOT(onNewGoal(double,double,double,QString)));
-
     QObject::disconnect(goals_connection);
 
     window->activateWindow();
@@ -467,13 +413,13 @@ namespace hunav_rviz2_panel
 
   }
 
-  void ActorPanel::exitWindow(){
+  // Saves all information about agents in yaml file
+  void ActorPanel::saveAgents(){
 
     window->close();
 
     try {
-      pkg_shared_tree_dir_ =
-          ament_index_cpp::get_package_share_directory("hunav_agent_manager");
+      pkg_shared_tree_dir_ = ament_index_cpp::get_package_share_directory("hunav_agent_manager");
 
     } catch (const char* msg) {
       RCLCPP_ERROR(this->get_logger(),
@@ -536,7 +482,7 @@ namespace hunav_rviz2_panel
       agent1[current_g]["h"] = std::to_string(poses[i].pose.position.z);
     }
 
-    // Fill actor's array
+    // Fill agent array
     actors_info.push_back(agent1);
 
     if(iterate_actors == num_actors){
@@ -578,11 +524,12 @@ namespace hunav_rviz2_panel
 
       agent_count++;
 
-      addActor();
+      addAgent();
     }
 
   }
 
+  // Open a generated yaml file
   void ActorPanel::parseYaml(){
     try {
         pkg_shared_tree_dir_ =
@@ -670,9 +617,9 @@ namespace hunav_rviz2_panel
         marker.pose.position.y = current_agent[current_goals_vector[k]]["y"].as<double>();
         marker.pose.position.z = 0;//current_agent["init_pose"]["z"].as<double>();
 
-        marker.scale.x = 0.5;
-        marker.scale.y = 0.5;
-        marker.scale.z = 0.5;
+        marker.scale.x = 0.3;
+        marker.scale.y = 0.3;
+        marker.scale.z = 0.3;
 
         marker.color.r = rgb[red];
         marker.color.g = rgb[green];
@@ -689,28 +636,29 @@ namespace hunav_rviz2_panel
           visualization_msgs::msg::Marker arrow_marker;
 
           arrow_marker = createArrowMarker(current_agent["init_pose"]["x"].as<double>(), current_agent["init_pose"]["y"].as<double>(),
-          current_agent[current_goals_vector[k]]["x"].as<double>() - 0.2, current_agent[current_goals_vector[k]]["y"].as<double>() - 0.2, ids);
+          current_agent[current_goals_vector[k]]["x"].as<double>(), current_agent[current_goals_vector[k]]["y"].as<double>(), ids);
 
           marker_array->markers.push_back(arrow_marker);
 
           ids++;
         }
-        else{
+        else {          
           visualization_msgs::msg::Marker arrow_marker;
 
           arrow_marker = createArrowMarker(current_agent[current_goals_vector[k-1]]["x"].as<double>(), current_agent[current_goals_vector[k-1]]["y"].as<double>(),
-          current_agent[current_goals_vector[k]]["x"].as<double>() - 0.2, current_agent[current_goals_vector[k]]["y"].as<double>() - 0.2, ids);
+          current_agent[current_goals_vector[k]]["x"].as<double>(), current_agent[current_goals_vector[k]]["y"].as<double>(), ids);
 
           marker_array->markers.push_back(arrow_marker);
 
           ids++;
+          
         }
-
+        
         if(k == static_cast<int>(current_goals_vector.size() - 1)){
           visualization_msgs::msg::Marker arrow_marker;
 
           arrow_marker = createArrowMarker(current_agent[current_goals_vector[k]]["x"].as<double>(), current_agent[current_goals_vector[k]]["y"].as<double>(),
-          current_agent["init_pose"]["x"].as<double>() - 0.2, current_agent["init_pose"]["y"].as<double>() - 0.2, ids);
+          current_agent["init_pose"]["x"].as<double>(), current_agent["init_pose"]["y"].as<double>(), ids);
 
           marker_array->markers.push_back(arrow_marker);
 
@@ -719,6 +667,7 @@ namespace hunav_rviz2_panel
         
       }
       
+      current_goals_vector.clear();
     }
 
     initial_pose_publisher->publish(std::move(marker_array));
@@ -795,7 +744,6 @@ namespace hunav_rviz2_panel
     arrow_marker.scale.y = 0.3;
     arrow_marker.scale.z = 0.3;
 
-    //arrow_marker.color.r = 1.0;
     arrow_marker.color.r = rgb[red];
     arrow_marker.color.g = rgb[green];
     arrow_marker.color.b = rgb[blue];
