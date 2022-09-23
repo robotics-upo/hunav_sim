@@ -53,6 +53,8 @@ Once HunavGoals is active, position your mouse inside the map that is being show
 
 Same procedure for the agents' goals. This goals are published as a MarkerArray (Squares) on ```/hunav_goals``` topic.
 
+Example:
+![](https://github.com/robotics-upo/hunav_sim/blob/master/hunav_rviz2_panel/images/AgentCreation.png)
 
 ## TODO
 
