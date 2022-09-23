@@ -30,14 +30,21 @@
       - minimum_distance_to_people
       - intimate_space_intrusions
       - personal_space_intrusions
-      #- social_space_intrusions
+      - social_space_intrusions
+      - group_intimate_space_intrusions
+      - group_personal_space_intrusions
+      - group_social_space_intrusions
 
       # N. Tsoi et al., "SEAN 2.0: Formalizing and Generating Social Situations
       # for Robot Navigation," in IEEE Robotics and Automation Letters, vol. 7,
       # no. 4, pp. 11047-11054, Oct. 2022, doi: 10.1109/LRA.2022.3196783.
+      - completed
+      - minimum_distance_to_target
+      - final_distance_to_target
       - robot_on_person_collision
       - person_on_robot_collision
       - time_not_moving
+      #- static_obstacle_collision
 
       
 
