@@ -255,46 +255,55 @@ def group_social_space_intrusions(agents, robot):
 # SEAN 2.0: Formalizing and Generating Social Situations for Robot Navigation
 # Nathan Tsoi, Alec Xiang, Peter Yu, Samuel S. Sohn, Greg Schwartz, Subashri Ramesh, Mohamed Hussein, Anjali W. Gupta, Mubbasir Kapadia, and Marynel Vázquez
 
-
 # The metrics Robot on Person Personal Distance Violation, Person on Robot Personal Distance Violation, Intimate Distance Violation and
 # Person on Robot Intimate Distance Violation have already been implemented in the Personal_space_intrusions function.
 # Instead of returning the number of times, it returns a percentage of distance violation.
-def robot_on_person_collision(agents, robot):
 
-    # TODO: we must check here the direction of movement
-    # to know who approached who.
-    # We could check the velocities and the angles.
-    # We could compare the angle difference between
-    # the heading of the agent/robot and the direction
-    # to the other robot/agent 
-    collision_count = 0
-    
+def collisions(agents, robot):
+    robot_collision = 0
+    person_collision = 0
+
     for i in range(len(robot)):
         for agent in agents[i].agents:
-            d = euclidean_distance(robot[i].position, agent.position) - robot[i].radius - agent.radius
-            if d <= 0.05:
-                collision_count += 1
-    
-    print('Robot_on_person_collision: %i times' % collision_count)
 
-    return collision_count
+            if euclidean_distance(robot[i].position, agent.position) - robot[i].radius - agent.radius < 0.05:
+                # Robot's angle
+                nrx = (robot[i].position.position.x - agent.position.position.x) * math.cos(agent.yaw) + (robot[i].position.position.y - agent.position.position.y) * math.sin(agent.yaw)
+                nry = -(robot[i].position.position.x - agent.position.position.x) * math.sin(agent.yaw) + (robot[i].position.position.y - agent.position.position.y) * math.cos(agent.yaw)
+                alpha = math.atan2(nry, nrx)
 
+                # Agent's angle
+                nrx = (agent.position.position.x - robot[i].position.position.x) * math.cos(robot[i].yaw) + (agent.position.position.y - robot[i].position.position.y) * math.sin(robot[i].yaw)
+                nry = -(agent.position.position.x - robot[i].position.position.x) * math.sin(robot[i].yaw) + (agent.position.position.y - robot[i].position.position.y) * math.cos(robot[i].yaw)
+                alpha2 = math.atan2(nrx, nry)
+
+                if alpha < alpha2 and robot[i].linear_vel > agent.linear_vel:
+                    robot_collision += 1
+                elif alpha > alpha2 and robot[i].linear_vel < agent.linear_vel:
+                    person_collision += 1
+                elif alpha < alpha2 and robot[i].linear_vel < agent.linear_vel:
+                    #person_collision += 1
+                    robot_collision += 1
+                elif alpha > alpha2 and robot[i].linear_vel > agent.linear_vel:
+                    #robot_collision += 1
+                    person_collision += 1
+                elif alpha == alpha2 and robot[i].linear_vel == agent.linear_vel:
+                    robot_collision += 1
+                    person_collision += 1
+
+    return robot_collision, person_collision
+
+def robot_on_person_collision(agents, robot):
+
+    collision = collisions(agents, robot)
+
+    return collision[0]
 
 def person_on_robot_collision(agents, robot):
     
-    # TODO: we must check here the direction of movement
-    # to know who approached who
-    collision = 0
+    collision = collisions(agents, robot)
 
-    for i in range(len(agents)):
-        for agent in agents[i].agents:
-            for r in robot:
-                d = euclidean_distance(r.position, agent.position) - r.radius - agent.radius 
-                if d <= 0.05:
-                    collision += 1
-    print('Person_on_robot_collision: %i times' % collision)
-    return collision
-
+    return collision[1]
 
 def time_not_moving(agents, robot):
     
@@ -339,10 +348,6 @@ def minimum_goal_distance(agents, robot):
                 if d<min_dist:
                     min_dist = d
     return min_dist
-
-
-
-
 
 #ToDo
 def path_irregularity(agents, robot):
