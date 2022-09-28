@@ -7,7 +7,7 @@
     A set of ROS2 packages for the simulation of human pedestrians
   </description>
   <maintainer email="noeperez@upo.es">Noé Pérez-Higueras</maintainer>
-  <license>Apache-2.0</license>
+  <license>MIT</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 

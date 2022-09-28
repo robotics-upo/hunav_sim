@@ -5,7 +5,7 @@
   <version>1.0.0</version>
   <description>This package collects the data of the hunav simulations and computes different metrics</description>
   <maintainer email="noeperez@upo.es">Noé Pérez-Higueras</maintainer>
-  <license>Apache-2.0</license>
+  <license>MIT</license>
 
    <buildtool_depend>ament_python</buildtool_depend>
 

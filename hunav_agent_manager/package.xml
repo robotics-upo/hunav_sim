@@ -5,7 +5,7 @@
   <version>1.0.0</version>
   <description>Simulator of human movement based on Social Force Model</description>
   <maintainer email="noeperez@upo.es">Noé Pérez-Higueras</maintainer>
-  <license>Apache-2.0</license>
+  <license>MIT</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
