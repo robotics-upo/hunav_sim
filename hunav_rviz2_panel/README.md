@@ -63,4 +63,3 @@ Example:
 
 * In this moment, initial pose and goals windows don't update point after receiving a point (Close and open the window to update it). We are fixing it.
 * Allow to modify Yaml file while is being shown.
-* Allow to save Yaml file in other directories.

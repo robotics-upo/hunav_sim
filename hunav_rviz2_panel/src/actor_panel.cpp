@@ -64,6 +64,10 @@ namespace hunav_rviz2_panel
     QPushButton *actor_button = new QPushButton("Create agents");
     topic_button->addWidget(actor_button);
 
+    checkbox = new QCheckBox("Save file in default directory", this);
+    checkbox->setChecked(true);
+    topic_button->addWidget(checkbox);
+
     connect(actor_button, SIGNAL(clicked()), this, SLOT(addAgent()));
     connect(open_button, SIGNAL(clicked()), this, SLOT(parseYaml()));
 
@@ -94,11 +98,19 @@ namespace hunav_rviz2_panel
 
     if (button)
     {
-    
+
       window = new QWidget;
 
       QVBoxLayout *topic_layout = new QVBoxLayout(window);
       QHBoxLayout *layout = new QHBoxLayout;
+      QPushButton *directory;
+
+      if(!checkbox->isChecked() && show_file_selector_once == true){
+        directory = new QPushButton("Choose directory");
+        
+        topic_layout->addWidget(new QLabel("Select the directory where the file is going to be saved:"));
+        topic_layout->addWidget(directory);
+      }
 
       // If user does not provides number of agents, by default creates 1 agent.
       if(actors->text().isEmpty()){
@@ -164,6 +176,10 @@ namespace hunav_rviz2_panel
       connect(save_button, SIGNAL(clicked()), this, SLOT(saveAgents()));
       connect(goals_button, SIGNAL(clicked()), this, SLOT(getNewGoal()));
       connect(initial_pose_button, SIGNAL(clicked()), this, SLOT(setInitialPose()));
+      if(!checkbox->isChecked() && show_file_selector_once){
+        connect(directory, SIGNAL(clicked()), this, SLOT(openFileExplorer()));
+        show_file_selector_once = false;
+      }
     }
   }
 
@@ -290,30 +306,7 @@ namespace hunav_rviz2_panel
     blue = rand()%(1-0 + 1) + 0;
 
     visualization_msgs::msg::Marker marker;
-    uint32_t shape = visualization_msgs::msg::Marker::CYLINDER;
-    marker.header.frame_id = "/map";
-    marker.header.stamp = rclcpp::Node::now();
-    marker.ns = "basic_shapes";
-    marker.id = marker_id;
-    marker.type = shape;
-    marker.action = visualization_msgs::msg::Marker::ADD;
-
-    marker.pose.position.x = x;
-    marker.pose.position.y = y;
-    marker.pose.position.z = 0.0;
-    marker.pose.orientation.x = 0.0;
-    marker.pose.orientation.y = 0.0;
-    marker.pose.orientation.z = 0.0;
-    marker.pose.orientation.w = 0.0;
-
-    marker.scale.x = 0.5;
-    marker.scale.y = 0.5;
-    marker.scale.z = 0.5;
-
-    marker.color.r = rgb[red];
-    marker.color.g = rgb[green];
-    marker.color.b = rgb[blue];
-    marker.color.a = 1.0; // alpha has to be non-zero
+    marker = createCylinderMarker(x, y, marker_id);
 
     marker_id++;
 
@@ -347,28 +340,7 @@ namespace hunav_rviz2_panel
     poses.push_back(pose);
 
     visualization_msgs::msg::Marker marker;
-    
-    marker.header.frame_id = "/map";
-    marker.header.stamp = rclcpp::Node::now();
-    marker.id = marker_id;
-    marker.type = visualization_msgs::msg::Marker::CUBE;
-    marker.action = visualization_msgs::msg::Marker::ADD;
-
-    marker.pose.position.x = x;
-    marker.pose.position.y = y;
-    marker.pose.position.z = 0.0;
-
-    marker.scale.x = 0.3;
-    marker.scale.y = 0.3;
-    marker.scale.z = 0.3;
-
-    marker.color.r = rgb[red];
-    marker.color.g = rgb[green];
-    marker.color.b = rgb[blue];
-    marker.color.a = 1.0; // alpha has to be non-zero.
-
-    marker.lifetime = rclcpp::Duration(0);
-    marker.frame_locked = false;
+    marker = createCubeMarker(x, y, marker_id);
 
     marker_id++;
     
@@ -418,16 +390,23 @@ namespace hunav_rviz2_panel
 
     window->close();
 
-    try {
+    // If checkbox is not checked, it means that the user wants to store file in another directory.
+    if(!checkbox->isChecked()){
+      pkg_shared_tree_dir_ = dir + "/agents.yaml";
+    }
+    else{
+      try {
       pkg_shared_tree_dir_ = ament_index_cpp::get_package_share_directory("hunav_agent_manager");
 
-    } catch (const char* msg) {
-      RCLCPP_ERROR(this->get_logger(),
-                  "Package hunav_agent_manager not found in dir: %s!!!",
-                  pkg_shared_tree_dir_.c_str());
+      } catch (const char* msg) {
+        RCLCPP_ERROR(this->get_logger(),
+                    "Package hunav_agent_manager not found in dir: %s!!!",
+                    pkg_shared_tree_dir_.c_str());
+      }
+      pkg_shared_tree_dir_ = pkg_shared_tree_dir_ + "/config/agents.yaml";
     }
-    pkg_shared_tree_dir_ = pkg_shared_tree_dir_ + "/config/agents.yaml";
-
+    
+    // Open file to save agents
     std::ofstream file;
     file.open(pkg_shared_tree_dir_);
     
@@ -552,6 +531,13 @@ namespace hunav_rviz2_panel
 
     srand((unsigned) time(NULL));
 
+    int marker_array_size = static_cast<int>(marker_array->markers.size());
+
+    if(marker_array_size > 0){
+      // Remove existing markers before publishing new ones.
+      removeCurrentMarkers();
+    }
+
     // Get name and number of agents
     YAML::Node agents = yaml_file["hunav_loader"]["ros__parameters"]["agents"];
 
@@ -569,26 +555,7 @@ namespace hunav_rviz2_panel
       
       // Initial pose
       visualization_msgs::msg::Marker marker;
-      uint32_t shape = visualization_msgs::msg::Marker::CYLINDER;
-      marker.header.frame_id = "/map";
-      marker.header.stamp = rclcpp::Node::now();
-      marker.ns = "basic_shapes";
-      marker.id = ids;
-      marker.type = shape;
-      marker.action = visualization_msgs::msg::Marker::ADD;
-
-      marker.pose.position.x = current_agent["init_pose"]["x"].as<double>();
-      marker.pose.position.y = current_agent["init_pose"]["y"].as<double>();
-      marker.pose.position.z = 0;//current_agent["init_pose"]["z"].as<double>();
-
-      marker.scale.x = 0.5;
-      marker.scale.y = 0.5;
-      marker.scale.z = 0.5;
-
-      marker.color.r = rgb[red];
-      marker.color.g = rgb[green];
-      marker.color.b = rgb[blue];
-      marker.color.a = 1.0; // alpha has to be non-zero
+      marker = createCylinderMarker(current_agent["init_pose"]["x"].as<double>(), current_agent["init_pose"]["y"].as<double>(), ids);
 
       marker_array->markers.push_back(marker);
 
@@ -605,26 +572,7 @@ namespace hunav_rviz2_panel
       for(int k = 0; k < static_cast<int>(current_goals_vector.size()); k++){
 
         visualization_msgs::msg::Marker marker;
-        uint32_t shape = visualization_msgs::msg::Marker::CUBE;
-        marker.header.frame_id = "/map";
-        marker.header.stamp = rclcpp::Node::now();
-        marker.ns = "basic_shapes";
-        marker.id = ids;
-        marker.type = shape;
-        marker.action = visualization_msgs::msg::Marker::ADD;
-
-        marker.pose.position.x = current_agent[current_goals_vector[k]]["x"].as<double>();
-        marker.pose.position.y = current_agent[current_goals_vector[k]]["y"].as<double>();
-        marker.pose.position.z = 0;//current_agent["init_pose"]["z"].as<double>();
-
-        marker.scale.x = 0.3;
-        marker.scale.y = 0.3;
-        marker.scale.z = 0.3;
-
-        marker.color.r = rgb[red];
-        marker.color.g = rgb[green];
-        marker.color.b = rgb[blue];
-        marker.color.a = 1.0; // alpha has to be non-zero
+        marker = createCubeMarker(current_agent[current_goals_vector[k]]["x"].as<double>(), current_agent[current_goals_vector[k]]["y"].as<double>(), ids);
 
         marker_array->markers.push_back(marker);
 
@@ -718,6 +666,66 @@ namespace hunav_rviz2_panel
     }
   }
 
+  visualization_msgs::msg::Marker ActorPanel::createCylinderMarker(double point1_x, double point1_y, double ids){
+    
+    visualization_msgs::msg::Marker marker;
+    uint32_t shape = visualization_msgs::msg::Marker::CYLINDER;
+    marker.header.frame_id = "/map";
+    marker.header.stamp = rclcpp::Node::now();
+    marker.ns = "basic_shapes";
+    marker.id = ids;
+    marker.type = shape;
+    marker.action = visualization_msgs::msg::Marker::ADD;
+
+    marker.pose.position.x = point1_x;
+    marker.pose.position.y = point1_y;
+    marker.pose.position.z = 0.0;
+    marker.pose.orientation.x = 0.0;
+    marker.pose.orientation.y = 0.0;
+    marker.pose.orientation.z = 0.0;
+    marker.pose.orientation.w = 0.0;
+
+    marker.scale.x = 0.5;
+    marker.scale.y = 0.5;
+    marker.scale.z = 0.5;
+
+    marker.color.r = rgb[red];
+    marker.color.g = rgb[green];
+    marker.color.b = rgb[blue];
+    marker.color.a = 1.0; // alpha has to be non-zero
+
+    return marker;
+
+  }
+
+  visualization_msgs::msg::Marker ActorPanel::createCubeMarker(double point1_x, double point1_y, double ids){
+    
+    visualization_msgs::msg::Marker marker;
+
+    uint32_t shape = visualization_msgs::msg::Marker::CUBE;
+    marker.header.frame_id = "/map";
+    marker.header.stamp = rclcpp::Node::now();
+    marker.ns = "basic_shapes";
+    marker.id = ids;
+    marker.type = shape;
+    marker.action = visualization_msgs::msg::Marker::ADD;
+
+    marker.pose.position.x = point1_x;
+    marker.pose.position.y = point1_y;
+    marker.pose.position.z = 0;//current_agent["init_pose"]["z"].as<double>();
+
+    marker.scale.x = 0.3;
+    marker.scale.y = 0.3;
+    marker.scale.z = 0.3;
+
+    marker.color.r = rgb[red];
+    marker.color.g = rgb[green];
+    marker.color.b = rgb[blue];
+    marker.color.a = 1.0; // alpha has to be non-zero
+
+    return marker;
+  }
+
   visualization_msgs::msg::Marker ActorPanel::createArrowMarker(double point1_x, double point1_y, double point2_x, double point2_y, double ids){
     visualization_msgs::msg::Marker arrow_marker;
 
@@ -775,6 +783,23 @@ namespace hunav_rviz2_panel
     red = rand()%(1-0 + 1) + 0;
     green = rand()%(1-0 + 1) + 0;
     blue = rand()%(1-0 + 1) + 0;
+  }
+
+  void ActorPanel::removeCurrentMarkers(){
+    visualization_msgs::msg::Marker markerD;
+    markerD.header.frame_id = "map";    
+    markerD.action = visualization_msgs::msg::Marker::DELETEALL;
+
+    marker_array->markers.push_back(markerD);
+
+    //initial_pose_publisher->publish(std::move(marker_array));
+    goals_publisher->publish(std::move(marker_array));  
+  }
+
+  void ActorPanel::openFileExplorer(){
+    QString fileName = QFileDialog::getExistingDirectory(this, tr("Open Folder"), "/home", QFileDialog::ShowDirsOnly);
+    dir = fileName.toStdString();
+    window->activateWindow();
   }
   
   void ActorPanel::save(rviz_common::Config config) const

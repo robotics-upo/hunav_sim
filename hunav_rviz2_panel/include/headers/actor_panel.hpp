@@ -66,7 +66,11 @@ protected Q_SLOTS:
   int checkComboBoxSkin();
   void parseYaml();
   void randomRGB();
+  visualization_msgs::msg::Marker createCylinderMarker(double point1_x, double point1_y, double ids);
+  visualization_msgs::msg::Marker createCubeMarker(double point1_x, double point1_y, double ids);
   visualization_msgs::msg::Marker createArrowMarker(double point1_x, double point1_y, double point2_x, double point2_y, double ids);
+  void removeCurrentMarkers();
+  void openFileExplorer();
 
 public:
 
@@ -136,8 +140,12 @@ public:
   QPushButton *goals_button;
 
   std::string pkg_shared_tree_dir_;
+  std::string dir;
   
   QVBoxLayout *topic_layout_init_pose;
+  QCheckBox *checkbox;
+
+  bool show_file_selector_once = true;
 };
 
 }
