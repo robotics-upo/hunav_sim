@@ -97,8 +97,13 @@ namespace hunav_rviz2_panel
     QObject *button = QObject::sender();
 
     if (button)
-    {
+    {      
 
+      // Only removes markers when the "Create agents" button is clicked (If agent_count > 1 means that agents are being created, so markers need to stay in place)
+      if(agent_count == 1){
+        removeCurrentMarkers();
+      }
+    
       window = new QWidget;
 
       QVBoxLayout *topic_layout = new QVBoxLayout(window);
@@ -408,7 +413,7 @@ namespace hunav_rviz2_panel
     
     // Open file to save agents
     std::ofstream file;
-    file.open(pkg_shared_tree_dir_);
+    file.open(pkg_shared_tree_dir_ , std::ofstream::trunc);
     
     //Check if number of agents isn't empty
     if(actors->text().isEmpty()){
@@ -483,13 +488,21 @@ namespace hunav_rviz2_panel
 
       RCLCPP_INFO(this->get_logger(), "Generating agents.yaml");
         
-      //Writes hunav_loader node to file
+      // Writes hunav_loader node to file
       file << hunav_loader;
 
       // Close file
       file.close();
 
       RCLCPP_INFO(this->get_logger(), "Agents.yaml generated");
+
+      // Clean variables in order to create new Agent.yaml if neccesary
+      actors_info.clear();
+      names.clear();
+      point.clear();
+      iterate_actors = 1;
+      agent_count = 1;
+      poses.clear();
 
     }
     else{
@@ -510,6 +523,9 @@ namespace hunav_rviz2_panel
 
   // Open a generated yaml file
   void ActorPanel::parseYaml(){
+
+    removeCurrentMarkers();
+
     try {
         pkg_shared_tree_dir_ =
             ament_index_cpp::get_package_share_directory("hunav_agent_manager");
@@ -786,14 +802,24 @@ namespace hunav_rviz2_panel
   }
 
   void ActorPanel::removeCurrentMarkers(){
-    visualization_msgs::msg::Marker markerD;
-    markerD.header.frame_id = "map";    
-    markerD.action = visualization_msgs::msg::Marker::DELETEALL;
+    
+    auto marker_array = std::make_unique<visualization_msgs::msg::MarkerArray>();
+    auto marker_array1 = std::make_unique<visualization_msgs::msg::MarkerArray>();
+    
+    visualization_msgs::msg::Marker markerDeletionIP;
+    markerDeletionIP.header.frame_id = "map";    
+    markerDeletionIP.action = visualization_msgs::msg::Marker::DELETEALL;
 
-    marker_array->markers.push_back(markerD);
+    visualization_msgs::msg::Marker markerDeletionG;
+    markerDeletionG.header.frame_id = "map";    
+    markerDeletionG.action = visualization_msgs::msg::Marker::DELETEALL;
 
-    //initial_pose_publisher->publish(std::move(marker_array));
-    goals_publisher->publish(std::move(marker_array));  
+    marker_array->markers.push_back(markerDeletionIP);
+    marker_array1->markers.push_back(markerDeletionG);
+
+    initial_pose_publisher->publish(std::move(marker_array));
+    goals_publisher->publish(std::move(marker_array1));  
+
   }
 
   void ActorPanel::openFileExplorer(){
