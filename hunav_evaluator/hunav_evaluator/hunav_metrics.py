@@ -358,6 +358,23 @@ def path_efficiency(agents, robot):
     pass
 
 
+# Evaluation of Socially-Aware Robot Navigation
+# Yuxiang Gao * and Chien-Ming Huang
+# Department of Computer Science, The Johns Hopkins University, Baltimore, MD, United States
+
+# TODO: 
+# Average Displacement Error --> Trajectory needed
+# Final Displacement Error --> Trajectory needed
+# Asymmetric Dynamic Time Warping --> Trajectory needed
+# Topological Complexity --> Path needed
+# Path irregularity and Path efficiency are similar to the ones in SEAN paper .
+# Personal space and o/p/r-space metrics are similar to the ones in Teaching Robot Navigation Behaviors to Optimal RRT Planners paper.
+# Social Force Model (SFM)
+# Extended Social Force Model.
+
+
+
+
 metrics = {
     # N. Perez-Higueras, F. Caballero, and L. Merino, “Teaching Robot Nav-
     # igation Behaviors to Optimal RRT Planners,” International Journal of
@@ -408,6 +425,8 @@ metrics = {
     # TODO:'static_obstacle_collision': static_obs_collision,
     # number of times the robot collides with a static obstacle.
 }
+
+
 
 
 # def compute_metrics(agents, robot):
