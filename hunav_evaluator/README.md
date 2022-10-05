@@ -79,48 +79,43 @@ metrics:
 
 ### Metrics implemented
 
-Pérez-Higueras, N., Caballero, F. & Merino, L.
+Metrics from: [1]
 
-Teaching Robot Navigation Behaviors to Optimal RRT Planners. 
-Int.J. of Soc. Robotics 10, 235–249 (2018). 
-
-https://doi.org/10.1007/s12369-017-0448-1
-
-- Time to reach the goal (Tp) Time since the robot start the
+- Time to reach the goal $(T_p)$ Time since the robot start the
 navigation until the goal is correctly reached.
 
 $$ T_p = (T_{goal} - T_{ini}) $$
 
-- Path length (L p ) The length of the path followed by the robot from the initial point to the goal position.
+- Path length $(L_p)$ The length of the path followed by the robot from the initial point to the goal position.
 
 $$ L_p = \sum_{i=1}^{N-1}||x_r^i - x_r^{i+1}||_2$$
 
-- Cumulative heading changes (C H C) It counts the cumu-
+- Cumulative heading changes (CHC) It counts the cumu-
 lative heading changes of in the robot trajectory measured by angles between successive waypoints. It gives a simple way to check on smoothness of path and energy so a low value is desirable.
 
 $$ CHC = \sum_{i=1}^{N-1}(h_r^i - h_r^{i+1})$$
 
-&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;where $h_r^i$ indicates the heading of the robot in the position i. The angles and their difference are normalized between −$\pi$ and $\pi$ .
+&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;where $h_r^i$ indicates the heading of the robot in the position i. The angles and their difference are normalized between $-\pi$ and $\pi$ .
 
 - Average distance to closest person $(CP_{avg})$ A measure
 of the mean distance from the robot to the closest person
 along the trajectory.
 
-$$ CP_{avg} = \frac{1}{N} \sum_{i=1}^{N}(||x_r^i - x_cp^i||_2)$$
+$$ CP_{avg} = \frac{1}{N} \sum_{i=1}^{N}(||x_r^i - x_{cp}^i||_2)$$
 
 &ensp;&ensp;&ensp;&ensp;&ensp;&ensp;where $x_{cp}^i$ indicates the position of the closest person to the robot at step i.
 
-- Minimum and maximum distance to people ($CP_{min}$ and
+- Minimum and maximum distance to people $(CP_{min}$ and
 $CP_{max}$ respectively) The values of the minimum and the
 maximum distances from the robot to the people along
 the trajectory. It can give an idea of the dimension of
 the robot trajectory with respect to the people in the
 space.
 
-$$ CP_{min} = min\{||x_r^i-x_{cp}^i||_2 | \forall i \in N\} $$
-$$ CP_{max} = max\{||x_r^i-x_{cp}^i||_2 | \forall i \in N\} $$
+$$ CP_{min} = min \{||x_r^i-x_{cp}^i||_2 | \forall i \in N \} $$
+$$ CP_{max} = max \{||x_r^i-x_{cp}^i||_2 | \forall i \in N \} $$
 
-- Personal space intrusions ($CP_{prox}$) This metric is based
+- Personal space intrusions $(CP_{prox})$ This metric is based
 on the Proxemics theory which define personal spaces
 around people for interaction. These areas are defined
 as:
@@ -137,7 +132,7 @@ $$ CP_{prox}^k = (\frac{1}{N} \sum_{j=1}^{N} F(||x_r^j - x_{cp}^j||_2 \lt \delta
 &ensp;&ensp;&ensp;&ensp;&ensp;&ensp; where N is the total number of time steps in the trajectory, $\delta$ defines the distance range for 
 classification defined by k = {Intimate, Personal, Social + Public}, and F(·) is the indicator function.
 
-- Interaction space intrusions ($IS_{prox}$) This metric is
+- Interaction space intrusions $(IS_{prox})$ This metric is
 inspired by the work of Okal and Arras in formalizing social normative robot behavior, and it is related to groups of interacting persons. It measures the percentage of time spent by the robot in the three Proxemics spaces considered with respect to an interaction area formed by a group of people that are interacting with each other. The detection of the interaction area of the group is based on the detection of F-formations. A F-formation arises whenever two or more people sustain a spatial and orientational relationship in which the space between them is
 one to which they have equal, direct, and exclusive access
 
@@ -146,19 +141,25 @@ $$ IS_{prox}^k = (\frac{1}{N} \sum_{j=1}^{N} F(||x_r^j - x_f^j||_2 \lt \delta^k)
 &ensp;&ensp;&ensp;&ensp;&ensp;&ensp;where $x_f^j$ determines the center of the closest formation or group of people $f$ to the robot at step j.
 
 
-N. Tsoi et al., "SEAN 2.0: Formalizing and Generating Social Situations
-for Robot Navigation," in IEEE Robotics and Automation Letters, vol. 7,
-no. 4, pp. 11047-11054, Oct. 2022, doi: 10.1109/LRA.2022.3196783.
+Metrics from: [2]
 
-- Minimum Distance to Target: This metric is very similar to the one that has been implemented before in Teaching Robot Navigation Behaviors to Optimal RRT Planners paper.
+- Completed: true when the robot's final pose is within a specified distance of the goal.
+
+- Total Path Length: This metric has been implemented by using Path Length metric of [1]
+
+- Minimum Distance to Target: the closest the robot passes to the target position.
 
 - Final Distance to Target: (meters): distance between the last robot position and the target position.
 
-- Robot on Person Collision: number of times robot collides with a person.
+- Robot on Person Collision: number of times robot collides with a person. This metric has been implemented by using orientation and velocity of the robot and agents.
 
 $$  $$
 
-- Person on Robot Collision: number of times person collides with a robot.
+- Person on Robot Collision: number of times person collides with a robot. This metric has been implemented by using orientation and velocity of the robot and agents.
+
+$$ $$
+
+- Static Obstacle Collision: number of times the robot collides with a static obstacle.
 
 $$ $$
 
@@ -166,9 +167,8 @@ $$ $$
 
 $$ $$
 
-- Static Obstacle Collision: number of times the robot collides with a static obstacle.
+- Robot on Person Personal Distance Violation: This metric has been implemented by using Personal space intrusions metric of [1]. Instead of giving the number of times the robot approaches a person within the personal distance, a percentage is given.
 
-$$ $$
 
 ## Add new metrics
 
