@@ -221,34 +221,6 @@ def group_social_space_intrusions(agents, robot):
     return percentage           
 
 
-# def interaction_space_intrusions(agents, robot):
-#     # Choose k (intimate, personal, social, public)
-#     k = "intimate"
-#     # Choose group_id
-#     group_id = -1
-#     # Choose distance 
-#     distance = 1.5
-
-#     space_intrusions = 0
-#     min_dist = 10000
-#     for i in range(len(robot)):
-#         people_group = get_group_center(agents, robot[i], i, group_id, distance)
-#         d = euclidean_distance(robot[i].position, people_group)
-#         if d < min_dist:
-#             min_dist = d
-#             indicator = indicator_function(min_dist, k)
-#             if indicator == 1:
-#                 space_intrusions += 1
-        
-
-#     n = 1/len(robot)
-
-#     space_intrusions *= n
-#     percentage = space_intrusions * 100
-
-#     print('Interaction_space_intrusions: %.2f' % percentage + "% " + "K: %s" % k)
-        
-#     return percentage
 
 
 
@@ -260,13 +232,14 @@ def group_social_space_intrusions(agents, robot):
 # Instead of returning the number of times, it returns a percentage of distance violation.
 
 def collisions(agents, robot):
-    robot_collision = 0
-    person_collision = 0
+    robot_collisions = 0
+    person_collisions = 0
 
     for i in range(len(robot)):
         for agent in agents[i].agents:
 
-            if euclidean_distance(robot[i].position, agent.position) - robot[i].radius - agent.radius < 0.05:
+            if euclidean_distance(robot[i].position, agent.position) - robot[i].radius - agent.radius < 0.02:
+                
                 # Robot's angle
                 nrx = (robot[i].position.position.x - agent.position.position.x) * math.cos(agent.yaw) + (robot[i].position.position.y - agent.position.position.y) * math.sin(agent.yaw)
                 nry = -(robot[i].position.position.x - agent.position.position.x) * math.sin(agent.yaw) + (robot[i].position.position.y - agent.position.position.y) * math.cos(agent.yaw)
@@ -277,21 +250,21 @@ def collisions(agents, robot):
                 nry = -(agent.position.position.x - robot[i].position.position.x) * math.sin(robot[i].yaw) + (agent.position.position.y - robot[i].position.position.y) * math.cos(robot[i].yaw)
                 alpha2 = math.atan2(nrx, nry)
 
-                if alpha < alpha2 and robot[i].linear_vel > agent.linear_vel:
-                    robot_collision += 1
-                elif alpha > alpha2 and robot[i].linear_vel < agent.linear_vel:
-                    person_collision += 1
-                elif alpha < alpha2 and robot[i].linear_vel < agent.linear_vel:
+                if abs(alpha) < abs(alpha2) and robot[i].linear_vel > agent.linear_vel:
+                    robot_collisions += 1
+                elif abs(alpha) > abs(alpha2) and robot[i].linear_vel < agent.linear_vel:
+                    person_collisions += 1
+                elif abs(alpha) < abs(alpha2) and robot[i].linear_vel < agent.linear_vel:
                     #person_collision += 1
-                    robot_collision += 1
-                elif alpha > alpha2 and robot[i].linear_vel > agent.linear_vel:
+                    robot_collisions += 1
+                elif abs(alpha) > abs(alpha2) and robot[i].linear_vel > agent.linear_vel:
                     #robot_collision += 1
-                    person_collision += 1
-                elif alpha == alpha2 and robot[i].linear_vel == agent.linear_vel:
-                    robot_collision += 1
-                    person_collision += 1
+                    person_collisions += 1
+                elif abs(alpha) == abs(alpha2) and robot[i].linear_vel == agent.linear_vel:
+                    robot_collisions += 1
+                    person_collisions += 1
 
-    return robot_collision, person_collision
+    return robot_collisions, person_collisions
 
 def robot_on_person_collision(agents, robot):
 
@@ -304,6 +277,9 @@ def person_on_robot_collision(agents, robot):
     collision = collisions(agents, robot)
 
     return collision[1]
+
+
+
 
 def time_not_moving(agents, robot):
     
@@ -349,12 +325,20 @@ def minimum_goal_distance(agents, robot):
                     min_dist = d
     return min_dist
 
-#ToDo
+
+
+
+
+#TODO
 def path_irregularity(agents, robot):
     pass
 
-#ToDo
+#TODO
 def path_efficiency(agents, robot):
+    pass
+
+# TODO
+def static_obs_collision(agents, robot):
     pass
 
 
@@ -423,7 +407,7 @@ metrics = {
     'robot_on_person_collision': robot_on_person_collision,
     'person_on_robot_collision': person_on_robot_collision,
     'time_not_moving': time_not_moving,
-    # TODO:'static_obstacle_collision': static_obs_collision,
+    # TODO: 'static_obstacle_collision': static_obs_collision,
     # number of times the robot collides with a static obstacle.
 }
 

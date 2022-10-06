@@ -107,20 +107,13 @@ $$ CP_{avg} = \frac{1}{N} \sum_{i=1}^{N}(||x_r^i - x_{cp}^i||_2)$$
 
 &ensp;&ensp;&ensp;&ensp;&ensp;&ensp;where $x_{cp}^i$ indicates the position of the closest person to the robot at step i.
 
-- *Minimum and maximum distance to people* $(CP_{min}$ and
-$CP_{max}$ respectively) The values of the minimum and the
-maximum distances ($meters$) from the robot to the people along
-the trajectory. It can give an idea of the dimension of
-the robot trajectory with respect to the people in the
-space.
+- *Minimum and maximum distance to people* $(CP_{min}$ and $CP_{max}$ respectively) The values of the minimum and the maximum distances ($meters$) from the robot to the people along the trajectory. It can give an idea of the dimension of the robot trajectory with respect to the people in the space.
 
-$$ CP_{min} = min \{||x_r^i-x_{cp}^i||_2 | \forall i \in N \} $$
-$$ CP_{max} = max \{||x_r^i-x_{cp}^i||_2 | \forall i \in N \} $$
+$$ CP_{min} = min \{||x_r^i-x_{cp}^i||_2  \forall i \in N \} $$
 
-- *Personal space intrusions* $(CP_{prox})$ This metric is based
-on the Proxemics theory which define personal spaces
-around people for interaction. These areas are defined
-as:
+$$ CP_{max} = max \{||x_r^i-x_{cp}^i||_2  \forall i \in N \} $$
+
+- *Intimate/Personal/Social space intrusions* $(CP_{prox})$ This metric is based on the Proxemics theory which define personal spaces around people for interaction. These areas are defined as:
 
     - Intimate. Distance shorter than 0.45m.
     - Personal. Distance between 0.45 and 1.2m.
@@ -144,30 +137,36 @@ $$ IS_{prox}^k = (\frac{1}{N} \sum_{j=1}^{N} F(||x_r^j - x_f^j||_2 \lt \delta^k)
 
 Metrics from the SEAN simulator [2]:
 
-- *Completed*: true when the robot's final pose is within a specified threshold distance of the goal.
+- *Completed* $C$: true when the robot's final pose is within a specified threshold distance of the goal.
+  
+$$ C = F(||x_r^N - x_{g}||_2 - r_{g} \lt 0.0) $$
+
+&ensp;&ensp;&ensp;&ensp;&ensp;&ensp; where $x_r^N$ is the robot pose in the last time step of the trajectory, $x_{g}$ is the goal position and  $r_{g}$ is the goal radius. F(·) is the indicator function.
 
 - *Total Path Length*: This metric is equivalent *Path Length* metric of [1].
 
-- *Minimum Distance to Target* ($meters$): the minimum distance to the target position reached by the robot along its path.
+- *Minimum Distance to Target*, $TD_{min}$ ($meters$): the minimum distance to the target position reached by the robot along its path.
+
+$$ TD_{min} = min \{||x_r^i-x_{g}||_2 \forall i \in N \} $$
+
+&ensp;&ensp;&ensp;&ensp;&ensp;&ensp; where $x_r^i$ is the robot pose in the time step $i$ of the trajectory, and $x_{g}$ is the target position.
 
 - *Final Distance to Target* ($meters$): distance between the last robot position and the target position.
 
-- *Time Not Moving*: seconds that the robot was not moving.
+$$ TD_{final} = ||x_r^N -x_{g}||_2 $$
 
-$$ $$
+&ensp;&ensp;&ensp;&ensp;&ensp;&ensp; where $x_r^N$ is the robot pose in the last time step of the trajectory.
 
-- *Robot on Person Collision*: number of times robot collides with a person. The SEAN simulator employs the Unity colliding tools to detect the collisions. However, we want our the metrics to be independent of any simulator. Therefore, this metric has been implemented by using orientation and velocity of the robot and agents to determine who is running into the other. 
+- *Time Not Moving*: seconds that the robot was not moving. We consider that the robot is not moving when the linear velolcity is lower than $0.001$ $m/s$ and the angular velocity lower than $0.01$ $rad/s$.
 
-$$  $$
 
-- *Person on Robot Collision*: number of times person collides with a robot. The SEAN simulator employs the Unity colliding tools to detect the collisions. However, we want our the metrics to be independent of any simulator. Therefore, this metric has been implemented by using orientation and velocity of the robot and agents to determine who is running into the other.
+- *Robot on Person Collision*, $RPC$, and *Person on Robot Collision*, $PRC$: number of times robot collides with a person and vice versa. The SEAN simulator employs the Unity colliding tools to detect the collisions. However, we want our metrics to be independent of any simulator. Therefore, this metric has been implemented by using the positions, the orientations and the velocities of the robot and agents to determine who is running into the other. The collisions are primarily computed as:
 
-$$ $$
+$$ Collisions = \sum_{i=1}^{N} F(||x_r^i - x_{cp}^i||_2 - r_{r} - r_{cp} \lt 0.01) $$
 
-- *Static Obstacle Collision*: number of times the robot collides with a static obstacle.
+&ensp;&ensp;&ensp;&ensp;&ensp;&ensp; where $x_r^i$ is the robot pose in the time step $i$ of the trajectory, $x_{cp}^i$ is the pose of the closest person to the robot at time step $i$. $r_{r}$ is the radius of the robot and $r_{cp} is the radius of the closest person. Then, we check the relative orientations between the agent and the robot and their velocities to determine who is running into the other.  
 
-$$ $$
-
+<!-- - *Static Obstacle Collision*: number of times the robot collides with a static obstacle. -->
 
 - *Robot on Person Personal Distance Violation*, *Person on Robot Personal Distance Violation*, *Intimate Distance Violation* and *Person on Robot Intimate Distance Violation*: These metrics are not used. We are employing the similar *Intimate/Personal/Social space instrusions* [1] instead. Instead of giving the number of times the robot approaches a person within the personal distance, a percentage of the total time is given.
 
