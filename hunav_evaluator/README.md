@@ -137,7 +137,7 @@ Metrics from the SEAN simulator [2]:
 
 - *Completed* $C$. true when the robot's final pose is within a specified threshold distance of the goal.
   
-$C=F(\({||x_r^N - x_{g}||}_{2}-radius_{g}\)\lt0.0)$
+$$ C=F(\({||x_r^N - x_{g}||}_{2}-radius_{g}\)\lt0.0) $$
 
 &ensp;&ensp;&ensp;&ensp;&ensp;&ensp; where $x_r^N$ is the robot pose in the last time step of the trajectory, $x_{g}$ is the goal position and  $radius_{g}$ is the goal radius. $F(·)$ is the indicator function.
 
