@@ -139,7 +139,7 @@ Metrics from the SEAN simulator [2]:
   
 $$ C = F(\({||x_r^N - x_{g}||}_{2}  - \gamma_g \) \lt 0.0) $$
 
-&ensp;&ensp;&ensp;&ensp;&ensp;&ensp; where $x_r^N$ is the robot pose in the last time step of the trajectory, $x_{g}$ is the goal position and  $gamma_{g}$ is the goal radius. $F(·)$ is the indicator function.
+&ensp;&ensp;&ensp;&ensp;&ensp;&ensp; where $x_r^N$ is the robot pose in the last time step of the trajectory, $x_{g}$ is the goal position and  $\gamma_{g}$ is the goal radius. $F(·)$ is the indicator function.
 
 - *Total Path Length*. This metric is equivalent *Path Length* metric of [1].
 
@@ -160,9 +160,9 @@ $$ TD_{final} = ||x_r^N -x_{g}||_2 $$
 
 - *Robot on Person Collision*, $RPC$, and *Person on Robot Collision*, $PRC$. Number of times robot collides with a person and vice versa. The SEAN simulator employs the Unity colliding tools to detect the collisions. However, we want our metrics to be independent of any simulator. Therefore, this metric has been implemented by using the positions, the orientations and the velocities of the robot and agents to determine who is running into the other. The collisions are primarily computed as:
 
-$$ Collisions = \sum_{i=1}^{N} F(||x_r^i - x_{cp}^i||_2 - radius_{r} - radius_{cp} \lt 0.01) $$
+$$ Collisions = \sum_{i=1}^{N} F(||x_r^i - x_{cp}^i||_2 - \gamma_{r} - \gamma_{cp} \lt 0.01) $$
 
-&ensp;&ensp;&ensp;&ensp;&ensp;&ensp; where $x_r^i$ is the robot pose in the time step $i$ of the trajectory, $x_{cp}^i$ is the pose of the closest person to the robot at time step $i$. $radius_{r}$ is the radius of the robot and $radius_{cp} is the radius of the closest person. Then, we check the relative orientations between the agent and the robot and their velocities to determine who is running into the other.  
+&ensp;&ensp;&ensp;&ensp;&ensp;&ensp; where $x_r^i$ is the robot pose in the time step $i$ of the trajectory, $x_{cp}^i$ is the pose of the closest person to the robot at time step $i$. $\gamma_{r}$ is the radius of the robot and $\gamma_{cp} is the radius of the closest person. Then, we check the relative orientations between the agent and the robot and their velocities to determine who is running into the other.  
 
 <!-- - *Static Obstacle Collision*: number of times the robot collides with a static obstacle. -->
 
