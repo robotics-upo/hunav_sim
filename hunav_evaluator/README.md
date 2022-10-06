@@ -91,22 +91,21 @@ $$ T_p = (T_{goal} - T_{ini}) $$
 
 $$ L_p = \sum_{i=1}^{N-1}||x_r^i - x_r^{i+1}||_2$$
 
-- *Cumulative heading changes*, $(CHC)$. It counts the cumu-
-lative heading changes ($radians$) of in the robot trajectory measured by angles between successive waypoints. It gives a simple way to check on smoothness of path and energy so a low value is desirable.
+- *Cumulative heading changes*, $(CHC)$. It counts the cumulative heading changes $(radians)$ of in the robot trajectory measured by angles between successive waypoints. It gives a simple way to check on smoothness of path and energy so a low value is desirable.
 
 $$ CHC = \sum_{i=1}^{N-1}(h_r^i - h_r^{i+1})$$
 
 &ensp;&ensp;&ensp;&ensp;&ensp;&ensp;where $h_r^i$ indicates the heading of the robot in the position i. The angles and their difference are normalized between $-\pi$ and $\pi$ .
 
 - *Average distance to closest person* $(CP_{avg})$. A measure
-of the mean distance ($meters$) from the robot to the closest person
+of the mean distance $(meters)$ from the robot to the closest person
 along the trajectory.
 
 $$ CP_{avg} = \frac{1}{N} \sum_{i=1}^{N}(||x_r^i - x_{cp}^i||_2)$$
 
 &ensp;&ensp;&ensp;&ensp;&ensp;&ensp;where $x_{cp}^i$ indicates the position of the closest person to the robot at step i.
 
-- *Minimum and maximum distance to people* ( $CP_{min}$ and $CP_{max}$ respectively). The values of the minimum and the maximum distances ($meters$) from the robot to the people along the trajectory. It can give an idea of the dimension of the robot trajectory with respect to the people in the space.
+- *Minimum and maximum distance to people* ( $CP_{min}$ and $CP_{max}$ respectively). The values of the minimum and the maximum distances $(meters)$ from the robot to the people along the trajectory. It can give an idea of the dimension of the robot trajectory with respect to the people in the space.
 
 $$ CP_{min} = min \{||x_r^i-x_{cp}^i||_2  \forall i \in N \} $$
 
@@ -138,9 +137,9 @@ Metrics from the SEAN simulator [2]:
 
 - *Completed* $C$. true when the robot's final pose is within a specified threshold distance of the goal.
   
-$$ C = F(||x_r^N - x_{g}||_2 - r_{g} \lt 0.0) $$
+$$ C = F(||x_r^N - x_{g}||_{2}  - radius_{g} \lt 0.0) $$
 
-&ensp;&ensp;&ensp;&ensp;&ensp;&ensp; where $x_r^N$ is the robot pose in the last time step of the trajectory, $x_{g}$ is the goal position and  $r_{g}$ is the goal radius. F(·) is the indicator function.
+&ensp;&ensp;&ensp;&ensp;&ensp;&ensp; where $x_r^N$ is the robot pose in the last time step of the trajectory, $x_{g}$ is the goal position and  $radius_{g}$ is the goal radius. $F(·)$ is the indicator function.
 
 - *Total Path Length*. This metric is equivalent *Path Length* metric of [1].
 
@@ -161,9 +160,9 @@ $$ TD_{final} = ||x_r^N -x_{g}||_2 $$
 
 - *Robot on Person Collision*, $RPC$, and *Person on Robot Collision*, $PRC$. Number of times robot collides with a person and vice versa. The SEAN simulator employs the Unity colliding tools to detect the collisions. However, we want our metrics to be independent of any simulator. Therefore, this metric has been implemented by using the positions, the orientations and the velocities of the robot and agents to determine who is running into the other. The collisions are primarily computed as:
 
-$$ Collisions = \sum_{i=1}^{N} F(||x_r^i - x_{cp}^i||_2 - r_{r} - r_{cp} \lt 0.01) $$
+$$ Collisions = \sum_{i=1}^{N} F(||x_r^i - x_{cp}^i||_2 - radius_{r} - radius_{cp} \lt 0.01) $$
 
-&ensp;&ensp;&ensp;&ensp;&ensp;&ensp; where $x_r^i$ is the robot pose in the time step $i$ of the trajectory, $x_{cp}^i$ is the pose of the closest person to the robot at time step $i$. $r_{r}$ is the radius of the robot and $r_{cp} is the radius of the closest person. Then, we check the relative orientations between the agent and the robot and their velocities to determine who is running into the other.  
+&ensp;&ensp;&ensp;&ensp;&ensp;&ensp; where $x_r^i$ is the robot pose in the time step $i$ of the trajectory, $x_{cp}^i$ is the pose of the closest person to the robot at time step $i$. $radius_{r}$ is the radius of the robot and $radius_{cp} is the radius of the closest person. Then, we check the relative orientations between the agent and the robot and their velocities to determine who is running into the other.  
 
 <!-- - *Static Obstacle Collision*: number of times the robot collides with a static obstacle. -->
 
