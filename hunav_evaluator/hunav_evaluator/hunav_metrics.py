@@ -384,6 +384,7 @@ metrics = {
     'cumulative_heading_changes': cumulative_heading_changes,
     'avg_distance_to_closest_person': avg_closest_person,
     'minimum_distance_to_people': minimum_distance_to_people,
+    'maximum_distance_to_people': maximum_distance_to_people,
     'intimate_space_intrusions': intimate_space_intrusions,
     'personal_space_intrusions': personal_space_intrusions,
     'social_space_intrusions': social_space_intrusions,
@@ -428,11 +429,4 @@ metrics = {
 
 
 
-
-# def compute_metrics(agents, robot):
-#     if(tt_enable):
-#         secs = total_time(agents, robot)
-    
-#     if(rpl_enable):
-#         length = robot_path_length(agents, robot)
 

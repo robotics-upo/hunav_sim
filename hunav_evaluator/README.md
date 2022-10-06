@@ -41,11 +41,11 @@ This values must be indicated in the yaml file metrics.yaml, placed in the confi
 * ```result_file```. Full path and name of the output text file. If a new experiment is performed and the file already exists, the evaluator wil open the file and will add the computed metrics in a new row at the end of the file. This allows to repeat experiments and to store the results as rows in the same file for easier post-processing.
 * ```metrics```. List with the names of the metrics to be computed. The user can just comment/uncomment the desired metrics.   
 
-### Metrics
+### Metrics configuration
 
 Currently, the metrics implemented are those employed in our previous work [1] and the SEAN simulator [2]. The metrics from the SocNavBench [3], Crowdbot [4] and the compilation indicated in the work of Gao et al. [5], are being studied and included.
 
-Example snippet of the metrics section in the yaml file:
+The user can configure the metrics to be computed by just commenting and/or uncommenting in a configuration yaml file. Example snippet of the metrics configuration file:
 
 ```yaml
 metrics: 
@@ -77,37 +77,39 @@ metrics:
     - static_obstacle_collision
 ```
 
-### Metrics implemented
+### Metrics description
 
-Metrics from: [1]
+Currently, the metrics implemented are:
 
-- Time to reach the goal $(T_p)$ Time since the robot start the
+Metrics from our previous work [1]:
+
+- *Time to reach the goal* $(T_p)$ Time ($secods$) since the robot start the
 navigation until the goal is correctly reached.
 
 $$ T_p = (T_{goal} - T_{ini}) $$
 
-- Path length $(L_p)$ The length of the path followed by the robot from the initial point to the goal position.
+- *Path length* $(L_p)$ The length of the path ($meters$) followed by the robot from the initial point to the goal position.
 
 $$ L_p = \sum_{i=1}^{N-1}||x_r^i - x_r^{i+1}||_2$$
 
-- Cumulative heading changes (CHC) It counts the cumu-
-lative heading changes of in the robot trajectory measured by angles between successive waypoints. It gives a simple way to check on smoothness of path and energy so a low value is desirable.
+- *Cumulative heading changes* ($CHC$) It counts the cumu-
+lative heading changes ($radians$) of in the robot trajectory measured by angles between successive waypoints. It gives a simple way to check on smoothness of path and energy so a low value is desirable.
 
 $$ CHC = \sum_{i=1}^{N-1}(h_r^i - h_r^{i+1})$$
 
 &ensp;&ensp;&ensp;&ensp;&ensp;&ensp;where $h_r^i$ indicates the heading of the robot in the position i. The angles and their difference are normalized between $-\pi$ and $\pi$ .
 
-- Average distance to closest person $(CP_{avg})$ A measure
-of the mean distance from the robot to the closest person
+- *Average distance to closest person* $(CP_{avg})$ A measure
+of the mean distance ($meters$) from the robot to the closest person
 along the trajectory.
 
 $$ CP_{avg} = \frac{1}{N} \sum_{i=1}^{N}(||x_r^i - x_{cp}^i||_2)$$
 
 &ensp;&ensp;&ensp;&ensp;&ensp;&ensp;where $x_{cp}^i$ indicates the position of the closest person to the robot at step i.
 
-- Minimum and maximum distance to people $(CP_{min}$ and
+- *Minimum and maximum distance to people* $(CP_{min}$ and
 $CP_{max}$ respectively) The values of the minimum and the
-maximum distances from the robot to the people along
+maximum distances ($meters$) from the robot to the people along
 the trajectory. It can give an idea of the dimension of
 the robot trajectory with respect to the people in the
 space.
@@ -115,7 +117,7 @@ space.
 $$ CP_{min} = min \{||x_r^i-x_{cp}^i||_2 | \forall i \in N \} $$
 $$ CP_{max} = max \{||x_r^i-x_{cp}^i||_2 | \forall i \in N \} $$
 
-- Personal space intrusions $(CP_{prox})$ This metric is based
+- *Personal space intrusions* $(CP_{prox})$ This metric is based
 on the Proxemics theory which define personal spaces
 around people for interaction. These areas are defined
 as:
@@ -132,42 +134,48 @@ $$ CP_{prox}^k = (\frac{1}{N} \sum_{j=1}^{N} F(||x_r^j - x_{cp}^j||_2 \lt \delta
 &ensp;&ensp;&ensp;&ensp;&ensp;&ensp; where N is the total number of time steps in the trajectory, $\delta$ defines the distance range for 
 classification defined by k = {Intimate, Personal, Social + Public}, and F(·) is the indicator function.
 
-- Interaction space intrusions $(IS_{prox})$ This metric is
-inspired by the work of Okal and Arras in formalizing social normative robot behavior, and it is related to groups of interacting persons. It measures the percentage of time spent by the robot in the three Proxemics spaces considered with respect to an interaction area formed by a group of people that are interacting with each other. The detection of the interaction area of the group is based on the detection of F-formations. A F-formation arises whenever two or more people sustain a spatial and orientational relationship in which the space between them is
+- *Interaction space intrusions* $(IS_{prox})$ This metric is inspired by the work of Okal and Arras [5] in formalizing social normative robot behavior, and it is related to groups of interacting persons. It measures the percentage of time spent by the robot in the three Proxemics spaces considered with respect to an interaction area formed by a group of people that are interacting with each other. The detection of the interaction area of the group is based on the detection of F-formations. A F-formation arises whenever two or more people sustain a spatial and orientational relationship in which the space between them is
 one to which they have equal, direct, and exclusive access
 
 $$ IS_{prox}^k = (\frac{1}{N} \sum_{j=1}^{N} F(||x_r^j - x_f^j||_2 \lt \delta^k)) * 100 $$
 
-&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;where $x_f^j$ determines the center of the closest formation or group of people $f$ to the robot at step j.
+&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;where $x_f^j$ determines the center of the closest formation or group of people $f$ to the robot at step $j$.
 
 
-Metrics from: [2]
+Metrics from the SEAN simulator [2]:
 
-- Completed: true when the robot's final pose is within a specified distance of the goal.
+- *Completed*: true when the robot's final pose is within a specified threshold distance of the goal.
 
-- Total Path Length: This metric has been implemented by using Path Length metric of [1]
+- *Total Path Length*: This metric is equivalent *Path Length* metric of [1].
 
-- Minimum Distance to Target: the closest the robot passes to the target position.
+- *Minimum Distance to Target* ($meters$): the minimum distance to the target position reached by the robot along its path.
 
-- Final Distance to Target: (meters): distance between the last robot position and the target position.
+- *Final Distance to Target* ($meters$): distance between the last robot position and the target position.
 
-- Robot on Person Collision: number of times robot collides with a person. This metric has been implemented by using orientation and velocity of the robot and agents.
+- *Time Not Moving*: seconds that the robot was not moving.
+
+$$ $$
+
+- *Robot on Person Collision*: number of times robot collides with a person. The SEAN simulator employs the Unity colliding tools to detect the collisions. However, we want our the metrics to be independent of any simulator. Therefore, this metric has been implemented by using orientation and velocity of the robot and agents to determine who is running into the other. 
 
 $$  $$
 
-- Person on Robot Collision: number of times person collides with a robot. This metric has been implemented by using orientation and velocity of the robot and agents.
+- *Person on Robot Collision*: number of times person collides with a robot. The SEAN simulator employs the Unity colliding tools to detect the collisions. However, we want our the metrics to be independent of any simulator. Therefore, this metric has been implemented by using orientation and velocity of the robot and agents to determine who is running into the other.
 
 $$ $$
 
-- Static Obstacle Collision: number of times the robot collides with a static obstacle.
+- *Static Obstacle Collision*: number of times the robot collides with a static obstacle.
 
 $$ $$
 
-- Time Not Moving: seconds that the robot was not moving.
 
-$$ $$
+- *Robot on Person Personal Distance Violation*, *Person on Robot Personal Distance Violation*, *Intimate Distance Violation* and *Person on Robot Intimate Distance Violation*: These metrics are not used. We are employing the similar *Intimate/Personal/Social space instrusions* [1] instead. Instead of giving the number of times the robot approaches a person within the personal distance, a percentage of the total time is given.
 
-- Robot on Person Personal Distance Violation: This metric has been implemented by using Personal space intrusions metric of [1]. Instead of giving the number of times the robot approaches a person within the personal distance, a percentage is given.
+- *Path Irregularity* ($radians$) [NOT IMPLEMENTED]: total rotations in the robot's traveled path greater than the total rotations in the search-based path from the starting pose. We have not implemented this metric for the moment. We do not use the path of the global planner as input of the metric functions, as well as not all the navigation systems are using an unique global path without replanning. Anyway, we are considering to add the global path information into the metric function inputs.
+
+- *Path Efficiency* ($meters$) [NOT IMPLEMENTED]: ratio between robot's traveled path and geodesic distance of the search-based path from the starting pose. We have not implemented this metric for the moment. We do not use the path of the global planner as input of the metric functions, as well as not all the navigation systems are using an unique global path without replanning. Anyway, we are considering to add the global path information into the metric function inputs.
+
+
 
 
 ## Add new metrics
@@ -202,5 +210,7 @@ After compiling, the user can add the new function name to the ```metrics.yaml``
 [3] A. Biswas, A. Wang, G. Silvera, A. Steinfeld, and H. Admoni,"Socnavbench: A grounded simulation testing framework for evaluating social navigation," ACM Transactions on Human-Robot Interaction, jul 2022. [Online](https://doi.org/10.1145/3476413).
 
 [4] Y. Gao and C.-M. Huang, "Evaluation of socially-aware robot navigation," Frontiers in Robotics and AI, vol. 8, 2022.[Online](https://www.frontiersin.org/articles/10.3389/frobt.2021.721317)
+
+[5] Okal B, Arras KO, "Formalizing normative robot behavior," In: Social robotics: 8th international conference, ICSR 2016,Kansas City, MO, USA, November 1-3, 2016 Proceedings.Springer International Publishing, pp 62–71. [Online](https://doi.org/10.1007/978-3-319-47437-3_7)
 
 
