@@ -74,7 +74,6 @@ metrics:
     - robot_on_person_collision
     - person_on_robot_collision
     - time_not_moving
-    - static_obstacle_collision
 ```
 
 ### Metrics description
@@ -83,23 +82,23 @@ Currently, the metrics implemented are:
 
 Metrics from our previous work [1]:
 
-- *Time to reach the goal* $(T_p)$ Time ($secods$) since the robot start the
+- *Time to reach the goal* $(T_p)$. Time $(seconds)$ since the robot start the
 navigation until the goal is correctly reached.
 
 $$ T_p = (T_{goal} - T_{ini}) $$
 
-- *Path length* $(L_p)$ The length of the path ($meters$) followed by the robot from the initial point to the goal position.
+- *Path length* $(L_p)$. The length of the path $(meters)$ followed by the robot from the initial point to the goal position.
 
 $$ L_p = \sum_{i=1}^{N-1}||x_r^i - x_r^{i+1}||_2$$
 
-- *Cumulative heading changes* ($CHC$) It counts the cumu-
+- *Cumulative heading changes*, $(CHC)$. It counts the cumu-
 lative heading changes ($radians$) of in the robot trajectory measured by angles between successive waypoints. It gives a simple way to check on smoothness of path and energy so a low value is desirable.
 
 $$ CHC = \sum_{i=1}^{N-1}(h_r^i - h_r^{i+1})$$
 
 &ensp;&ensp;&ensp;&ensp;&ensp;&ensp;where $h_r^i$ indicates the heading of the robot in the position i. The angles and their difference are normalized between $-\pi$ and $\pi$ .
 
-- *Average distance to closest person* $(CP_{avg})$ A measure
+- *Average distance to closest person* $(CP_{avg})$. A measure
 of the mean distance ($meters$) from the robot to the closest person
 along the trajectory.
 
@@ -107,13 +106,13 @@ $$ CP_{avg} = \frac{1}{N} \sum_{i=1}^{N}(||x_r^i - x_{cp}^i||_2)$$
 
 &ensp;&ensp;&ensp;&ensp;&ensp;&ensp;where $x_{cp}^i$ indicates the position of the closest person to the robot at step i.
 
-- *Minimum and maximum distance to people* $(CP_{min}$ and $CP_{max}$ respectively) The values of the minimum and the maximum distances ($meters$) from the robot to the people along the trajectory. It can give an idea of the dimension of the robot trajectory with respect to the people in the space.
+- *Minimum and maximum distance to people* ( $CP_{min}$ and $CP_{max}$ respectively). The values of the minimum and the maximum distances ($meters$) from the robot to the people along the trajectory. It can give an idea of the dimension of the robot trajectory with respect to the people in the space.
 
 $$ CP_{min} = min \{||x_r^i-x_{cp}^i||_2  \forall i \in N \} $$
 
 $$ CP_{max} = max \{||x_r^i-x_{cp}^i||_2  \forall i \in N \} $$
 
-- *Intimate/Personal/Social space intrusions* $(CP_{prox})$ This metric is based on the Proxemics theory which define personal spaces around people for interaction. These areas are defined as:
+- *Intimate/Personal/Social space intrusions* $(CP_{prox})$. This metric is based on the Proxemics theory which define personal spaces around people for interaction. These areas are defined as:
 
     - Intimate. Distance shorter than 0.45m.
     - Personal. Distance between 0.45 and 1.2m.
@@ -127,7 +126,7 @@ $$ CP_{prox}^k = (\frac{1}{N} \sum_{j=1}^{N} F(||x_r^j - x_{cp}^j||_2 \lt \delta
 &ensp;&ensp;&ensp;&ensp;&ensp;&ensp; where N is the total number of time steps in the trajectory, $\delta$ defines the distance range for 
 classification defined by k = {Intimate, Personal, Social + Public}, and F(·) is the indicator function.
 
-- *Interaction space intrusions* $(IS_{prox})$ This metric is inspired by the work of Okal and Arras [5] in formalizing social normative robot behavior, and it is related to groups of interacting persons. It measures the percentage of time spent by the robot in the three Proxemics spaces considered with respect to an interaction area formed by a group of people that are interacting with each other. The detection of the interaction area of the group is based on the detection of F-formations. A F-formation arises whenever two or more people sustain a spatial and orientational relationship in which the space between them is
+- *Interaction space intrusions* $(IS_{prox})$. This metric is inspired by the work of Okal and Arras [5] in formalizing social normative robot behavior, and it is related to groups of interacting persons. It measures the percentage of time spent by the robot in the three Proxemics spaces considered with respect to an interaction area formed by a group of people that are interacting with each other. The detection of the interaction area of the group is based on the detection of F-formations. A F-formation arises whenever two or more people sustain a spatial and orientational relationship in which the space between them is
 one to which they have equal, direct, and exclusive access
 
 $$ IS_{prox}^k = (\frac{1}{N} \sum_{j=1}^{N} F(||x_r^j - x_f^j||_2 \lt \delta^k)) * 100 $$
@@ -137,30 +136,30 @@ $$ IS_{prox}^k = (\frac{1}{N} \sum_{j=1}^{N} F(||x_r^j - x_f^j||_2 \lt \delta^k)
 
 Metrics from the SEAN simulator [2]:
 
-- *Completed* $C$: true when the robot's final pose is within a specified threshold distance of the goal.
+- *Completed* $C$. true when the robot's final pose is within a specified threshold distance of the goal.
   
 $$ C = F(||x_r^N - x_{g}||_2 - r_{g} \lt 0.0) $$
 
 &ensp;&ensp;&ensp;&ensp;&ensp;&ensp; where $x_r^N$ is the robot pose in the last time step of the trajectory, $x_{g}$ is the goal position and  $r_{g}$ is the goal radius. F(·) is the indicator function.
 
-- *Total Path Length*: This metric is equivalent *Path Length* metric of [1].
+- *Total Path Length*. This metric is equivalent *Path Length* metric of [1].
 
-- *Minimum Distance to Target*, $TD_{min}$ ($meters$): the minimum distance to the target position reached by the robot along its path.
+- *Minimum Distance to Target*, $TD_{min}$ $(meters)$. The minimum distance to the target position reached by the robot along its path.
 
 $$ TD_{min} = min \{||x_r^i-x_{g}||_2 \forall i \in N \} $$
 
 &ensp;&ensp;&ensp;&ensp;&ensp;&ensp; where $x_r^i$ is the robot pose in the time step $i$ of the trajectory, and $x_{g}$ is the target position.
 
-- *Final Distance to Target* ($meters$): distance between the last robot position and the target position.
+- *Final Distance to Target* $(meters)$. Distance between the last robot position and the target position.
 
 $$ TD_{final} = ||x_r^N -x_{g}||_2 $$
 
 &ensp;&ensp;&ensp;&ensp;&ensp;&ensp; where $x_r^N$ is the robot pose in the last time step of the trajectory.
 
-- *Time Not Moving*: seconds that the robot was not moving. We consider that the robot is not moving when the linear velolcity is lower than $0.001$ $m/s$ and the angular velocity lower than $0.01$ $rad/s$.
+- *Time Not Moving*. Seconds that the robot was not moving. We consider that the robot is not moving when the linear velolcity is lower than $0.001$ $m/s$ and the angular velocity lower than $0.01$ $rad/s$.
 
 
-- *Robot on Person Collision*, $RPC$, and *Person on Robot Collision*, $PRC$: number of times robot collides with a person and vice versa. The SEAN simulator employs the Unity colliding tools to detect the collisions. However, we want our metrics to be independent of any simulator. Therefore, this metric has been implemented by using the positions, the orientations and the velocities of the robot and agents to determine who is running into the other. The collisions are primarily computed as:
+- *Robot on Person Collision*, $RPC$, and *Person on Robot Collision*, $PRC$. Number of times robot collides with a person and vice versa. The SEAN simulator employs the Unity colliding tools to detect the collisions. However, we want our metrics to be independent of any simulator. Therefore, this metric has been implemented by using the positions, the orientations and the velocities of the robot and agents to determine who is running into the other. The collisions are primarily computed as:
 
 $$ Collisions = \sum_{i=1}^{N} F(||x_r^i - x_{cp}^i||_2 - r_{r} - r_{cp} \lt 0.01) $$
 
@@ -168,11 +167,11 @@ $$ Collisions = \sum_{i=1}^{N} F(||x_r^i - x_{cp}^i||_2 - r_{r} - r_{cp} \lt 0.0
 
 <!-- - *Static Obstacle Collision*: number of times the robot collides with a static obstacle. -->
 
-- *Robot on Person Personal Distance Violation*, *Person on Robot Personal Distance Violation*, *Intimate Distance Violation* and *Person on Robot Intimate Distance Violation*: These metrics are not used. We are employing the similar *Intimate/Personal/Social space instrusions* [1] instead. Instead of giving the number of times the robot approaches a person within the personal distance, a percentage of the total time is given.
+- *Robot on Person Personal Distance Violation*, *Person on Robot Personal Distance Violation*, *Intimate Distance Violation* and *Person on Robot Intimate Distance Violation*. These metrics are not used. We are employing the similar *Intimate/Personal/Social space instrusions* [1] instead. Instead of giving the number of times the robot approaches a person within the personal distance, a percentage of the total time is given.
 
-- *Path Irregularity* ($radians$) [NOT IMPLEMENTED]: total rotations in the robot's traveled path greater than the total rotations in the search-based path from the starting pose. We have not implemented this metric for the moment. We do not use the path of the global planner as input of the metric functions, as well as not all the navigation systems are using an unique global path without replanning. Anyway, we are considering to add the global path information into the metric function inputs.
+- *Path Irregularity* $(radians)$ [NOT IMPLEMENTED]. Total rotations in the robot's traveled path greater than the total rotations in the search-based path from the starting pose. We have not implemented this metric for the moment. We do not use the path of the global planner as input of the metric functions, as well as not all the navigation systems are using an unique global path without replanning. Anyway, we are considering to add the global path information into the metric function inputs.
 
-- *Path Efficiency* ($meters$) [NOT IMPLEMENTED]: ratio between robot's traveled path and geodesic distance of the search-based path from the starting pose. We have not implemented this metric for the moment. We do not use the path of the global planner as input of the metric functions, as well as not all the navigation systems are using an unique global path without replanning. Anyway, we are considering to add the global path information into the metric function inputs.
+- *Path Efficiency* $(meters)$ [NOT IMPLEMENTED]. Ratio between robot's traveled path and geodesic distance of the search-based path from the starting pose. We have not implemented this metric for the moment. We do not use the path of the global planner as input of the metric functions, as well as not all the navigation systems are using an unique global path without replanning. Anyway, we are considering to add the global path information into the metric function inputs.
 
 
 
