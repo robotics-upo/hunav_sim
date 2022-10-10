@@ -197,6 +197,7 @@ After compiling, the user can add the new function name to the ```metrics.yaml``
 
 * Program a visual interface (probably a RViz panel) to configure the evaluation and the metrics to be computed.
 * Program a set of ROS2 services to start/stop the data recording.
+* Complete the set of metrics including some related to the forces of the SFM.
 
 ## References:
 
