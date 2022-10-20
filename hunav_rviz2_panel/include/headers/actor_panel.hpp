@@ -74,34 +74,38 @@ protected Q_SLOTS:
 
 public:
 
+  // QT variables
   QLineEdit *actors;
-  QLineEdit* output_topic_editor_;
-  QLineEdit* output_topic_editor_1;
-  QLineEdit* output_topic_editor_2;
+  QLineEdit* agent_name;
   QLineEdit* coordinates;
   QLineEdit* coordinates1;
   QLineEdit* coordinates2;
   QLineEdit* num_goals_set;
-
-  std::vector<YAML::Node> actors_info;
-  std::vector<std::string> names;
-  std::vector<std::string> point;
-
   // The current name of the output topic.
   QString output_topic_;
-
-  // The current name of the output topic.
-  QString output_topic_1;
-
-  // The current name of the output topic.
-  QString output_topic_2;
 
   QWidget *window = nullptr;
   QWidget *window1 = nullptr;
   QWidget *window2 = nullptr;
   QComboBox *behavior_combobox;
   QComboBox *skin_combobox;
+
+  QObject *initial_pose_connection;
+  QObject *goals_connection;
+
+  QMetaObject::Connection* conn_delete = new QMetaObject::Connection();
+
+  QPushButton *save_button;
+  QPushButton *goals_button;
+
+  QVBoxLayout *topic_layout_init_pose;
+  QCheckBox *checkbox;
   
+  std::vector<YAML::Node> actors_info;
+  std::vector<std::string> names;
+  std::vector<std::string> point;
+  
+  // Program logic
   bool first_actor = true;
   int num_actors;
   int iterate_actors = 1;
@@ -109,42 +113,28 @@ public:
   int marker_id = 0;
   int agent_count = 1;
 
-  QObject *initial_pose_connection;
-  QObject *goals_connection;
-
+  // Positions for markers
   geometry_msgs::msg::PoseStamped initial_pose;
   std::vector<geometry_msgs::msg::PoseStamped> poses;
   geometry_msgs::msg::PoseStamped pose;
   geometry_msgs::msg::PoseStamped oldPose;
   geometry_msgs::msg::PoseStamped stored_pose;
-  bool first_cube = true;
 
-  
-  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr initial_pose_publisher;
-  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr goals_publisher;
-  
-  rclcpp::Node::SharedPtr client_node_;
-
-  //std::unique_ptr<visualization_msgs::msg::MarkerArray> initial_pose_marker_array;
-  //std::unique_ptr<visualization_msgs::msg::MarkerArray> initial_pose_marker_array = std::make_unique<visualization_msgs::msg::MarkerArray>();
-  std::unique_ptr<visualization_msgs::msg::MarkerArray> marker_array = std::make_unique<visualization_msgs::msg::MarkerArray>();
-
-  QMetaObject::Connection* conn_delete = new QMetaObject::Connection();
-
+  // Colors for Markers
   std::vector<double> rgb{255,0};
   double red;
   double green;
   double blue;
 
-  QPushButton *save_button;
-  QPushButton *goals_button;
+  // Publishers
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr initial_pose_publisher;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr goals_publisher;
+  rclcpp::Node::SharedPtr client_node_;
+  std::unique_ptr<visualization_msgs::msg::MarkerArray> marker_array = std::make_unique<visualization_msgs::msg::MarkerArray>();
 
+  // Dir to store file
   std::string pkg_shared_tree_dir_;
   std::string dir;
-  
-  QVBoxLayout *topic_layout_init_pose;
-  QCheckBox *checkbox;
-
   bool show_file_selector_once = true;
 };
 
