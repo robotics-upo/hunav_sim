@@ -8,7 +8,7 @@ The simulated people are affected by the obstacles and other people using the [S
 Besides, a set of human reactions to the presence of robots have been included.
 
 
-An introduction of the HuNavSim has been presented in the Workshop Evaluating Motion Planning Performance of the IEEE/RSJ IROS 2022. Paper and other info available in the [Workshop website](https://motion-planning-workshop.kavrakilab.org/). 
+An introduction of the HuNavSim has been presented in the Workshop Evaluating Motion Planning Performance of the IEEE/RSJ IROS 2022. Paper and other info available in the [Workshop website](https://motion-planning-workshop.kavrakilab.org/#papers). 
 
 
 ## Dependencies
