@@ -143,6 +143,11 @@ namespace hunav_rviz2_panel
       topic_layout->addWidget(behavior_combobox);
 
       topic_layout->addWidget(new QLabel("Skin:"));
+      skin_combobox->addItem("Elegant man");
+      skin_combobox->addItem("Casual man");
+      skin_combobox->addItem("Elegant woman");
+      skin_combobox->addItem("Regular man");
+      skin_combobox->addItem("Worker man");
       skin_combobox->addItem("Blue jeans");
       skin_combobox->addItem("Green t-shirt");
       skin_combobox->addItem("Blue t-shirt");
@@ -210,7 +215,52 @@ namespace hunav_rviz2_panel
 
     initial_pose_connection->deleteLater();
 
+    // Removes old markers if button is clicked again and a pose was set.
+    // if(initial_pose_set == true){
+    //   removeCurrentMarkers();
+    //   initial_pose_set = false;
+    // }
+    
     connect(close_button, SIGNAL(clicked()), this, SLOT(closeInitialPoseWindow()));
+  }
+
+    // Get point from map to store it in initial pose.
+  void ActorPanel::onInitialPose(double x, double y, double theta, QString frame)
+  {
+    initial_pose = geometry_msgs::msg::PoseStamped();
+
+    initial_pose.header.stamp = rclcpp::Clock().now();
+    initial_pose.header.frame_id = frame.toStdString();
+    initial_pose.pose.position.x = x;
+    initial_pose.pose.position.y = y;
+    pose.pose.position.z = theta;
+    initial_pose.pose.position.z = 1.25;
+    theta = 0;
+
+    // Need this variable in order to remove initial pose markers when initial pose button is clicked again.
+    initial_pose_set = true;
+
+    // Random color selector
+    srand((unsigned) time(NULL));
+    randomRGB();
+
+    visualization_msgs::msg::Marker marker;
+    marker = createMarker(x, y, marker_id, "cylinder");
+
+    marker_id++;
+
+    auto initial_pose_marker_array = std::make_unique<visualization_msgs::msg::MarkerArray>();
+    initial_pose_marker_array->markers.push_back(marker);
+
+    initial_pose_publisher->publish(std::move(initial_pose_marker_array));
+
+    oldPose = initial_pose;
+    stored_pose = initial_pose;
+
+    disconnect(&GoalUpdater, SIGNAL(updateGoal(double,double,double,QString)), this, SLOT(onInitialPose(double,double,double,QString)));
+
+    window->activateWindow();
+    window2->activateWindow();
   }
 
   // Window that allow users to start using the HuNavGoal tool to select the agent's goals.
@@ -278,45 +328,22 @@ namespace hunav_rviz2_panel
 
     // Removes older data from inital_pose
     initial_pose = geometry_msgs::msg::PoseStamped();
+
+    // // If set goals button is clicked again, because someone had an error, this removes the old markers.
+    // if(!poses.empty()){
+    //   oldPose = stored_pose;
+    //   poses.clear();
+
+    //   for(int i = goals_to_remove; i > 0; i--){
+    //     removeMarker(markers_array.back());
+    //     markers_array.pop_back();
+    //   }
+      
+    // }
+    
     
     connect(close_button, SIGNAL(clicked()), this, SLOT(closeGoalsWindow()));
     
-  }
-
-  // Get point from map to store it in initial pose.
-  void ActorPanel::onInitialPose(double x, double y, double theta, QString frame)
-  {
-    initial_pose = geometry_msgs::msg::PoseStamped();
-
-    initial_pose.header.stamp = rclcpp::Clock().now();
-    initial_pose.header.frame_id = frame.toStdString();
-    initial_pose.pose.position.x = x;
-    initial_pose.pose.position.y = y;
-    pose.pose.position.z = theta;
-    initial_pose.pose.position.z = 1.25;
-    theta = 0;
-
-    // Random color selector
-    srand((unsigned) time(NULL));
-    randomRGB();
-
-    visualization_msgs::msg::Marker marker;
-    marker = createCylinderMarker(x, y, marker_id);
-
-    marker_id++;
-
-    auto initial_pose_marker_array = std::make_unique<visualization_msgs::msg::MarkerArray>();
-    initial_pose_marker_array->markers.push_back(marker);
-
-    initial_pose_publisher->publish(std::move(initial_pose_marker_array));
-
-    oldPose = initial_pose;
-    stored_pose = initial_pose;
-
-    disconnect(&GoalUpdater, SIGNAL(updateGoal(double,double,double,QString)), this, SLOT(onInitialPose(double,double,double,QString)));
-
-    window->activateWindow();
-    window2->activateWindow();
   }
 
   // Get point from map to store goals.
@@ -335,7 +362,7 @@ namespace hunav_rviz2_panel
     poses.push_back(pose);
 
     visualization_msgs::msg::Marker marker;
-    marker = createCubeMarker(x, y, marker_id);
+    marker = createMarker(x, y, marker_id, "cube");
 
     marker_id++;
     
@@ -497,6 +524,10 @@ namespace hunav_rviz2_panel
     }
     else{
       iterate_actors++;
+
+      // Need this variable in order to remove initial pose markers when initial pose button is clicked again.
+      // To generate the next agent, it has to be set to false in order to not remove the current markers. 
+      // initial_pose_set = false;
       
       agent_name->clear();
 
@@ -561,7 +592,7 @@ namespace hunav_rviz2_panel
       
       // Initial pose
       visualization_msgs::msg::Marker marker;
-      marker = createCylinderMarker(current_agent["init_pose"]["x"].as<double>(), current_agent["init_pose"]["y"].as<double>(), ids);
+      marker = createMarker(current_agent["init_pose"]["x"].as<double>(), current_agent["init_pose"]["y"].as<double>(), ids, "cylinder");
 
       marker_array->markers.push_back(marker);
 
@@ -579,7 +610,7 @@ namespace hunav_rviz2_panel
         
         visualization_msgs::msg::Marker arrow_marker;
         visualization_msgs::msg::Marker marker;
-        marker = createCubeMarker(current_agent[current_goals_vector[k]]["x"].as<double>(), current_agent[current_goals_vector[k]]["y"].as<double>(), ids);
+        marker = createMarker(current_agent[current_goals_vector[k]]["x"].as<double>(), current_agent[current_goals_vector[k]]["y"].as<double>(), ids, "cube");
 
         marker_array->markers.push_back(marker);
 
@@ -649,27 +680,53 @@ namespace hunav_rviz2_panel
   int ActorPanel::checkComboBoxSkin(){
     std::string aux = skin_combobox->currentText().toStdString();
 
-    if(aux.compare("Blue jeans") == 0){
+    if(aux.compare("Elegant man") == 0){
       return 0;
     }
-    else if(aux.compare("Green t-shirt") == 0){
+    else if(aux.compare("Casual man") == 0){
       return 1;
     }
-    else if(aux.compare("Blue t-shirt") == 0){
+    else if(aux.compare("Elegant woman") == 0){
       return 2;
     }
-    else if(aux.compare("Red t-shirt") == 0){
+    else if(aux.compare("Regular man") == 0){
       return 3;
+    }
+    else if(aux.compare("Worker man") == 0){
+      return 4;
+    }
+    else if(aux.compare("Blue jeans") == 0){
+      return 5;
+    }
+    else if(aux.compare("Green t-shirt") == 0){
+      return 6;
+    }
+    else if(aux.compare("Blue t-shirt") == 0){
+      return 7;
+    }
+    else if(aux.compare("Red t-shirt") == 0){
+      return 8;
     }
     else{
       return 0;
     }
   }
 
-  visualization_msgs::msg::Marker ActorPanel::createCylinderMarker(double point1_x, double point1_y, double ids){
+  visualization_msgs::msg::Marker ActorPanel::createMarker(double point1_x, double point1_y, double ids, std::string marker_shape){
     
     visualization_msgs::msg::Marker marker;
-    uint32_t shape = visualization_msgs::msg::Marker::CYLINDER;
+    uint32_t shape;
+    float scale;
+
+    if(marker_shape.compare("cylinder") == 0){
+      shape = visualization_msgs::msg::Marker::CYLINDER;
+      scale = 0.5;
+    }
+    else{
+      shape = visualization_msgs::msg::Marker::CUBE;
+      scale = 0.3;
+    }
+    
     marker.header.frame_id = "/map";
     marker.header.stamp = rclcpp::Node::now();
     marker.ns = "basic_shapes";
@@ -680,50 +737,20 @@ namespace hunav_rviz2_panel
     marker.pose.position.x = point1_x;
     marker.pose.position.y = point1_y;
     marker.pose.position.z = 0.0;
-    marker.pose.orientation.x = 0.0;
-    marker.pose.orientation.y = 0.0;
-    marker.pose.orientation.z = 0.0;
-    marker.pose.orientation.w = 0.0;
 
-    marker.scale.x = 0.5;
-    marker.scale.y = 0.5;
-    marker.scale.z = 0.5;
+    marker.scale.x = scale;
+    marker.scale.y = scale;
+    marker.scale.z = scale;
 
     marker.color.r = rgb[red];
     marker.color.g = rgb[green];
     marker.color.b = rgb[blue];
     marker.color.a = 1.0; // alpha has to be non-zero
 
-    return marker;
-
-  }
-
-  visualization_msgs::msg::Marker ActorPanel::createCubeMarker(double point1_x, double point1_y, double ids){
-    
-    visualization_msgs::msg::Marker marker;
-
-    uint32_t shape = visualization_msgs::msg::Marker::CUBE;
-    marker.header.frame_id = "/map";
-    marker.header.stamp = rclcpp::Node::now();
-    marker.ns = "basic_shapes";
-    marker.id = ids;
-    marker.type = shape;
-    marker.action = visualization_msgs::msg::Marker::ADD;
-
-    marker.pose.position.x = point1_x;
-    marker.pose.position.y = point1_y;
-    marker.pose.position.z = 0;
-
-    marker.scale.x = 0.3;
-    marker.scale.y = 0.3;
-    marker.scale.z = 0.3;
-
-    marker.color.r = rgb[red];
-    marker.color.g = rgb[green];
-    marker.color.b = rgb[blue];
-    marker.color.a = 1.0; // alpha has to be non-zero
+    markers_array.push_back(marker);
 
     return marker;
+
   }
 
   visualization_msgs::msg::Marker ActorPanel::createArrowMarker(double point1_x, double point1_y, double point2_x, double point2_y, double ids){
@@ -804,6 +831,29 @@ namespace hunav_rviz2_panel
     initial_pose_publisher->publish(std::move(marker_array));
     goals_publisher->publish(std::move(marker_array1));  
 
+  }
+
+  void ActorPanel::removeGoalsMarkers(){
+    auto marker_array = std::make_unique<visualization_msgs::msg::MarkerArray>();
+
+    visualization_msgs::msg::Marker markerDeletionG;
+    markerDeletionG.header.frame_id = "map";    
+    markerDeletionG.action = visualization_msgs::msg::Marker::DELETEALL;
+
+    marker_array->markers.push_back(markerDeletionG);
+    goals_publisher->publish(std::move(marker_array));
+  }
+
+  void ActorPanel::removeMarker(visualization_msgs::msg::Marker marker){
+
+    auto markers = std::make_unique<visualization_msgs::msg::MarkerArray>();
+
+    marker.header.frame_id = "map";    
+    marker.action = visualization_msgs::msg::Marker::DELETE;
+
+    markers->markers.push_back(marker);
+    goals_publisher->publish(std::move(markers));
+    
   }
 
   void ActorPanel::openFileExplorer(){

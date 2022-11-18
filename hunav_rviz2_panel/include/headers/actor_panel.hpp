@@ -66,10 +66,11 @@ protected Q_SLOTS:
   int checkComboBoxSkin();
   void parseYaml();
   void randomRGB();
-  visualization_msgs::msg::Marker createCylinderMarker(double point1_x, double point1_y, double ids);
-  visualization_msgs::msg::Marker createCubeMarker(double point1_x, double point1_y, double ids);
+  visualization_msgs::msg::Marker createMarker(double point1_x, double point1_y, double ids, std::string marker_shape);
   visualization_msgs::msg::Marker createArrowMarker(double point1_x, double point1_y, double point2_x, double point2_y, double ids);
   void removeCurrentMarkers();
+  void removeGoalsMarkers();
+  void removeMarker(visualization_msgs::msg::Marker marker);
   void openFileExplorer();
 
 public:
@@ -107,9 +108,11 @@ public:
   
   // Program logic
   bool first_actor = true;
+  bool initial_pose_set = false;
   int num_actors;
   int iterate_actors = 1;
   int goals_number = 1;
+  int goals_to_remove = 0;
   int marker_id = 0;
   int agent_count = 1;
 
@@ -119,6 +122,10 @@ public:
   geometry_msgs::msg::PoseStamped pose;
   geometry_msgs::msg::PoseStamped oldPose;
   geometry_msgs::msg::PoseStamped stored_pose;
+
+  // Markers
+  std::vector<visualization_msgs::msg::Marker> markers_array;
+  std::vector<visualization_msgs::msg::Marker> arrows_markers_array;
 
   // Colors for Markers
   std::vector<double> rgb{255,0};
