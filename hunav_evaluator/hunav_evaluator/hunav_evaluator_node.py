@@ -43,12 +43,18 @@ class HunavEvaluatorNode(Node):
         # Read metrics
         self.declare_parameter('experiment_tag', 'tag')
         self.exp_tag = self.get_parameter('experiment_tag').get_parameter_value().string_value
-        self.declare_parameter('metrics', '')
-        yaml_metrics = self.get_parameter('metrics').get_parameter_value().string_array_value
-        self.get_logger().info("read metrics: %s" % yaml_metrics)
-        for m in yaml_metrics:
-            self.metrics_to_compute[m] = 0.0
 
+        self.declare_parameter('papers','')
+        yaml_metrics = self.get_parameter('papers').get_parameter_value().string_array_value
+        self.get_logger().info("read papers: %s" % yaml_metrics)
+        for p in yaml_metrics:
+            self.declare_parameter(p, '')
+            paper_metrics = self.get_parameter(p).get_parameter_value().string_array_value
+            for m in paper_metrics:
+                self.declare_parameter(m, '')
+                metric = self.get_parameter(m).get_parameter_value().bool_value
+                if metric:
+                    self.metrics_to_compute[m] = 0.0
 
         self.get_logger().info("Hunav evaluator:")
         self.get_logger().info("mode: %i" % self.mode)
