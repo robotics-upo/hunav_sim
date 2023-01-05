@@ -12,4 +12,10 @@
     <description>The HuNavSim rviz panel.</description>
   </class>
 
+  <class name="hunav_rviz2_panel/HunavMetricsPanel"
+         type="hunav_rviz2_panel::MetricsPanel"
+         base_class_type="rviz_common::Panel">
+    <description>The HuNavSim rviz panel.</description>
+  </class>
+
 </library>

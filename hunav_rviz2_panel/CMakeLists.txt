@@ -36,6 +36,7 @@ set(nav2_rviz_plugins_headers_to_moc
   include/headers/goal_common.hpp
   include/headers/goal_tool.hpp  
   include/headers/actor_panel.hpp
+  include/headers/metrics_panel.hpp
 )
 
 include_directories(
@@ -47,6 +48,7 @@ set(library_name ${PROJECT_NAME})
 add_library(${library_name} SHARED
   src/actor_panel.cpp
   src/goal_tool.cpp
+  src/metrics_panel.cpp
   ${nav2_rviz_plugins_headers_to_moc}
 )
 
