@@ -269,17 +269,16 @@ def collisions(agents, robot):
 def robot_on_person_collision(agents, robot):
 
     collision = collisions(agents, robot)
+    print('Robot_on_person_collision: %i ' % collision[0])
 
     return collision[0]
 
 def person_on_robot_collision(agents, robot):
     
     collision = collisions(agents, robot)
+    print('Person_on_robot_collision: %i' % collision[1])
 
     return collision[1]
-
-
-
 
 def time_not_moving(agents, robot):
     
@@ -326,6 +325,77 @@ def minimum_goal_distance(agents, robot):
     return min_dist
 
 
+# SocNavBench: A Grounded Simulation Testing Framework for Evaluating Social Navigation
+#ABHIJAT BISWAS, ALLAN WANG, GUSTAVO SILVERA, AARON STEINFELD, and HENNY AD-MONI, Carnegie Mellon University
+
+def avg_speed(agents, robot):
+    speed = 0
+    for r in robot:
+        speed += r.linear_vel
+
+    speed = speed / len(robot)
+
+    print('Average_robot_speed: %.2f m/s' % speed)
+    return speed
+
+def avg_acceleration(agents, robot):
+    acceleration = 0
+    
+    for i in range(len(robot) - 1):
+        dv = robot[i+1].linear_vel - robot[i].linear_vel
+        tf = rclpy.time.Time.from_msg(agents[i+1].header.stamp)
+        ti = rclpy.time.Time.from_msg(agents[i].header.stamp)
+        dt = (tf - ti).nanoseconds / 1e9
+        if dt != 0:
+            acceleration += dv/dt
+
+    acceleration = acceleration / len(robot)
+
+    print('Average_robot_acceleration: %.5f m/s^2' % acceleration)
+
+    return acceleration
+
+def avg_overacceleration(agents, robot):
+    jerk = 0
+    for i in range(len(robot) - 1):
+        dv = robot[i+1].linear_vel - robot[i].linear_vel
+        tf = rclpy.time.Time.from_msg(agents[i+1].header.stamp)
+        ti = rclpy.time.Time.from_msg(agents[i].header.stamp)
+        dt = (tf - ti).nanoseconds / 1e9
+        if dt != 0:
+            acceleration = dv/dt
+            jerk += acceleration/dt
+
+    jerk = jerk / len(robot)
+
+    print('Average_robot_jerk(over_acceleration): %.5f m/s^3' % jerk)
+
+    return jerk
+
+
+# Learning a Group-Aware Policy for Robot Navigation
+# Kapil Katyal ∗1,2 , Yuxiang Gao ∗2 , Jared Markowitz 1 , Sara Pohland 3 , Corban Rivera 1 , I-Jeng Wang 1 , Chien-Ming Huang 2
+
+def avg_pedestrian_velocity(agents, robot):
+    speed = 0
+    for i in range(len(agents)):
+        for agent in agents[i].agents:
+            speed += agent.linear_vel
+
+    speed = speed / (len(agents) * len(agents[0].agents))
+
+    print('Average_Pedestrian_speed: %.2f m/s' % speed)
+    
+    return speed
+
+def avg_pedestrian_angle(agents, robot):
+    pass
+
+def pedestrian_social_force(agents, robot):
+    pass
+
+def robot_social_force(agents, robot):
+    pass
 
 
 
@@ -409,6 +479,16 @@ metrics = {
     'time_not_moving': time_not_moving,
     # TODO: 'static_obstacle_collision': static_obs_collision,
     # number of times the robot collides with a static obstacle.
+
+    # SocNavBench: A Grounded Simulation Testing Framework for Evaluating Social Navigation
+    #ABHIJAT BISWAS, ALLAN WANG, GUSTAVO SILVERA, AARON STEINFELD, and HENNY AD-MONI, Carnegie Mellon University
+    'avg_speed': avg_speed,
+    'avg_acceleration': avg_acceleration,
+    'avg_overacceleration': avg_overacceleration,
+
+    # Learning a Group-Aware Policy for Robot Navigation
+    # Kapil Katyal ∗1,2 , Yuxiang Gao ∗2 , Jared Markowitz 1 , Sara Pohland 3 , Corban Rivera 1 , I-Jeng Wang 1 , Chien-Ming Huang 2
+    'avg_pedestrian_velocity': avg_pedestrian_velocity,
 }
 
 
