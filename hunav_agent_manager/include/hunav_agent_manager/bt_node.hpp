@@ -16,6 +16,7 @@
 #include "hunav_msgs/srv/compute_agent.hpp"
 #include "hunav_msgs/srv/compute_agents.hpp"
 #include "hunav_msgs/srv/move_agent.hpp"
+#include "hunav_msgs/srv/reset_agents.hpp"
 
 #include "hunav_agent_manager/time_expired_condition.hpp"
 //#include "nav2_behavior_tree/plugins/condition/time_expired_condition.hpp"
@@ -58,6 +59,16 @@ protected:
   void computeAgentsService(
       const std::shared_ptr<hunav_msgs::srv::ComputeAgents::Request> request,
       std::shared_ptr<hunav_msgs::srv::ComputeAgents::Response> response);
+
+  /**
+   * @brief ROS service to reset the state of the agents
+   *
+   * @param request contains the desired state of the agents
+   * @param response contains a boolean to indicate success or failure
+   */
+  void resetAgentsService(
+      const std::shared_ptr<hunav_msgs::srv::ResetAgents::Request> request,
+      std::shared_ptr<hunav_msgs::srv::ResetAgents::Response> response);
 
   /**
    * @brief ROS service to compute the new state of one agent
@@ -161,6 +172,8 @@ protected:
   rclcpp::Service<hunav_msgs::srv::ComputeAgents>::SharedPtr agents_srv_;
   rclcpp::Service<hunav_msgs::srv::ComputeAgent>::SharedPtr agent_srv_;
   rclcpp::Service<hunav_msgs::srv::MoveAgent>::SharedPtr move_agent_srv_;
+
+  rclcpp::Service<hunav_msgs::srv::ResetAgents>::SharedPtr reset_srv_;
 
   bool initialized_;
   BTfunctions btfunc_;

@@ -53,12 +53,9 @@ BTnode::BTnode() : Node("hunav_agent_manager") {
       std::string("move_agent"),
       std::bind(&BTnode::moveAgentService, this, _1, _2));
 
-  // agents_sub_ = this->create_subscription<hunav_msgs::msg::Agents>(
-  //     "simulation_agents", 1, std::bind(&BTnode::agentsCallback, this, _1));
-
-  // agent_robot_sub_ = this->create_subscription<hunav_msgs::msg::Agent>(
-  //     "simulation_robot", 1,
-  //     std::bind(&BTnode::agent_robot_callback, this, _1));
+  reset_srv_ = this->create_service<hunav_msgs::srv::ResetAgents>(
+      std::string("reset_agents"),
+      std::bind(&BTnode::resetAgentsService, this, _1, _2));
 
   if (pub_forces_) {
     forces_publisher_ =
@@ -207,10 +204,10 @@ void BTnode::initializeBehaviorTree(hunav_msgs::msg::Agents agents) {
     // // This logger stores the execution time of each node
     // BT::MinitraceLogger logger_minitrace(tree, (filename + ".json").c_str());
 
-#ifdef ZMQ_FOUND
+    //#ifdef ZMQ_FOUND
     // This logger publish status changes using ZeroMQ. Used by Groot
-    PublisherZMQ publisher_zmq(tree);
-#endif
+    // BT::PublisherZMQ publisher_zmq(tree);
+    //#endif
 
     // root_->addChild(trees_[trees_.size() - 1].rootNode());
     // BT::printTreeRecursively(root_.get());
@@ -290,11 +287,13 @@ void BTnode::computeAgentsService(
     publish_people(t, ag);
 
   double time_step_secs =
-      (rclcpp::Time(ag->header.stamp) - prev_time_).seconds(); // * 5.0;
-  // time_step_secs = 0.05;
+      (rclcpp::Time(ag->header.stamp) - prev_time_).seconds();
+  // if the time was reset, we get a negative value
+  if (time_step_secs < 0.0)
+    time_step_secs = 0.0; // 0.05
 
-  // RCLCPP_INFO(this->get_logger(), "Time step computed: %.4f",
-  // time_step_secs);
+  // RCLCPP_INFO(this->get_logger(), "BTNode. Time step computed: %.4f",
+  //            time_step_secs);
 
   // Call the ticks of the behavior trees (they must update the
   // sfm_agents_)
@@ -307,6 +306,19 @@ void BTnode::computeAgentsService(
   //}
 
   response->updated_agents = btfunc_.getUpdatedAgents();
+}
+
+void BTnode::resetAgentsService(
+    const std::shared_ptr<hunav_msgs::srv::ResetAgents::Request> request,
+    std::shared_ptr<hunav_msgs::srv::ResetAgents::Response> response) {
+
+  auto ro = std::make_shared<hunav_msgs::msg::Agent>(request->robot);
+  auto ag = std::make_shared<hunav_msgs::msg::Agents>(request->current_agents);
+
+  // Update the internal agent states with the
+  // received data from the simulator
+  btfunc_.updateAllAgents(ro, ag);
+  response->ok = true;
 }
 
 void BTnode::moveAgentService(

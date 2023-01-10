@@ -13,9 +13,9 @@
 #include "behaviortree_cpp_v3/loggers/bt_cout_logger.h"
 #include "behaviortree_cpp_v3/loggers/bt_file_logger.h"
 #include "behaviortree_cpp_v3/loggers/bt_minitrace_logger.h"
-#ifdef ZMQ_FOUND
-#include "behaviortree_cpp_v3/loggers/bt_zmq_publisher.h"
-#endif
+//#ifdef ZMQ_FOUND
+//#include "behaviortree_cpp_v3/loggers/bt_zmq_publisher.h"
+//#endif
 
 #include <iostream>
 //#include <memory>
