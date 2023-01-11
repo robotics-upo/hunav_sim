@@ -44,17 +44,26 @@ class HunavEvaluatorNode(Node):
         self.declare_parameter('experiment_tag', 'tag')
         self.exp_tag = self.get_parameter('experiment_tag').get_parameter_value().string_value
 
-        self.declare_parameter('papers','')
-        yaml_metrics = self.get_parameter('papers').get_parameter_value().string_array_value
-        self.get_logger().info("read papers: %s" % yaml_metrics)
-        for p in yaml_metrics:
-            self.declare_parameter(p, '')
-            paper_metrics = self.get_parameter(p).get_parameter_value().string_array_value
-            for m in paper_metrics:
-                self.declare_parameter(m, '')
-                metric = self.get_parameter(m).get_parameter_value().bool_value
-                if metric:
-                    self.metrics_to_compute[m] = 0.0
+        # Noe test
+        for m in hunav_metrics.metrics.keys():
+            ok = self.declare_parameter('metrics.'+m, True).get_parameter_value().bool_value
+            if(ok):
+                self.metrics_to_compute[m] = 0.0
+        for me in self.metrics_to_compute.keys():
+            self.get_logger().info("m: %s, value: %s" % (me, self.metrics_to_compute[me]))
+        
+
+        # self.declare_parameter('papers','')
+        # yaml_metrics = self.get_parameter('papers').get_parameter_value().string_array_value
+        # self.get_logger().info("read papers: %s" % yaml_metrics)
+        # for p in yaml_metrics:
+        #     self.declare_parameter(p, '')
+        #     paper_metrics = self.get_parameter(p).get_parameter_value().string_array_value
+        #     for m in paper_metrics:
+        #         self.declare_parameter(m, '')
+        #         metric = self.get_parameter(m).get_parameter_value().bool_value
+        #         if metric:
+        #             self.metrics_to_compute[m] = 0.0
 
         self.get_logger().info("Hunav evaluator:")
         self.get_logger().info("mode: %i" % self.mode)

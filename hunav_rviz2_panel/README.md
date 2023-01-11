@@ -1,6 +1,11 @@
 # HuNav RViz2 Panel
 
-A ROS2 C++ package to generate human agents to use in the Human Navigation behavior Simulator (HuNavSim).
+A ROS2 C++ package that contains two RViz2 panels to help in the configuration of the HuNavSim.
+
+This package provides two RViz2 panels: 
+* *HuNavPanel* - which allows to create and configure the hunav agents and save them in a Yaml configuration file. 
+* *HunNavMetricsPanel* - which allows the selection of the metrics to be computed for a simulation.
+
 
 **Tested in ROS2 Foxy**
 
@@ -9,16 +14,16 @@ A ROS2 C++ package to generate human agents to use in the Human Navigation behav
 * ros-foxy-nav2-map-server
 * ros-foxy-nav2-lifecycle-manager
 
-## Description
+# HuNavPanel for agents configuration
 
-This package provides a RViz panel which allows to create hunav agents and save them in a Yaml configuration file. 
+This panel helps to configure the HuNav agents visually. The configuration is then stored in the configuration file *agents.yaml* (placed in the install directory of the ROS workspace).
 This file will be used by the Human Navigation behavior Simulator (HuNavSim) in order to spawn humans with different characteristics.
 
 A previous 2D map of the navigation scenario is required. We will use nav2-map-server to load the map and visualize it in RViz (see the launch file **hunav_rviz2_launch.py**).
 
-Apart of creating human agents, it also gives the possibility to open a Yaml file that has already been generated.
+Beside of creating human agents, it also gives the possibility to open a Yaml file that has been generated previously.
 
-## Steps to use HuNav RViz2 Panel
+## Steps to use HuNavPanel
 
 A launch file for testing is provided to launch the panel:
 ```sh
@@ -31,7 +36,7 @@ After launching the system we will see:
 
 ![](https://github.com/robotics-upo/hunav_sim/blob/master/hunav_rviz2_panel/images/RVizPanelGlobal.png)
 
-The hunav panel provide two options:
+The HuNavPanel provide two options:
 
 * To open the base configuration file, agents.yaml
 * To create and configure the hunav agents from scratch.
@@ -59,7 +64,13 @@ Example:
 
 ![](https://github.com/robotics-upo/hunav_sim/blob/master/hunav_rviz2_panel/images/AgentCreation.gif)
 
-## TODO
 
-* In this moment, initial pose and goals windows don't update point after receiving a point (Close and open the window to update it). We are fixing it.
-* Allow to modify Yaml file while is being shown.
+# HuNavMetricsPanel for metrics configuration
+
+This panel shows the list of available metrics to be computed for a simulation.
+
+Each metric is shown as a checkbox that can be selected or unselected by the user. It loads the current list of the file *metrics.yaml*, which is placed in the install directory of the ROS workspace. 
+
+![](https://github.com/robotics-upo/hunav_sim/blob/master/hunav_rviz2_panel/images/rviz2_metrics_panel.png)
+
+When the user has made her selection, the *save metrics* button must be pressed in order to store the changes in the file. 

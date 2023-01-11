@@ -17,75 +17,43 @@ hunav_evaluator_node:
     result_file: 'test.txt'
 
     # the list of metrics to be computed.
-    # Just comment/uncomment the desired ones.
-    papers:
-      - Teaching Robot #Navigation Behaviors to Optimal RRT Planners
-      - SEAN 2.0
-      - SocNavBench
-      - Learning a Group-Aware #Policy for Robot Navigation
-
-    Teaching Robot:
-      - time_to_reach_goal
-      - path_length
-      - cumulative_heading_changes
-      - avg_distance_to_closest_person
-      - minimum_distance_to_people
-      - intimate_space_intrusions
-      - personal_space_intrusions
-      - social_space_intrusions
-      - group_intimate_space_intrusions
-      - group_personal_space_intrusions
-      - group_social_space_intrusions
-
-    SEAN 2.0:
-      - completed
-      - minimum_distance_to_target
-      - final_distance_to_target
-      - robot_on_person_collision
-      - person_on_robot_collision
-      - time_not_moving
-
-    SocNavBench:
-      - avg_speed
-      - avg_acceleration
-      - avg_overacceleration
-
-    Learning a Group-Aware:
-      - avg_pedestrian_velocity
     
-    # Metrics from:
+    metrics:
+    
+      # Pérez-Higueras, N., Caballero, F. & Merino, L. 
+      # Teaching Robot Navigation Behaviors to Optimal RRT Planners. 
+      # Int.J. of Soc. Robotics 10, 235–249 (2018). https://doi.org/10.1007/s12369-017-0448-1
+      time_to_reach_goal: true
+      path_length: false
+      cumulative_heading_changes: true
+      avg_distance_to_closest_person: true
+      minimum_distance_to_people: true
+      intimate_space_intrusions: true
+      personal_space_intrusions: true
+      social_space_intrusions: true
+      group_intimate_space_intrusions: true
+      group_personal_space_intrusions: true
+      group_social_space_intrusions: true
+      
+      
+      # N. Tsoi et al., "SEAN 2.0: Formalizing and Generating Social Situations
+      # for Robot Navigation," in IEEE Robotics and Automation Letters, vol. 7,
+      # no. 4, pp. 11047-11054, Oct. 2022, doi: 10.1109/LRA.2022.3196783.
+      completed: true
+      minimum_distance_to_target: true
+      final_distance_to_target: true
+      robot_on_person_collision: false
+      person_on_robot_collision: false
+      time_not_moving: true
+      
+      # SocNavBench: A Grounded Simulation Testing Framework for Evaluating Social Navigation
+      #ABHIJAT BISWAS, ALLAN WANG, GUSTAVO SILVERA, AARON STEINFELD, and HENNY AD-MONI, Carnegie Mellon University
+      avg_speed: false
+      avg_acceleration: false
+      avg_overacceleration: false
+      
+      # Learning a Group-Aware Policy for Robot Navigation
+      # Kapil Katyal ∗1,2 , Yuxiang Gao ∗2 , Jared Markowitz 1 , Sara Pohland 3 , Corban Rivera 1 , I-Jeng Wang 1 , Chien-Ming Huang 2 
+      avg_pedestrian_velocity: true
+    
 
-    # Pérez-Higueras, N., Caballero, F. & Merino, L. 
-    # Teaching Robot Navigation Behaviors to Optimal RRT Planners. 
-    # Int.J. of Soc. Robotics 10, 235–249 (2018). https://doi.org/10.1007/s12369-017-0448-1
-    time_to_reach_goal: True
-    path_length: False
-    cumulative_heading_changes: True
-    avg_distance_to_closest_person: True
-    minimum_distance_to_people: True
-    intimate_space_intrusions: True
-    personal_space_intrusions: True
-    social_space_intrusions: True
-    group_intimate_space_intrusions: True
-    group_personal_space_intrusions: True
-    group_social_space_intrusions: True
-
-    # N. Tsoi et al., "SEAN 2.0: Formalizing and Generating Social Situations
-    # for Robot Navigation," in IEEE Robotics and Automation Letters, vol. 7,
-    # no. 4, pp. 11047-11054, Oct. 2022, doi: 10.1109/LRA.2022.3196783.
-    completed: True
-    minimum_distance_to_target: True
-    final_distance_to_target: True
-    robot_on_person_collision: False
-    person_on_robot_collision: False
-    time_not_moving: True
-
-    # SocNavBench: A Grounded Simulation Testing Framework for Evaluating Social Navigation
-    #ABHIJAT BISWAS, ALLAN WANG, GUSTAVO SILVERA, AARON STEINFELD, and HENNY AD-MONI, Carnegie Mellon University
-    avg_speed: False
-    avg_acceleration: False
-    avg_overacceleration: False
-
-    # Learning a Group-Aware Policy for Robot Navigation
-    # Kapil Katyal ∗1,2 , Yuxiang Gao ∗2 , Jared Markowitz 1 , Sara Pohland 3 , Corban Rivera 1 , I-Jeng Wang 1 , Chien-Ming Huang 2  
-    avg_pedestrian_velocity: True

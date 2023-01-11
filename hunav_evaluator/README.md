@@ -32,7 +32,7 @@ Once the recording has stopped, the computation of the metrics is performed and 
 ## Configuration and Parameters
 
 The user must specify the set of metrics to be computed and some parameters about the metrics generation.
-This values must be indicated in the yaml file metrics.yaml, placed in the config directory.
+This values must be indicated in the yaml file metrics.yaml, placed in the config directory. After compilation this file is moved to the install directory of the ROS workspace. 
 
 ### Global parameters
 
@@ -45,35 +45,51 @@ This values must be indicated in the yaml file metrics.yaml, placed in the confi
 
 Currently, the metrics implemented are those employed in our previous work [1] and the SEAN simulator [2]. The metrics from the SocNavBench [3], Crowdbot [4] and the compilation indicated in the work of Gao et al. [5], are being studied and included.
 
-The user can configure the metrics to be computed by just commenting and/or uncommenting in a configuration yaml file. Example snippet of the metrics configuration file:
+The user can configure the metrics to be computed in two different ways:
+
+- By editing the metrics yaml file, and changing the boolean parameters of the metrics (true to compute the metric, false to ignore it).
+- By using a RViz2 panel to select/unselect the metrics and to store them. See the [hunav_rviz2_panel](https://github.com/robotics-upo/hunav_sim/tree/master/hunav_rviz2_panel) for more information on how to use the panel.  
+ 
+Example snippet of the metrics configuration file:
 
 ```yaml
-metrics: 
-    # Follwing metrics from:
-    # Pérez-Higueras, N., Caballero, F. & Merino, L. 
-    # Teaching Robot Navigation Behaviors to Optimal RRT Planners. 
-    # Int.J. of Soc. Robotics 10, 235–249 (2018). https://doi.org/10.1007/s12369-017-0448-1
-    - time_to_reach_goal
-    - path_length
-    - cumulative_heading_changes
-    - avg_distance_to_closest_person
-    - minimum_distance_to_people
-    - intimate_space_intrusions
-    - personal_space_intrusions
-    - social_space_intrusions
-    - group_intimate_space_intrusions
-    - group_personal_space_intrusions
-    - group_social_space_intrusions
-    # Following metrics from:
-    # N. Tsoi et al., "SEAN 2.0: Formalizing and Generating Social Situations
-    # for Robot Navigation," in IEEE Robotics and Automation Letters, vol. 7,
-    # no. 4, pp. 11047-11054, Oct. 2022, doi: 10.1109/LRA.2022.3196783.
-    - completed
-    - minimum_distance_to_target
-    - final_distance_to_target
-    - robot_on_person_collision
-    - person_on_robot_collision
-    - time_not_moving
+    metrics:
+    
+      # Pérez-Higueras, N., Caballero, F. & Merino, L. 
+      # Teaching Robot Navigation Behaviors to Optimal RRT Planners. 
+      # Int.J. of Soc. Robotics 10, 235–249 (2018). https://doi.org/10.1007/s12369-017-0448-1
+      time_to_reach_goal: true
+      path_length: false
+      cumulative_heading_changes: true
+      avg_distance_to_closest_person: true
+      minimum_distance_to_people: true
+      intimate_space_intrusions: true
+      personal_space_intrusions: true
+      social_space_intrusions: true
+      group_intimate_space_intrusions: true
+      group_personal_space_intrusions: true
+      group_social_space_intrusions: true
+      
+      
+      # N. Tsoi et al., "SEAN 2.0: Formalizing and Generating Social Situations
+      # for Robot Navigation," in IEEE Robotics and Automation Letters, vol. 7,
+      # no. 4, pp. 11047-11054, Oct. 2022, doi: 10.1109/LRA.2022.3196783.
+      completed: true
+      minimum_distance_to_target: true
+      final_distance_to_target: true
+      robot_on_person_collision: false
+      person_on_robot_collision: false
+      time_not_moving: true
+      
+      # SocNavBench: A Grounded Simulation Testing Framework for Evaluating Social Navigation
+      #ABHIJAT BISWAS, ALLAN WANG, GUSTAVO SILVERA, AARON STEINFELD, and HENNY AD-MONI, Carnegie Mellon University
+      avg_speed: false
+      avg_acceleration: false
+      avg_overacceleration: false
+      
+      # Learning a Group-Aware Policy for Robot Navigation
+      # Kapil Katyal ∗1,2 , Yuxiang Gao ∗2 , Jared Markowitz 1 , Sara Pohland 3 , Corban Rivera 1 , I-Jeng Wang 1 , Chien-Ming Huang 2 
+      avg_pedestrian_velocity: true
 ```
 
 ### Metrics description
@@ -195,7 +211,6 @@ After compiling, the user can add the new function name to the ```metrics.yaml``
 
 ## TODO:
 
-* Program a visual interface (probably a RViz panel) to configure the evaluation and the metrics to be computed.
 * Program a set of ROS2 services to start/stop the data recording.
 * Complete the set of metrics including some related to the forces of the SFM.
 
