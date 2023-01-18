@@ -146,7 +146,7 @@ hunav_loader:
 As global parameters the user must indicate:
 
 * ```map```. Name of the map (ROS 2d map used by the ROS map_server) that corresponds to the scenario that is going to be loaded in the base simulator (Gazebo, Webots or similar). **Curretly this parameter is not being used**. 
-* ```publish_people```. Boolean to indicate whether the hunav agents must be published in the topic /people using the message People of the people_msgs. This can be useful if other nodes need to receive information about the people around the robot. 
+* ```publish_people```. Boolean to indicate whether the hunav agents must be also published in the topic /people using the message *People* of the *people_msgs*. This can be useful if other nodes need to receive information about the people around the robot. In order to have the complete data of an 2D navigation agent, the agent's yaw (*radians*) has been included in the field *position.z* and the angular velocity (*rads/sec*) in the field *velocity.z*.   
 * ```agents```. This is a list with the names of the agents to be spawned. 
 
 

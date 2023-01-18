@@ -462,6 +462,7 @@ void BTnode::publish_people(rclcpp::Time t,
     people_msgs::msg::Person person;
     person.name = a.name;
     person.position = a.position.position;
+    person.position.z = a.yaw;
     person.velocity.x = a.linear_vel * cos(a.yaw);
     person.velocity.y = a.linear_vel * sin(a.yaw);
     // I add the angular velocity in the z coordinate
