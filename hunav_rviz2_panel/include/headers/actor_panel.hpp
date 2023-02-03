@@ -71,6 +71,7 @@ protected Q_SLOTS:
   void removeCurrentMarkers();
   void removeGoalsMarkers();
   void removeMarker(visualization_msgs::msg::Marker marker);
+  void resetGoal();
   void openFileExplorer();
 
 public:
@@ -96,11 +97,15 @@ public:
 
   QMetaObject::Connection* conn_delete = new QMetaObject::Connection();
 
+  QPushButton *initial_pose_button;
   QPushButton *save_button;
   QPushButton *goals_button;
+  QPushButton *reset_goals;
 
   QVBoxLayout *topic_layout_init_pose;
+  QVBoxLayout *goals_layout;
   QCheckBox *checkbox;
+  QLabel *goals_remaining;
   
   std::vector<YAML::Node> actors_info;
   std::vector<std::string> names;
@@ -115,6 +120,7 @@ public:
   int goals_to_remove = 0;
   int marker_id = 0;
   int agent_count = 1;
+  std::vector<QString> goals;
 
   // Positions for markers
   geometry_msgs::msg::PoseStamped initial_pose;
@@ -124,7 +130,7 @@ public:
   geometry_msgs::msg::PoseStamped stored_pose;
 
   // Markers
-  std::vector<visualization_msgs::msg::Marker> markers_array;
+  std::vector<visualization_msgs::msg::Marker> markers_array_to_remove;
   std::vector<visualization_msgs::msg::Marker> arrows_markers_array;
 
   // Colors for Markers
@@ -137,7 +143,7 @@ public:
   rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr initial_pose_publisher;
   rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr goals_publisher;
   rclcpp::Node::SharedPtr client_node_;
-  std::unique_ptr<visualization_msgs::msg::MarkerArray> marker_array = std::make_unique<visualization_msgs::msg::MarkerArray>();
+  visualization_msgs::msg::MarkerArray marker_array;
 
   // Dir to store file
   std::string pkg_shared_tree_dir_;

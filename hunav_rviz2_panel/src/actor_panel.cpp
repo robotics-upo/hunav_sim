@@ -89,97 +89,96 @@ namespace hunav_rviz2_panel
 
   // Shows the agent creation window.
   void ActorPanel::addAgent(){
-    QObject *button = QObject::sender();
-
-    if (button)
-    {      
-
-      // Only removes markers when the "Create agents" button is clicked (If agent_count > 1 means that agents are being created, 
-      // so markers need to stay in place)
-      if(agent_count == 1){
-        removeCurrentMarkers();
-      }
     
-      window = new QWidget;
+    // Only removes markers when the "Create agents" button is clicked (If agent_count > 1 means that agents are being created, 
+    // so markers need to stay in place)
+    if(agent_count == 1){
+      removeCurrentMarkers();
+    }
+  
+    window = new QWidget;
 
-      QVBoxLayout *topic_layout = new QVBoxLayout(window);
-      QHBoxLayout *layout = new QHBoxLayout;
-      QPushButton *directory;
-      // Combobox for behavior selection.
-      behavior_combobox = new QComboBox();
-      // Combobox for skin selection.
-      skin_combobox = new QComboBox();
-      QPushButton *initial_pose_button = new QPushButton("Set initial pose");
-      QLabel *num_goals_set_label = new QLabel("Set number of goals");
-      num_goals_set = new QLineEdit();
+    QVBoxLayout *topic_layout = new QVBoxLayout(window);
+    QHBoxLayout *layout = new QHBoxLayout;
+    QPushButton *directory;
+    // Combobox for behavior selection.
+    behavior_combobox = new QComboBox();
+    // Combobox for skin selection.
+    skin_combobox = new QComboBox();
+    initial_pose_button = new QPushButton("Set initial pose");
+    reset_goals = new QPushButton("Reset goals");
+    QLabel *num_goals_set_label = new QLabel("Set number of goals");
+    num_goals_set = new QLineEdit();
 
-      if(!checkbox->isChecked() && show_file_selector_once == true){
-        directory = new QPushButton("Choose directory");
-        
-        topic_layout->addWidget(new QLabel("Select the directory where the file is going to be saved:"));
-        topic_layout->addWidget(directory);
-      }
-
-      // If user does not provides number of agents, by default creates 1 agent.
-      if(actors->text().isEmpty()){
-        topic_layout->addWidget(new QLabel("Agent " + QString::number(agent_count) + "/" + QString::number(1)));
-      }
-      else{
-        topic_layout->addWidget(new QLabel("Agent " + QString::number(agent_count) + "/" + actors->text()));
-      }
+    if(!checkbox->isChecked() && show_file_selector_once == true){
+      directory = new QPushButton("Choose directory");
       
-      
-      topic_layout->addWidget(new QLabel("Agent's name:"));
-      agent_name = new QLineEdit;
-      topic_layout->addWidget(agent_name);
-      topic_layout->addWidget(new QLabel("Behavior:"));
+      topic_layout->addWidget(new QLabel("Select the directory where the file is going to be saved:"));
+      topic_layout->addWidget(directory);
+    }
 
-      behavior_combobox->addItem("Regular");
-      behavior_combobox->addItem("Impassive");
-      behavior_combobox->addItem("Surprised");
-      behavior_combobox->addItem("Scared");
-      behavior_combobox->addItem("Curious");
-      behavior_combobox->addItem("Threathening");
-      topic_layout->addWidget(behavior_combobox);
+    // If user does not provides number of agents, by default creates 1 agent.
+    if(actors->text().isEmpty()){
+      topic_layout->addWidget(new QLabel("Agent " + QString::number(agent_count) + "/" + QString::number(1)));
+    }
+    else{
+      topic_layout->addWidget(new QLabel("Agent " + QString::number(agent_count) + "/" + actors->text()));
+    }
+    
+    
+    topic_layout->addWidget(new QLabel("Agent's name:"));
+    agent_name = new QLineEdit;
+    topic_layout->addWidget(agent_name);
+    topic_layout->addWidget(new QLabel("Behavior:"));
 
-      topic_layout->addWidget(new QLabel("Skin:"));
-      skin_combobox->addItem("Elegant man");
-      skin_combobox->addItem("Casual man");
-      skin_combobox->addItem("Elegant woman");
-      skin_combobox->addItem("Regular man");
-      skin_combobox->addItem("Worker man");
-      skin_combobox->addItem("Blue jeans");
-      skin_combobox->addItem("Green t-shirt");
-      skin_combobox->addItem("Blue t-shirt");
-      skin_combobox->addItem("Red t-shirt");
-      topic_layout->addWidget(skin_combobox);
+    behavior_combobox->addItem("Regular");
+    behavior_combobox->addItem("Impassive");
+    behavior_combobox->addItem("Surprised");
+    behavior_combobox->addItem("Scared");
+    behavior_combobox->addItem("Curious");
+    behavior_combobox->addItem("Threathening");
+    topic_layout->addWidget(behavior_combobox);
 
-      
-      goals_button = new QPushButton("Set goals");
-      save_button = new QPushButton("Save");
+    topic_layout->addWidget(new QLabel("Skin:"));
+    skin_combobox->addItem("Elegant man");
+    skin_combobox->addItem("Casual man");
+    skin_combobox->addItem("Elegant woman");
+    skin_combobox->addItem("Regular man");
+    skin_combobox->addItem("Worker man");
+    skin_combobox->addItem("Blue jeans");
+    skin_combobox->addItem("Green t-shirt");
+    skin_combobox->addItem("Blue t-shirt");
+    skin_combobox->addItem("Red t-shirt");
+    topic_layout->addWidget(skin_combobox);
 
-      save_button->setEnabled(false);
-      goals_button->setEnabled(false);
+    
+    goals_button = new QPushButton("Set goals");
+    save_button = new QPushButton("Save");
 
-      topic_layout->addWidget(initial_pose_button);
-      topic_layout->addWidget(num_goals_set_label);
-      topic_layout->addWidget(num_goals_set);
-      topic_layout->addWidget(goals_button);
-      topic_layout->addWidget(save_button);
+    save_button->setEnabled(false);
+    goals_button->setEnabled(false);
+    reset_goals->setEnabled(false);
 
-      layout->addLayout(topic_layout);
-      setLayout(layout);
-      
-      window->show();
+    topic_layout->addWidget(initial_pose_button);
+    topic_layout->addWidget(num_goals_set_label);
+    topic_layout->addWidget(num_goals_set);
+    topic_layout->addWidget(goals_button);
+    topic_layout->addWidget(reset_goals);
+    topic_layout->addWidget(save_button);
 
-      connect(save_button, SIGNAL(clicked()), this, SLOT(saveAgents()));
-      connect(goals_button, SIGNAL(clicked()), this, SLOT(getNewGoal()));
-      connect(initial_pose_button, SIGNAL(clicked()), this, SLOT(setInitialPose()));
+    layout->addLayout(topic_layout);
+    setLayout(layout);
+    
+    window->show();
 
-      if(!checkbox->isChecked() && show_file_selector_once){
-        connect(directory, SIGNAL(clicked()), this, SLOT(openFileExplorer()));
-        show_file_selector_once = false;
-      }
+    connect(save_button, SIGNAL(clicked()), this, SLOT(saveAgents()));
+    connect(reset_goals, SIGNAL(clicked()), this, SLOT(resetGoal()));
+    connect(goals_button, SIGNAL(clicked()), this, SLOT(getNewGoal()));
+    connect(initial_pose_button, SIGNAL(clicked()), this, SLOT(setInitialPose()));
+
+    if(!checkbox->isChecked() && show_file_selector_once){
+      connect(directory, SIGNAL(clicked()), this, SLOT(openFileExplorer()));
+      show_file_selector_once = false;
     }
   }
 
@@ -198,28 +197,21 @@ namespace hunav_rviz2_panel
     
     topic_layout_init_pose->addWidget(new QLabel("Initial pose"));
     topic_layout_init_pose->addWidget(new QLabel("Use HunavGoals tool to select the initial pose"));
-    /*
-    topic_layout_init_pose->addWidget(new QLabel("x: " + QString::fromStdString(std::to_string(initial_pose.pose.position.x))));
-        
-    topic_layout_init_pose->addWidget(new QLabel("y: " + QString::fromStdString(std::to_string(initial_pose.pose.position.y))));
     
-    topic_layout_init_pose->addWidget(new QLabel("z: " + QString::fromStdString(std::to_string(initial_pose.pose.position.z))));
-    */
+    // topic_layout_init_pose->addWidget(new QLabel("x: " + QString::fromStdString(std::to_string(initial_pose.pose.position.x))));
+        
+    // topic_layout_init_pose->addWidget(new QLabel("y: " + QString::fromStdString(std::to_string(initial_pose.pose.position.y))));
+    
+    // topic_layout_init_pose->addWidget(new QLabel("z: " + QString::fromStdString(std::to_string(initial_pose.pose.position.z))));
+    
     
     topic_layout_init_pose->addWidget(close_button);
     
     layout->addLayout(topic_layout_init_pose);
-    setLayout(layout);
 
     window2->show();
 
     initial_pose_connection->deleteLater();
-
-    // Removes old markers if button is clicked again and a pose was set.
-    // if(initial_pose_set == true){
-    //   removeCurrentMarkers();
-    //   initial_pose_set = false;
-    // }
     
     connect(close_button, SIGNAL(clicked()), this, SLOT(closeInitialPoseWindow()));
   }
@@ -259,6 +251,12 @@ namespace hunav_rviz2_panel
 
     disconnect(&GoalUpdater, SIGNAL(updateGoal(double,double,double,QString)), this, SLOT(onInitialPose(double,double,double,QString)));
 
+    // Update the panel with the initial pose
+    topic_layout_init_pose->addWidget(new QLabel("Initial pose coordinates"));
+    topic_layout_init_pose->addWidget(new QLabel("x: " + QString::fromStdString(std::to_string(initial_pose.pose.position.x))));        
+    topic_layout_init_pose->addWidget(new QLabel("y: " + QString::fromStdString(std::to_string(initial_pose.pose.position.y))));    
+    topic_layout_init_pose->addWidget(new QLabel("z: " + QString::fromStdString(std::to_string(initial_pose.pose.position.z))));
+
     window->activateWindow();
     window2->activateWindow();
   }
@@ -266,23 +264,22 @@ namespace hunav_rviz2_panel
   // Window that allow users to start using the HuNavGoal tool to select the agent's goals.
   void ActorPanel::getNewGoal(){
 
+    window1 = new QWidget();
+    goals_layout = new QVBoxLayout(window1);
+    QHBoxLayout *layout = new QHBoxLayout;
+    QPushButton *close_button = new QPushButton("Close");
+    goals_number = 1;
+    QString goal = "Goals";
+
+    // Reset markers for removing only the current goal.
+    markers_array_to_remove.clear();
+
     // Connects the HuNav Panel with the HuNavGoal tool.
     goals_connection = new QObject();
     goals_connection->connect(&GoalUpdater, SIGNAL(updateGoal(double,double,double,QString)),
     this, SLOT(onNewGoal(double,double,double,QString)));
 
-    window1 = new QWidget();
-    QVBoxLayout *topic_layout = new QVBoxLayout(window1);
-    QHBoxLayout *layout = new QHBoxLayout;
-    QPushButton *close_button = new QPushButton("Close");
-
-    goals_number = 1;
-
-    QString goal = "Goals";
-    std::vector<QString> goals;
-    //int i = 0;
-
-    topic_layout->addWidget(new QLabel(goal));
+    goals_layout->addWidget(new QLabel(goal));
 
     // If num_goals not set, by default will be 3 goals.
     if(num_goals_set->text().isEmpty()){
@@ -294,32 +291,13 @@ namespace hunav_rviz2_panel
       goals.push_back("G" + QString::number(j));
     }
 
-    topic_layout->addWidget(new QLabel("Use HunavGoals tool to select goals"));
-    /*
-    // Iterate goal's vector to show selected goals
-    for(QString aux : goals){
-      topic_layout->addWidget(new QLabel(aux));  
-      
-      if(!poses.empty()){
-        
-        topic_layout->addWidget(new QLabel("x: " + QString::fromStdString(std::to_string(poses[i].pose.position.x))));
-        
-        topic_layout->addWidget(new QLabel("y: " + QString::fromStdString(std::to_string(poses[i].pose.position.y))));
-        
-        topic_layout->addWidget(new QLabel("z: " + QString::fromStdString(std::to_string(poses[i].pose.position.z))));
-        
-        i++;
-      }
-      else{
-        topic_layout->addWidget(new QLabel("No goals yet"));
-      }
+    goals_remaining = new QLabel("Goals " + QString::number(goals_number) + "/" + num_goals_set->text());
 
-    }*/
+    goals_layout->addWidget(new QLabel("Use HunavGoals tool to select goals"));
+    goals_layout->addWidget(goals_remaining);
+    goals_layout->addWidget(close_button);
 
-    
-    topic_layout->addWidget(close_button);
-
-    layout->addLayout(topic_layout);
+    layout->addLayout(goals_layout);
     setLayout(layout);
 
     window1->show();
@@ -328,14 +306,18 @@ namespace hunav_rviz2_panel
 
     // Removes older data from inital_pose
     initial_pose = geometry_msgs::msg::PoseStamped();
-
+    
     // // If set goals button is clicked again, because someone had an error, this removes the old markers.
     // if(!poses.empty()){
     //   oldPose = stored_pose;
     //   poses.clear();
 
-    //   for(int i = goals_to_remove; i > 0; i--){
-    //     removeMarker(markers_array.back());
+    //   // I use num_goals_set->text().toInt() to know how many goals the user created in order to delete them.
+    //   goals_to_remove = num_goals_set->text().toInt() * 2;
+      
+    //   //removeGoalsMarkers();
+    //   for(int i = goals_to_remove; i >= 0; i--){
+    //     removeMarker(markers_array[i]);
     //     markers_array.pop_back();
     //   }
       
@@ -349,6 +331,7 @@ namespace hunav_rviz2_panel
   // Get point from map to store goals.
   void ActorPanel::onNewGoal(double x, double y, double theta, QString frame)
   {
+    //int i = 0;
 
     pose = geometry_msgs::msg::PoseStamped();
 
@@ -366,7 +349,7 @@ namespace hunav_rviz2_panel
 
     marker_id++;
     
-    auto marker_array = std::make_unique<visualization_msgs::msg::MarkerArray>();
+    //auto marker_array = std::make_unique<visualization_msgs::msg::MarkerArray>();
     
     visualization_msgs::msg::Marker arrow_marker;
 
@@ -375,14 +358,14 @@ namespace hunav_rviz2_panel
     // Increment marker id for next marker.
     marker_id++;
     
-    int marker_array_size = static_cast<int>(marker_array->markers.size());
+    int marker_array_size = static_cast<int>(marker_array.markers.size());
 
     for(int i = 0; i < marker_array_size; i++){
-      marker_array->markers[i].header.stamp = rclcpp::Node::now();
+      marker_array.markers[i].header.stamp = rclcpp::Node::now();
     }
 
-    marker_array->markers.push_back(marker);
-    marker_array->markers.push_back(arrow_marker);
+    marker_array.markers.push_back(marker);
+    marker_array.markers.push_back(arrow_marker);
 
     // If goals == num_goals_set means that another arrow has to be added to close the path.
     if(goals_number == num_goals_set->text().toInt()){
@@ -390,7 +373,7 @@ namespace hunav_rviz2_panel
 
       arrow_marker1 = createArrowMarker(x,y,stored_pose.pose.position.x, stored_pose.pose.position.y, marker_id);
 
-      marker_array->markers.push_back(arrow_marker1);
+      marker_array.markers.push_back(arrow_marker1);
     }
     
     oldPose = pose;
@@ -398,9 +381,31 @@ namespace hunav_rviz2_panel
 
     goals_publisher->publish(std::move(marker_array));
 
+    QObject::disconnect(goals_connection);
+
+    goals_remaining->setText("Goals " + QString::number(goals_number) + "/" + num_goals_set->text());
+    
     goals_number++;
 
-    QObject::disconnect(goals_connection);
+    // Iterate goal's vector to show selected goals
+    // for(QString aux : goals){
+    //   goals_layout->addWidget(new QLabel(aux));  
+      
+    //   if(!poses.empty()){
+        
+    //     goals_layout->addWidget(new QLabel("x: " + QString::fromStdString(std::to_string(poses[i].pose.position.x))));
+        
+    //     goals_layout->addWidget(new QLabel("y: " + QString::fromStdString(std::to_string(poses[i].pose.position.y))));
+        
+    //     goals_layout->addWidget(new QLabel("z: " + QString::fromStdString(std::to_string(poses[i].pose.position.z))));
+        
+    //     i++;
+    //   }
+    //   else{
+    //     goals_layout->addWidget(new QLabel("No goals yet"));
+    //   }
+
+    // }
 
     window->activateWindow();
     window1->activateWindow();
@@ -411,6 +416,7 @@ namespace hunav_rviz2_panel
   void ActorPanel::saveAgents(){
 
     window->close();
+    std::ofstream file;
 
     // If checkbox is not checked, it means that the user wants to store file in another directory.
     if(!checkbox->isChecked()){
@@ -429,7 +435,6 @@ namespace hunav_rviz2_panel
     }
     
     // Open file to save agents
-    std::ofstream file;
     file.open(pkg_shared_tree_dir_ , std::ofstream::trunc);
     
     //Check if number of agents isn't empty
@@ -438,7 +443,7 @@ namespace hunav_rviz2_panel
     }
     else{
       QString temp = actors->text();
-      num_actors = temp.toInt();  
+      num_actors = temp.toInt();
     }
 
     // Get input from user
@@ -468,7 +473,7 @@ namespace hunav_rviz2_panel
     agent1["init_pose"]["x"] = std::to_string(stored_pose.pose.position.x);
     agent1["init_pose"]["y"] = std::to_string(stored_pose.pose.position.y);
     agent1["init_pose"]["z"] = std::to_string(stored_pose.pose.position.z);
-    agent1["init_pose"]["h"] = "0.0";//std::to_string(initial_pose.pose.position.z);
+    agent1["init_pose"]["h"] = "0.0";
     agent1["goal_radius"] = "0.3";
     agent1["cyclic_goals"] = true;
 
@@ -489,7 +494,7 @@ namespace hunav_rviz2_panel
     if(iterate_actors == num_actors){
       YAML::Node hunav_loader;
 
-      //ros__parameters needs two 
+      //ros__parameters needs two underscores
       hunav_loader["hunav_loader"]["ros__parameters"]["map"] = "cafe";
       hunav_loader["hunav_loader"]["ros__parameters"]["publish_people"] = true;
       
@@ -527,7 +532,7 @@ namespace hunav_rviz2_panel
 
       // Need this variable in order to remove initial pose markers when initial pose button is clicked again.
       // To generate the next agent, it has to be set to false in order to not remove the current markers. 
-      // initial_pose_set = false;
+      initial_pose_set = false;
       
       agent_name->clear();
 
@@ -747,8 +752,8 @@ namespace hunav_rviz2_panel
     marker.color.b = rgb[blue];
     marker.color.a = 1.0; // alpha has to be non-zero
 
-    markers_array.push_back(marker);
-
+    markers_array_to_remove.push_back(marker);
+    
     return marker;
 
   }
@@ -786,6 +791,8 @@ namespace hunav_rviz2_panel
 
     arrow_marker.lifetime = rclcpp::Duration(0);
     arrow_marker.frame_locked = false;
+
+    markers_array_to_remove.push_back(arrow_marker);
     
     return arrow_marker;
   }
@@ -793,7 +800,9 @@ namespace hunav_rviz2_panel
   void ActorPanel::closeGoalsWindow(){
     window1->close();
     window->activateWindow();
+    goals_button->setEnabled(false);
     save_button->setEnabled(true);
+    reset_goals->setEnabled(true);
     disconnect(&GoalUpdater, SIGNAL(updateGoal(double,double,double,QString)), this, SLOT(onNewGoal(double,double,double,QString)));
     first_actor = true;
   }
@@ -801,6 +810,7 @@ namespace hunav_rviz2_panel
   void ActorPanel::closeInitialPoseWindow(){
     window2->close();
     window->activateWindow();
+    initial_pose_button->setEnabled(false);
     goals_button->setEnabled(true);
     disconnect(&GoalUpdater, SIGNAL(updateGoal(double,double,double,QString)), this, SLOT(onInitialPose(double,double,double,QString)));
     QObject::disconnect(initial_pose_connection);
@@ -844,16 +854,44 @@ namespace hunav_rviz2_panel
     goals_publisher->publish(std::move(marker_array));
   }
 
-  void ActorPanel::removeMarker(visualization_msgs::msg::Marker marker){
+  void ActorPanel::resetGoal(){
+    int size = static_cast<int>(markers_array_to_remove.size());
 
-    auto markers = std::make_unique<visualization_msgs::msg::MarkerArray>();
+    visualization_msgs::msg::MarkerArray markers;
+    visualization_msgs::msg::Marker m;
 
-    marker.header.frame_id = "map";    
-    marker.action = visualization_msgs::msg::Marker::DELETE;
+    for(int i = 0; i < size; i++){
+      markers_array_to_remove[i].header.frame_id = "map";
+      markers_array_to_remove[i].action = visualization_msgs::msg::Marker::DELETE;
+      markers.markers.push_back(markers_array_to_remove[i]);
+    }
 
-    markers->markers.push_back(marker);
-    goals_publisher->publish(std::move(markers));
+    // int i = size;
+    // int aux = static_cast<int>(marker_array.markers.size());
+    // aux -= 1;
+
+    // RCLCPP_INFO(this->get_logger(), "Size of goals:%i", static_cast<int>(marker_array.markers.size()));
+    // RCLCPP_INFO(this->get_logger(), "Size to remove:%i, difference:%i", size, aux);
+
+    // while(size > 0){
+    //   m = marker_array.markers.at(aux);
+    //   m.header.frame_id = "map";
+    //   m.action = visualization_msgs::msg::Marker::DELETE;
+    //   markers.markers.push_back(m);
+    //   size--;
+    //   aux--;
+    // }
+
+    goals_publisher->publish(markers);
     
+    markers_array_to_remove.clear();
+    marker_array.markers.clear();
+    poses.clear();
+
+    goals_button->setEnabled(true);
+    reset_goals->setEnabled(false);
+
+    oldPose = stored_pose;
   }
 
   void ActorPanel::openFileExplorer(){
