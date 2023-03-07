@@ -14,10 +14,12 @@
   <depend>visualization_msgs</depend>
   <depend>hunav_msgs</depend>
   <depend>people_msgs</depend>
-  <depend>tf2</depend>
-  <depend>tf2_ros</depend>
   <depend>nav2_behavior_tree</depend>
   <depend>behaviortree_cpp_v3</depend>
+
+  <exec_depend>tf2_geometry_msgs</exec_depend>
+  <exec_depend>tf2</exec_depend>
+  <exec_depend>tf_transformations</exec_depend>
 
   <!--<test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>-->

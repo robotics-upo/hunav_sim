@@ -16,7 +16,7 @@ HunavLoader::HunavLoader() : Node("hunav_loader") {
   std::string map =
       this->declare_parameter<std::string>("map", std::string("map.yaml"));
 
-  this->declare_parameter("agents");
+  this->declare_parameter(std::string("agents"), rclcpp::ParameterType::PARAMETER_STRING_ARRAY);
   rclcpp::Parameter array_agents = this->get_parameter("agents");
   auto agent_names = array_agents.as_string_array();
 
@@ -53,7 +53,7 @@ HunavLoader::HunavLoader() : Node("hunav_loader") {
     bool cyclic = this->declare_parameter<bool>(name + ".cyclic_goals", true);
     RCLCPP_INFO(this->get_logger(), "\tcyclic_goals: %i", (int)cyclic);
     // Goals
-    this->declare_parameter(name + ".goals");
+    this->declare_parameter(std::string(name + ".goals"), rclcpp::ParameterType::PARAMETER_STRING_ARRAY);
     rclcpp::Parameter array_goals = this->get_parameter(name + ".goals");
     auto goal_names = array_goals.as_string_array();
     for (auto g : goal_names) {

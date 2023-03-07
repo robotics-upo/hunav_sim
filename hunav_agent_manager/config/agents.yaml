@@ -5,77 +5,19 @@ hunav_loader:
     agents:
       - agent1
       - agent2
-      - agent3
+      - agent7
+      - agent4
+      - agent5
     agent1:
       id: 1
-      skin: 2
-      behavior: 5
-      group_id: -1
-      max_vel: 1.5
-      radius: 0.4
-      init_pose:
-        x: -3.973340
-        y: -8.576801
-        z: 1.250000
-        h: 0.0
-      goal_radius: 0.3
-      cyclic_goals: true
-      goals:
-        - g0
-        - g1
-        - g2
-      g0:
-        x: -3.133759
-        y: -4.166653
-        h: 1.250000
-      g1:
-        x: 0.997901
-        y: -4.131655
-        h: 1.250000
-      g2:
-        x: -0.227549
-        y: -10.187146
-        h: 1.250000
-    agent2:
-      id: 2
-      skin: 3
-      behavior: 6
-      group_id: -1
-      max_vel: 1.5
-      radius: 0.4
-      init_pose:
-        x: 2.924233
-        y: 5.007970
-        z: 1.250000
-        h: 0.0
-      goal_radius: 0.3
-      cyclic_goals: true
-      goals:
-        - g0
-        - g1
-        - g2
-      g0:
-        x: -2.644067
-        y: 2.066231
-        h: 1.250000
-      g1:
-        x: -1.663169
-        y: -3.291318
-        h: 1.250000
-      g2:
-        x: 3.344481
-        y: 1.470876
-        h: 1.250000
-    agent3:
-      id: 3
-      skin: 1
+      skin: 0
       behavior: 4
       group_id: -1
       max_vel: 1.5
       radius: 0.4
       init_pose:
-        x: 0.507801
-        y: 1.330791
+        x: 3.484565
+        y: 6.934117
         z: 1.250000
         h: 0.0
       goal_radius: 0.3
@@ -85,14 +27,134 @@ hunav_loader:
         - g1
         - g2
       g0:
-        x: -3.239419
-        y: -1.786054
+        x: 3.378858
+        y: -4.586833
         h: 1.250000
       g1:
-        x: -2.222970
-        y: -7.316537
+        x: -3.588942
+        y: -4.796917
         h: 1.250000
       g2:
-        x: 3.203787
-        y: -3.536413
+        x: -2.574025
+        y: 1.435859
+        h: 1.250000
+    agent2:
+      id: 2
+      skin: 4
+      behavior: 6
+      group_id: -1
+      max_vel: 1.5
+      radius: 0.4
+      init_pose:
+        x: 3.308198
+        y: -10.327183
+        z: 1.250000
+        h: 0.0
+      goal_radius: 0.3
+      cyclic_goals: true
+      goals:
+        - g0
+        - g1
+        - g2
+      g0:
+        x: 1.558424
+        y: 6.163660
+        h: 1.250000
+      g1:
+        x: -1.873610
+        y: -1.645975
+        h: 1.250000
+      g2:
+        x: 0.052511
+        y: -10.047120
+        h: 1.250000
+    agent7:
+      id: 3
+      skin: 3
+      behavior: 5
+      group_id: -1
+      max_vel: 1.5
+      radius: 0.4
+      init_pose:
+        x: -4.183384
+        y: -9.522011
+        z: 1.250000
+        h: 0.0
+      goal_radius: 0.3
+      cyclic_goals: true
+      goals:
+        - g0
+        - g1
+        - g2
+      g0:
+        x: -1.662852
+        y: -7.631603
+        h: 1.250000
+      g1:
+        x: -4.079139
+        y: -4.761907
+        h: 1.250000
+      g2:
+        x: 0.717925
+        y: 1.400831
+        h: 1.250000
+    agent4:
+      id: 4
+      skin: 2
+      behavior: 2
+      group_id: -1
+      max_vel: 1.5
+      radius: 0.4
+      init_pose:
+        x: -3.554606
+        y: 5.953529
+        z: 1.250000
+        h: 0.0
+      goal_radius: 0.3
+      cyclic_goals: true
+      goals:
+        - g0
+        - g1
+        - g2
+      g0:
+        x: -2.643059
+        y: -9.592029
+        h: 1.250000
+      g1:
+        x: 1.838239
+        y: -3.501402
+        h: 1.250000
+      g2:
+        x: -4.325063
+        y: 2.766649
+        h: 1.250000
+    agent5:
+      id: 5
+      skin: 1
+      behavior: 5
+      group_id: -1
+      max_vel: 1.5
+      radius: 0.4
+      init_pose:
+        x: 1.067725
+        y: -8.156725
+        z: 1.250000
+        h: 0.0
+      goal_radius: 0.3
+      cyclic_goals: true
+      goals:
+        - g0
+        - g1
+        - g2
+      g0:
+        x: 1.348298
+        y: -1.225715
+        h: 1.250000
+      g1:
+        x: -0.717789
+        y: -3.326329
+        h: 1.250000
+      g2:
+        x: -1.522822
+        y: -5.986265
         h: 1.250000

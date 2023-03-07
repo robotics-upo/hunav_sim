@@ -28,7 +28,7 @@ ament_target_dependencies(hunav_agent_manager rclcpp hunav_msgs people_msgs geom
 
 
 add_executable(test_agent_manager src/test_agent_manager_node.cpp)
-ament_target_dependencies(test_agent_manager rclcpp hunav_msgs geometry_msgs tf2 tf2_ros)
+ament_target_dependencies(test_agent_manager rclcpp hunav_msgs geometry_msgs tf2_geometry_msgs tf2 tf2_ros)
 
 add_executable(hunav_loader src/hunav_loader.cpp)
 ament_target_dependencies(hunav_loader rclcpp hunav_msgs)
