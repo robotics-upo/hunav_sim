@@ -2,7 +2,7 @@
 
 A ROS2 python package to compute different human-aware navigation metrics about the simulations performed with the HuNav Simulator.
 
-**Tested in ROS2 Foxy** 
+**Tested in ROS2 Humble** 
 
 
 ## Dependencies
@@ -11,6 +11,11 @@ A ROS2 python package to compute different human-aware navigation metrics about 
 * hunav_msgs
 * hunav_agent_manager
 
+At the moment of this update (March 2023), there is a [problem](https://docs.ros.org/en/humble/Releases/Release-Humble-Hawksbill.html#known-issues) which is breaking some parts of ament_package and builds with colcon. 
+To solve this problem now, you will need to install setuptools version 58.2.0:
+```sh
+pip install setuptools==58.2.0
+```
 
 ## Description
 

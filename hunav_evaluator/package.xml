@@ -7,8 +7,6 @@
   <maintainer email="noeperez@upo.es">Noé Pérez-Higueras</maintainer>
   <license>MIT</license>
 
-   <buildtool_depend>ament_python</buildtool_depend>
-
   <depend>rclpy</depend>
   <depend>hunav_msgs</depend>
   <depend>std_srvs</depend>
