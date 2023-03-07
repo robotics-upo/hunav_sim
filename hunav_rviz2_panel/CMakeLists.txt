@@ -66,6 +66,7 @@ set(dependencies
   rviz_ogre_vendor
   rviz_rendering
   std_msgs
+  tf2
   tf2_geometry_msgs
   visualization_msgs
 )

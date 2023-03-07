@@ -52,8 +52,8 @@ def generate_launch_description():
 
     lyfecycle = Node(
         package='nav2_lifecycle_manager',
-        node_executable='lifecycle_manager',
-        node_name='lifecycle_manager_localization',
+        executable='lifecycle_manager',
+        name='lifecycle_manager_localization',
         output='screen',
         parameters=[{'use_sim_time': True},
                     {'autostart': True},

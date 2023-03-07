@@ -7,12 +7,12 @@ This package provides two RViz2 panels:
 * *HunNavMetricsPanel* - which allows the selection of the metrics to be computed for a simulation.
 
 
-**Tested in ROS2 Foxy**
+**Tested in ROS2 Humble**
 
 # Dependencies
 
-* ros-foxy-nav2-map-server
-* ros-foxy-nav2-lifecycle-manager
+* ros-humble-nav2-map-server
+* ros-humble-nav2-lifecycle-manager
 
 # HuNavPanel for agents configuration
 
