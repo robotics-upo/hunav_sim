@@ -200,10 +200,7 @@ Metrics based on Social Force Model [7,8,9]. The mathematical equations of the c
 
 $$ W_{social} = W_{r} + \sum W_{p_{i}} $$
 
-&ensp;&ensp;&ensp;&ensp;&ensp;&ensp; With:
-
-    - $W_{r}$  The summatory of the modulus of the robot social force and the robot obstacle force along the trajectory. According to the SFM.
-    - $W_{p}$  The summatory of the modulus of the social forces provoked by the robot for each close pedestrian along the trajectory. According to the SFM. The social work function is employed in this [local planner](https://github.com/robotics-upo/social_force_window_planner)
+&ensp;&ensp;&ensp;&ensp;&ensp;&ensp; With $W_{r}$  The summatory of the modulus of the robot social force and the robot obstacle force along the trajectory. According to the SFM. And $W_{p}$  The summatory of the modulus of the social forces provoked by the robot for each close pedestrian along the trajectory. According to the SFM. The social work function is employed in this [local planner](https://github.com/robotics-upo/social_force_window_planner)
 
 - *obstacle_force_on_agents*. Summatory of the modulus of the obstacle force provoked by the obstacles in the agents (no other agents or robot are considered). 
   
