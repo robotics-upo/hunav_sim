@@ -192,19 +192,19 @@ $$ Collisions = \sum_{i=1}^{N} F(\({||x_r^i - x_{cp}^i||}_{2}  - \gamma_{r} - \g
 
 Metrics based on Social Force Model [7,8,9]. The mathematical equations of the computation of the forces can be consulted [here](https://github.com/robotics-upo/lightsfm):
 
-- *Social Force on agents*. Summatory of the modulus of the social force provoked by the robot in the agents  
+- *Social Force on Agents*. Summatory of the modulus of the social force provoked by the robot in the agents  
 
-- *social_force_on_robot*. Summatory of the modulus of the social force provoked by the human agents in the robot.
+- *SocialForce on Robot*. Summatory of the modulus of the social force provoked by the human agents in the robot.
   
-- *social work*. It is based on the concept of the "**social work**" performed by the robot ($W_{r}$), and the social work provoked by the robot in the surrounding pedestrians ($W_{p}$)
+- *Social Work*. It is based on the concept of the "**social work**" performed by the robot ($W_{r}$), and the social work provoked by the robot in the surrounding pedestrians ($W_{p}$)
 
 $$ W_{social} = W_{r} + \sum W_{p_{i}} $$
 
 &ensp;&ensp;&ensp;&ensp;&ensp;&ensp; With $W_{r}$  The summatory of the modulus of the robot social force and the robot obstacle force along the trajectory. According to the SFM. And $W_{p}$  The summatory of the modulus of the social forces provoked by the robot for each close pedestrian along the trajectory. According to the SFM. The social work function is employed in this [local planner](https://github.com/robotics-upo/social_force_window_planner)
 
-- *obstacle_force_on_agents*. Summatory of the modulus of the obstacle force provoked by the obstacles in the agents (no other agents or robot are considered). 
+- *Obstacle Force on Agents*. Summatory of the modulus of the obstacle force provoked by the obstacles in the agents (no other agents or robot are considered). 
   
-- *obstacle_force_on_robot*. Summatory of the modulus of the obstacle force provoked by the obstacles in the robot (the human agents are not considered).
+- *Obstacle Force on Robot*. Summatory of the modulus of the obstacle force provoked by the obstacles in the robot (the human agents are not considered).
  
 
 <!-- - *Static Obstacle Collision*: number of times the robot collides with a static obstacle. -->
