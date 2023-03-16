@@ -7,6 +7,7 @@ import rclpy
 from hunav_msgs.msg import Agents
 from hunav_msgs.msg import Agent
 from geometry_msgs.msg import Pose
+from sfm import SFM
 
 # Teaching Robot Navigation Behaviors to Optimal RRT Planners
 # Noé Pérez-Higueras, Fernando Caballero & Luis Merino
@@ -391,12 +392,54 @@ def avg_pedestrian_velocity(agents, robot):
 def avg_pedestrian_angle(agents, robot):
     pass
 
-def pedestrian_social_force(agents, robot):
-    pass
 
-def robot_social_force(agents, robot):
-    pass
+# metrics based on social force model
 
+# cumulative modulus of the social force provoked 
+# by the robot in the agents 
+def social_force_on_agents(agents, robot):
+    sfm = SFM()
+    sf = 0.0
+    for agts, rb in zip(agents, robot):
+        sf += sfm.modulusSocialForce2(rb, agts)
+    return sf
+
+# cumulative modulus of the social force provoked 
+# by the agents in the robot
+def social_force_on_robot(agents, robot):
+    sfm = SFM()
+    sf = 0.0
+    for agts, rb in zip(agents, robot):
+        sf += sfm.modulusSocialForce(rb, agts)
+    return sf
+
+# cumulative social work employed in this planner:
+# https://github.com/robotics-upo/social_force_window_planner
+def social_work(agents, robot):
+    sfm = SFM()
+    sw = 0.0
+    for agts, rb in zip(agents, robot):
+        sw += sfm.computeSocialWork(rb, agts)
+    return sw
+
+
+# cumulative obstacle force on the agents
+def obstacle_force_on_agents(agents, robot):
+    sfm = SFM()
+    of = 0.0
+    for agts in agents:
+        for a in agts:
+            of += np.linalg.norm(sfm.computeObstacleForce(a))
+    return of
+
+
+# cumulative obstacle force on the robot
+def obstacle_force_on_robot(agents, robot):
+    sfm = SFM()
+    of = 0.0
+    for r in robot:
+        of += np.linalg.norm(sfm.computeObstacleForce(r))
+    return of
 
 
 #TODO
@@ -410,6 +453,9 @@ def path_efficiency(agents, robot):
 # TODO
 def static_obs_collision(agents, robot):
     pass
+
+
+
 
 
 # Evaluation of Socially-Aware Robot Navigation
@@ -489,6 +535,13 @@ metrics = {
     # Learning a Group-Aware Policy for Robot Navigation
     # Kapil Katyal ∗1,2 , Yuxiang Gao ∗2 , Jared Markowitz 1 , Sara Pohland 3 , Corban Rivera 1 , I-Jeng Wang 1 , Chien-Ming Huang 2
     'avg_pedestrian_velocity': avg_pedestrian_velocity,
+
+    # metrics based on Social Force Model employed in different papers
+    'social_force_on_agents': social_force_on_agents,
+    'social_force_on_robot': social_force_on_robot,
+    'social_work': social_work,
+    'obstacle_force_on_robot': obstacle_force_on_robot,
+    'obstacle_force_on_agents': obstacle_force_on_agents,
 }
 
 

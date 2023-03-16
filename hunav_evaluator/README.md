@@ -90,6 +90,16 @@ Example snippet of the metrics configuration file:
       # Learning a Group-Aware Policy for Robot Navigation
       # Kapil Katyal ∗1,2 , Yuxiang Gao ∗2 , Jared Markowitz 1 , Sara Pohland 3 , Corban Rivera 1 , I-Jeng Wang 1 , Chien-Ming Huang 2 
       avg_pedestrian_velocity: true
+
+      # metrics based on Social Force Model employed in different papers
+      # See the compilation of Gao et al. [5]
+      social_force_on_agents: true
+      social_force_on_robot: true
+      # social work function employed in this planner:
+      # https://github.com/robotics-upo/social_force_window_planner
+      social_work: true
+      obstacle_force_on_robot: true
+      obstacle_force_on_agents: true
 ```
 
 ### Metrics description
@@ -141,7 +151,7 @@ $$ CP_{prox}^k = (\frac{1}{N} \sum_{j=1}^{N} F(||x_r^j - x_{cp}^j||_2 \lt \delta
 &ensp;&ensp;&ensp;&ensp;&ensp;&ensp; where N is the total number of time steps in the trajectory, $\delta$ defines the distance range for 
 classification defined by k = {Intimate, Personal, Social + Public}, and F(·) is the indicator function.
 
-- *Interaction space intrusions* $(IS_{prox})$. This metric is inspired by the work of Okal and Arras [5] in formalizing social normative robot behavior, and it is related to groups of interacting persons. It measures the percentage of time spent by the robot in the three Proxemics spaces considered with respect to an interaction area formed by a group of people that are interacting with each other. The detection of the interaction area of the group is based on the detection of F-formations. A F-formation arises whenever two or more people sustain a spatial and orientational relationship in which the space between them is
+- *Interaction space intrusions* $(IS_{prox})$. This metric is inspired by the work of Okal and Arras [6] in formalizing social normative robot behavior, and it is related to groups of interacting persons. It measures the percentage of time spent by the robot in the three Proxemics spaces considered with respect to an interaction area formed by a group of people that are interacting with each other. The detection of the interaction area of the group is based on the detection of F-formations. A F-formation arises whenever two or more people sustain a spatial and orientational relationship in which the space between them is
 one to which they have equal, direct, and exclusive access
 
 $$ IS_{prox}^k = (\frac{1}{N} \sum_{j=1}^{N} F(||x_r^j - x_f^j||_2 \lt \delta^k)) * 100 $$
@@ -180,6 +190,26 @@ $$ Collisions = \sum_{i=1}^{N} F(\({||x_r^i - x_{cp}^i||}_{2}  - \gamma_{r} - \g
 
 &ensp;&ensp;&ensp;&ensp;&ensp;&ensp; where $x_r^i$ is the robot pose in the time step $i$ of the trajectory, $x_{cp}^i$ is the pose of the closest person to the robot at time step $i$. $\gamma_{r}$ is the radius of the robot and $\gamma_{cp}$ is the radius of the closest person. Then, we check the relative orientations between the agent and the robot and their velocities to determine who is running into the other.  
 
+Metrics based on Social Force Model [7,8,9]. The mathematical equations of the computation of the forces can be consulted [here](https://github.com/robotics-upo/lightsfm):
+
+- *Social Force on agents*. Summatory of the modulus of the social force provoked by the robot in the agents  
+
+- *social_force_on_robot*. Summatory of the modulus of the social force provoked by the human agents in the robot.
+  
+- *social work*. It is based on the concept of the "**social work**" performed by the robot ($W_{r}$), and the social work provoked by the robot in the surrounding pedestrians ($W_{p}$)
+
+$$ W_{social} = W_{r} + \sum W_{p_{i}} $$
+
+With:
+
+  - $W_{r}$  The summatory of the modulus of the robot social force and the robot obstacle force along the trajectory. According to the SFM.
+  - $W_{p}$  The summatory of the modulus of the social forces provoked by the robot for each close pedestrian along the trajectory. According to the SFM. The social work function is employed in this [local planner](https://github.com/robotics-upo/social_force_window_planner)
+
+- *obstacle_force_on_agents*. Summatory of the modulus of the obstacle force provoked by the obstacles in the agents (no other agents or robot are considered). 
+  
+- *obstacle_force_on_robot*. Summatory of the modulus of the obstacle force provoked by the obstacles in the robot (the human agents are not considered).
+ 
+
 <!-- - *Static Obstacle Collision*: number of times the robot collides with a static obstacle. -->
 
 - *Robot on Person Personal Distance Violation*, *Person on Robot Personal Distance Violation*, *Intimate Distance Violation* and *Person on Robot Intimate Distance Violation*. These metrics are not used. We are employing the similar *Intimate/Personal/Social space instrusions* [1] instead. Instead of giving the number of times the robot approaches a person within the personal distance, a percentage of the total time is given.
@@ -191,7 +221,7 @@ $$ Collisions = \sum_{i=1}^{N} F(\({||x_r^i - x_{cp}^i||}_{2}  - \gamma_{r} - \g
 
 
 
-## Add new metrics
+## Adding new metrics
 
 The user can easily extend the current set of available metrics.
 
@@ -211,8 +241,9 @@ After compiling, the user can add the new function name to the ```metrics.yaml``
 
 ## TODO:
 
-* Program a set of ROS2 services to start/stop the data recording.
-* Complete the set of metrics including some related to the forces of the SFM.
+- [ ] Program a set of ROS2 services to start/stop the data recording.
+- [X] Include some related to the forces of the SFM.
+- [ ] Complete the set of metrics
 
 ## References:
 
@@ -222,8 +253,16 @@ After compiling, the user can add the new function name to the ```metrics.yaml``
 
 [3] A. Biswas, A. Wang, G. Silvera, A. Steinfeld, and H. Admoni,"Socnavbench: A grounded simulation testing framework for evaluating social navigation," ACM Transactions on Human-Robot Interaction, jul 2022. [Online](https://doi.org/10.1145/3476413).
 
-[4] Y. Gao and C.-M. Huang, "Evaluation of socially-aware robot navigation," Frontiers in Robotics and AI, vol. 8, 2022.[Online](https://www.frontiersin.org/articles/10.3389/frobt.2021.721317)
+[4] F. Grzeskowiak, D. Gonon, D. Dugas, D. Paez-Granados, J. J. Chung, J. Nieto, R. Siegwart, A. Billard, M. Babel, and J. Pettré, “Crowd against the machine: A simulation-based benchmark tool to evaluate and compare robot capabilities to navigate a human crowd,” in 2021 IEEE International Conference on Robotics and Automation (ICRA), 2021, pp. 3879–3885. 
 
-[5] Okal B, Arras KO, "Formalizing normative robot behavior," In: Social robotics: 8th international conference, ICSR 2016,Kansas City, MO, USA, November 1-3, 2016 Proceedings.Springer International Publishing, pp 62–71. [Online](https://doi.org/10.1007/978-3-319-47437-3_7)
+[5] Y. Gao and C.-M. Huang, "Evaluation of socially-aware robot navigation," Frontiers in Robotics and AI, vol. 8, 2022.[Online](https://www.frontiersin.org/articles/10.3389/frobt.2021.721317)
+
+[6] Okal B, Arras KO, "Formalizing normative robot behavior," In: Social robotics: 8th international conference, ICSR 2016,Kansas City, MO, USA, November 1-3, 2016 Proceedings.Springer International Publishing, pp 62–71. [Online](https://doi.org/10.1007/978-3-319-47437-3_7)
+
+[7] Helbing, Dirk & Molnar, Peter. (1998). "Social Force Model for Pedestrian Dynamics". Physical Review E. 51. 10.1103/PhysRevE.51.4282. 
+
+[8] Moussaid M, Helbing D, Garnier S, Johansson A, Combe M, et al. (2009) "Experimental study of the behavioural mechanisms underlying self-organization in human crowds". Proceedings of the Royal Society B: Biological Sciences 276: 2755–2762.
+
+[9] Moussaïd, Mehdi & Perozo, Niriaska & Garnier, Simon & Helbing, Dirk & Theraulaz, Guy. (2010). "The Walking Behaviour of Pedestrian Social Groups and Its Impact on Crowd Dynamics". PloS one. 5. e10047. 10.1371/journal.pone.0010047.
 
 

@@ -21,6 +21,7 @@ class HunavEvaluatorNode(Node):
         self.robot_list = []
         self.robot_goal = None
         self.metrics_to_compute = {}
+        self.number_of_behaviors = 6
 
         # Two modes:
         # 1- The user start/stop the recording through the
@@ -37,11 +38,11 @@ class HunavEvaluatorNode(Node):
         self.freq = self.declare_parameter('frequency', 0.0).get_parameter_value().double_value
 
         
-        self.declare_parameter('result_file', '1')
+        self.declare_parameter('result_file', 'metrics')
         self.result_file_path = self.get_parameter('result_file').get_parameter_value().string_value
 
         # Read metrics
-        self.declare_parameter('experiment_tag', 'tag')
+        self.declare_parameter('experiment_tag', '1')
         self.exp_tag = self.get_parameter('experiment_tag').get_parameter_value().string_value
 
         # Noe test
@@ -175,33 +176,64 @@ class HunavEvaluatorNode(Node):
         robot_size = len(self.robot_list)
         self.get_logger().info("Hunav evaluator. Collected %i messages of agents and %i of robot" % (agents_size, robot_size))
         self.get_logger().info("Computing metrics...")
+
+        # compute metrics for all agents
         for m in self.metrics_to_compute.keys():
             self.metrics_to_compute[m] = hunav_metrics.metrics[m](self.agents_list, self.robot_list)
         print('Metrics computed:')
         print(self.metrics_to_compute)
-
-        self.store_metrics()
+        self.store_metrics(self.result_file_path)
         
-        #self.agent_sub.destroy()
-        #self.robot_sub.destroy()
-        #self.end_timer.destroy()
+        # Now, filter according to the different behaviors
+        self.compute_metrics_behavior(self, Agent.BEH_REGULAR, check_activated=False)
+        for i in range(2,(self.number_of_behaviors+1)):
+          self.compute_metrics_behavior(self, i)  
+
         self.destroy_node()
         sys.exit()
         #return
 
+
+    def compute_metrics_behavior(self, behavior, check_activated=True):
+        beh_agents = []
+        beh_robot = []
+        for (la, lr) in zip(self.agent_list, self.robot_list):
+            ag = Agents()
+            ag.header = la.header
+            for a in la.agents:
+                if a.behavior == behavior:
+                    if check_activated and a.behavior_state != Agent.BEH_NO_ACTIVE:
+                        ag.append(a)
+                    elif not check_activated:
+                        ag.append(a)
+            if len(ag.agents) > 0:
+                beh_agents.append(ag)
+                beh_robot.append(lr)
+
+        for m in self.metrics_to_compute.keys():
+            self.metrics_to_compute[m] = hunav_metrics.metrics[m](beh_agents, beh_robot)
+        print('Metrics computed behavior %i:', behavior)
+        print(self.metrics_to_compute)
+        store_file = self.result_file_path
+        if store_file.endswith(".txt"):
+            store_file = store_file[:-4]
+        store_file += '_beh_'+str(behavior)+'.txt'
+        self.store_metrics(store_file)
+
+
     
-    def store_metrics(self):
+    def store_metrics(self, result_file):
 
         # add extension if it does not have it
-        if not self.result_file_path.endswith(".txt"):
-            self.result_file_path += '.txt'
+        if not result_file.endswith(".txt"):
+            result_file += '.txt'
 
-        file_was_created = os.path.exists(self.result_file_path)
+        file_was_created = os.path.exists(result_file)
 
         # open the file
-        file = open(self.result_file_path,'a+')
+        file = open(result_file,'a+')
         if(file is None):
-            self.get_logger().error("RESULT METRICS FILE NOT CREATED! FILE: %s" % self.result_file_path)
+            self.get_logger().error("RESULT METRICS FILE NOT CREATED! FILE: %s" % result_file)
 
         # if the file is new, create a header
         if file_was_created == False:

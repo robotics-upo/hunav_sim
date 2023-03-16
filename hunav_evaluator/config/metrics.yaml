@@ -14,7 +14,8 @@ hunav_evaluator_node:
     # If the file already exists, the file will be open
     # and a new line of results will be added at the end
     # of the file. 
-    result_file: 'test.txt'
+    result_file: 'metrics.txt'
+
 
     # the list of metrics to be computed.
     
@@ -55,5 +56,15 @@ hunav_evaluator_node:
       # Learning a Group-Aware Policy for Robot Navigation
       # Kapil Katyal ∗1,2 , Yuxiang Gao ∗2 , Jared Markowitz 1 , Sara Pohland 3 , Corban Rivera 1 , I-Jeng Wang 1 , Chien-Ming Huang 2 
       avg_pedestrian_velocity: true
+
+      # metrics based on Social Force Model employed in 
+      # different papers
+      social_force_on_agents: true
+      social_force_on_robot: true
+      # social work function employed in this planner:
+      # https://github.com/robotics-upo/social_force_window_planner
+      social_work: true
+      obstacle_force_on_robot: true
+      obstacle_force_on_agents: true
     
 
