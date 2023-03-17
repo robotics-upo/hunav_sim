@@ -185,9 +185,9 @@ class HunavEvaluatorNode(Node):
         self.store_metrics(self.result_file_path)
         
         # Now, filter according to the different behaviors
-        self.compute_metrics_behavior(self, Agent.BEH_REGULAR, check_activated=False)
+        self.compute_metrics_behavior(Agent.BEH_REGULAR, check_activated=False)
         for i in range(2,(self.number_of_behaviors+1)):
-          self.compute_metrics_behavior(self, i)  
+          self.compute_metrics_behavior(i)  
 
         self.destroy_node()
         sys.exit()
@@ -197,22 +197,25 @@ class HunavEvaluatorNode(Node):
     def compute_metrics_behavior(self, behavior, check_activated=True):
         beh_agents = []
         beh_robot = []
-        for (la, lr) in zip(self.agent_list, self.robot_list):
+        for (la, lr) in zip(self.agents_list, self.robot_list):
             ag = Agents()
             ag.header = la.header
             for a in la.agents:
                 if a.behavior == behavior:
                     if check_activated and a.behavior_state != Agent.BEH_NO_ACTIVE:
-                        ag.append(a)
+                        ag.agents.append(a)
                     elif not check_activated:
-                        ag.append(a)
+                        ag.agents.append(a)
             if len(ag.agents) > 0:
                 beh_agents.append(ag)
                 beh_robot.append(lr)
+            else:
+                print("No agents of behavior %i" % behavior)
+                return None
 
         for m in self.metrics_to_compute.keys():
             self.metrics_to_compute[m] = hunav_metrics.metrics[m](beh_agents, beh_robot)
-        print('Metrics computed behavior %i:', behavior)
+        print('Metrics computed behavior %i:' % behavior)
         print(self.metrics_to_compute)
         store_file = self.result_file_path
         if store_file.endswith(".txt"):
