@@ -82,7 +82,7 @@ class SFM():
         interactionVector = self.lambda_ * velDiff + diffDirection
         interactionLength = np.linalg.norm(interactionVector)
         interactionDirection = interactionVector / interactionLength
-        theta = math.atan2(diffDirection[1], diffDirection[0]) - math.atan2(interactionDirection[1], interactionDirection[2])
+        theta = math.atan2(diffDirection[1], diffDirection[0]) - math.atan2(interactionDirection[0], interactionDirection[1])
         theta = self.normalize_angle(theta)
         B = self.gamma * interactionLength
         forceVelocityAmount = -math.exp(-np.linalg.norm(agent1pos - agent2pos) / B - (self.nPrime * B * theta)**2)
@@ -101,7 +101,7 @@ class SFM():
         agent 
         '''
         socialForce = np.array([0.0, 0.0], dtype=np.float32)
-        for a in agents:
+        for a in agents.agents:
             if a.id == agent.id:
                 continue
             # force provoked by agent 'a' in agent 'agent'
@@ -115,7 +115,7 @@ class SFM():
         the social force provoked by the agents in the agent 
         '''
         socialForceMod = 0.0
-        for a in agents:
+        for a in agents.agents:
             if a.id == agent.id:
                 continue
             # force provoked by agent 'a' in agent 'agent'
@@ -130,7 +130,7 @@ class SFM():
         rest of agents 
         '''
         socialForce = np.array([0.0, 0.0], dtype=np.float32)
-        for a in agents:
+        for a in agents.agents:
             if a.id == agent.id:
                 continue
             # force provoked by agent 'agent' in agent 'a'
@@ -145,7 +145,7 @@ class SFM():
         in the rest of agents 
         '''
         socialForceMod = 0.0
-        for a in agents:
+        for a in agents.agents:
             if a.id == agent.id:
                 continue
             # force provoked by agent 'agent' in agent 'a'
@@ -163,7 +163,7 @@ class SFM():
         # compute the social work provoked by the
         # robot in the other agents
         wa = 0.0
-        for a in agents:
+        for a in agents.agents:
             if a.id == agent_robot.id:
                 continue
             # force provoked by agent robot in agent 'a'
