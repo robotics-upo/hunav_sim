@@ -7,7 +7,7 @@ import rclpy
 from hunav_msgs.msg import Agents
 from hunav_msgs.msg import Agent
 from geometry_msgs.msg import Pose
-from sfm import SFM
+from hunav_evaluator.sfm import SFM
 
 # Teaching Robot Navigation Behaviors to Optimal RRT Planners
 # Noé Pérez-Higueras, Fernando Caballero & Luis Merino
@@ -428,7 +428,7 @@ def obstacle_force_on_agents(agents, robot):
     sfm = SFM()
     of = 0.0
     for agts in agents:
-        for a in agts:
+        for a in agts.agents:
             of += np.linalg.norm(sfm.computeObstacleForce(a))
     return of
 
