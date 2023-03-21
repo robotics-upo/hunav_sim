@@ -221,13 +221,13 @@ $$ W_{social} = W_{r} + \sum W_{p_{i}} $$
 
 As output, the evaluator will generate a set of txt files ordered in rows and columns separated by tabulars. The files will be stored in the path indicated in the parameter ```result_file``` by using the base name also indicated in ```result_file``` and the tag name indicated in the parameter ```experiment_tag```.
 
-- *[result_file].txt*. This file contains a header with the name of all the final metrics computed. In the second row, the computed values of these metrics is presented. Repeated experiments will be appended as a new row in the same file. 
-- *[result_file] _steps_ [experiment_tag].txt*. This result file presents the metrics that can be computed for each time step. So, it contains a header with the name of these metrics. Below that, a row with the metric values for each time stamp is written (the time stamp is also written). This can be useful to plot the data along a experiment. 
+- ```[result_file].txt```. This file contains a header with the name of all the final metrics computed. In the second row, the computed values of these metrics is presented. Repeated experiments will be appended as a new row in the same file. 
+- ```[result_file]_steps_[experiment_tag].txt```. This result file presents the metrics that can be computed for each time step. So, it contains a header with the name of these metrics. Below that, a row with the metric values for each time stamp is written (the time stamp is also written). This can be useful to plot the data along a experiment. 
 
 The previous results are computed regarding all the human agents in the environment. Besides that, we also compute the metrics regarding only the agents with a particular behavior (there are [6 behaviors](https://github.com/robotics-upo/hunav_sim) available). Therefore, we generate the same files than before but only considering the groups of humans with a particular behavior (if they are present in the scenario). 
 
-- *[result_file] _beh_ [1/6].txt*. Final metrics considering only groups of humans with the same behavior.  
-- *[result_file] _beh_ [1/6] _steps_ [experiment_tag].txt*. Metrics computed for each time step. This file also includes a column for the time stamp and a column with a boolean that indicates if the particular human reaction to the presence of the robot is active.       
+- ```[result_file]_beh_[1/6].txt```. Final metrics considering only groups of humans with the same behavior.  
+- ```[result_file]_beh_[1/6]_steps_[experiment_tag].txt```. Metrics computed for each time step. This file also includes a column for the time stamp and a column with a boolean that indicates if the particular human reaction to the presence of the robot is active.       
 
 
 ## Adding new metrics
