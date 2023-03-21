@@ -67,14 +67,16 @@ def get_time_stamps(agents, robot):
     t0 = rclpy.time.Time.from_msg(agents[0].header.stamp)
     for a in agents:
         t = rclpy.time.Time.from_msg(a.header.stamp)
-        s = float((t - t0).to_msg().nanoseconds()/1e9)
+        dur = (t - t0).to_msg()
+        s = float(dur.sec + dur.nanosec/1e9)
         time_list.append(s)
     return time_list
 
 def total_time(agents, robot):
     t2 = rclpy.time.Time.from_msg(agents[len(agents)-1].header.stamp)
     t1 = rclpy.time.Time.from_msg(agents[0].header.stamp)
-    secs = float((t2 - t1).to_msg().nanoseconds()/1e9)
+    dur = (t2 - t1).to_msg()
+    secs = float(dur.sec + dur.nanosec/1e9)
     print('\nTime_to_reach_goal computed: %.2f secs' % secs)
     return [secs]
 

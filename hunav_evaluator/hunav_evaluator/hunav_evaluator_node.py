@@ -135,6 +135,7 @@ class HunavEvaluatorNode(Node):
     def goal_callback(self, msg):
         self.robot_goal = msg
         if self.use_navgoal_to_start == True:
+            self.get_logger().info("Goal received! Hunav evaluator started recording!")
             self.use_navgoal_to_start = False
             self.recording = True
 
