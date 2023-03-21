@@ -21,24 +21,25 @@ This package subscribes to a set of topic published by the Hunav Agent Manager:
     
 This information is stored and then is employed to compute a set of metrics related to the social robot navigation. 
 
-The recording process is automatic. 
+The recording process is semi-automatic. 
 
-It starts when the first message in the subscribed topics is received.
+It starts when the first message in the subscribed topics is received (/human_states or /robot_states); or alternatively, when a robot navigation goal is received (see parameter ```use_navgoal_to_start``` below).
 The recording stops when a certain time passes without receiving data through the topics.
 
-Once the recording has stopped, the computation of the metrics is performed and an output txt file is generated.
+Once the recording has stopped, the computation of the metrics is performed and a set of output txt files is generated.
 
 
 ## Configuration and Parameters
 
 The user must specify the set of metrics to be computed and some parameters about the metrics generation.
-This values must be indicated in the yaml file metrics.yaml, placed in the config directory. After compilation this file is moved to the install directory of the ROS workspace. 
+This values must be indicated in the yaml file **metrics.yaml**, placed in the *config* directory. After compilation this file is moved to the install directory of the ROS workspace. 
 
 ### Global parameters
 
 * ```frequency```. Indicate the frequency of capturing the data (it must be slower than data publishing). If the value is set to zero, the data is captured at the same frequency than it is published.
 * ```experiment_tag```. A string that can be used to identify different scenarios or experiments. This tag will be stored in the output results file. 
 * ```result_file```. Full path and name of the output text file. If a new experiment is performed and the file already exists, the evaluator wil open the file and will add the computed metrics in a new row at the end of the file. This allows to repeat experiments and to store the results as rows in the same file for easier post-processing.
+* ```use_navgoal_to_start```. Boolean to indicate whether the data recording must wait to receive a goal message (geometry_msgs/msg/PoseStamped) in the topic */goal_pose* to start or not. This way, the recording can be coordinated with the start of the robot navigation.
 * ```metrics```. List with the names of the metrics to be computed. The user can just comment/uncomment the desired metrics.   
 
 ### Metrics configuration
@@ -216,6 +217,17 @@ $$ W_{social} = W_{r} + \sum W_{p_{i}} $$
 - *Path Efficiency* $(meters)$ [NOT IMPLEMENTED]. Ratio between robot's traveled path and geodesic distance of the search-based path from the starting pose. We have not implemented this metric for the moment. We do not use the path of the global planner as input of the metric functions, as well as not all the navigation systems are using an unique global path without replanning. Anyway, we are considering to add the global path information into the metric function inputs.
 
 
+## Generated metrics files
+
+As output, the evaluator will generate a set of txt files ordered in rows and columns separated by tabulars. The files will be stored in the path indicated in the parameter ```result_file``` by using the base name also indicated in ```result_file``` and the tag name indicated in the parameter ```experiment_tag```.
+
+- *[result_file].txt*. This file contains a header with the name of all the final metrics computed. In the second row, the computed values of these metrics is presented. Repeated experiments will be appended as a new row in the same file. 
+- *[result_file]_steps_[experiment_tag].txt*. This result file presents the metrics that can be computed for each time step. So, it contains a header with the name of these metrics. Below that, a row with the metric values for each time stamp is written (the time stamp is also written). This can be useful to plot the data along a experiment. 
+
+The previous results are computed regarding all the human agents in the environment. Besides that, we also compute the metrics regarding only the agents with a particular behavior (there are [6 behaviors](https://github.com/robotics-upo/hunav_sim) available). Therefore, we generate the same files than before but only considering the groups of humans with a particular behavior (if they are present in the scenario). 
+
+- *[result_file]_beh_[1/6].txt*. Final metrics considering only groups of humans with the same behavior.  
+- *[result_file]_beh_[1/6]_steps_[experiment_tag].txt*. Metrics computed for each time step. This file also includes a column for the time stamp and a column with a boolean that indicates if the particular human reaction to the presence of the robot is active.       
 
 
 ## Adding new metrics

@@ -17,8 +17,14 @@ hunav_evaluator_node:
     result_file: 'metrics.txt'
 
 
-    # the list of metrics to be computed.
-    
+    # Boolean to indicate whether the data recording must wait to 
+    # receive a goal message (geometry_msgs/msg/PoseStamped) in the 
+    # topic */goal_pose* to start or not. This way, the recording 
+    # can be coordinated with the start of the robot navigation.
+    use_navgoal_to_start: true
+
+
+    # The list of metrics to be computed.
     metrics:
     
       # Pérez-Higueras, N., Caballero, F. & Merino, L. 

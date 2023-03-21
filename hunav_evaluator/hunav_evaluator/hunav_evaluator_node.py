@@ -21,13 +21,14 @@ class HunavEvaluatorNode(Node):
         self.robot_list = []
         self.robot_goal = None
         self.metrics_to_compute = {}
+        self.metrics_lists = {}
         self.number_of_behaviors = 6
 
         # Two modes:
         # 1- The user start/stop the recording through the
         #    the service /hunav_trigger_recording
-        # 2- The recording start/stop process is automatic.
-        #    It starts when the first topic is received.
+        # 2- The recording start/stop process is semi-automatic:
+        #    It starts when the first topic is received or a navigation goal is received.
         #    It stops when a certain time pass without receiving data. 
         self.mode = self.declare_parameter('mode', 2).get_parameter_value().integer_value
 
@@ -37,15 +38,20 @@ class HunavEvaluatorNode(Node):
         # at the same frequency than it is published.
         self.freq = self.declare_parameter('frequency', 0.0).get_parameter_value().double_value
 
-        
+        # base name of the result files
         self.declare_parameter('result_file', 'metrics')
         self.result_file_path = self.get_parameter('result_file').get_parameter_value().string_value
 
-        # Read metrics
+        # tag to identify the experiment
         self.declare_parameter('experiment_tag', '1')
         self.exp_tag = self.get_parameter('experiment_tag').get_parameter_value().string_value
 
-        # Noe test
+        # optionally, the data recording can be started when
+        # a robot navigation goal is received
+        self.declare_parameter('use_nav_goal_to_start', True)
+        self.use_navgoal_to_start = self.get_parameter('use_nav_goal_to_start').get_parameter_value().bool_value
+
+        # Read metrics
         for m in hunav_metrics.metrics.keys():
             ok = self.declare_parameter('metrics.'+m, True).get_parameter_value().bool_value
             if(ok):
@@ -54,21 +60,10 @@ class HunavEvaluatorNode(Node):
             self.get_logger().info("m: %s, value: %s" % (me, self.metrics_to_compute[me]))
         
 
-        # self.declare_parameter('papers','')
-        # yaml_metrics = self.get_parameter('papers').get_parameter_value().string_array_value
-        # self.get_logger().info("read papers: %s" % yaml_metrics)
-        # for p in yaml_metrics:
-        #     self.declare_parameter(p, '')
-        #     paper_metrics = self.get_parameter(p).get_parameter_value().string_array_value
-        #     for m in paper_metrics:
-        #         self.declare_parameter(m, '')
-        #         metric = self.get_parameter(m).get_parameter_value().bool_value
-        #         if metric:
-        #             self.metrics_to_compute[m] = 0.0
-
         self.get_logger().info("Hunav evaluator:")
         self.get_logger().info("mode: %i" % self.mode)
         self.get_logger().info("freq: %.1f" % self.freq)
+        self.get_logger().info("use_nav_goal_to_start: %i" % self.use_navgoal_to_start)
         self.get_logger().info("result_file: %s" % self.result_file_path)
         self.get_logger().info("experiment_tag: %s" % self.exp_tag)
         self.get_logger().info("Metrics:")
@@ -84,7 +79,10 @@ class HunavEvaluatorNode(Node):
             self.recording = False
             self.recording_srv = self.create_service(Trigger, 'hunav_trigger_recording', self.recording_service)
         elif(self.mode == 2):
-            self.recording = True
+            if self.use_navgoal_to_start == True:
+                self.recording = False
+            else:
+                self.recording = True
             self.time_period = 3.0  # seconds
             self.last_time = self.get_clock().now()
             self.init = False
@@ -136,6 +134,9 @@ class HunavEvaluatorNode(Node):
 
     def goal_callback(self, msg):
         self.robot_goal = msg
+        if self.use_navgoal_to_start == True:
+            self.use_navgoal_to_start = False
+            self.recording = True
 
 
     def recording_service(self, request, response):
@@ -178,15 +179,19 @@ class HunavEvaluatorNode(Node):
         self.get_logger().info("Computing metrics...")
 
         # compute metrics for all agents
+        self.metrics_lists['time_stamps']=hunav_metrics.get_time_stamps(self.agents_list, self.robot_list)
         for m in self.metrics_to_compute.keys():
-            self.metrics_to_compute[m] = hunav_metrics.metrics[m](self.agents_list, self.robot_list)
+            metric = hunav_metrics.metrics[m](self.agents_list, self.robot_list)
+            self.metrics_to_compute[m] = metric[0]
+            if len(metric) > 1:
+                self.metrics_lists[m]=metric[1]
+            
         print('Metrics computed:')
         print(self.metrics_to_compute)
         self.store_metrics(self.result_file_path)
         
         # Now, filter according to the different behaviors
-        self.compute_metrics_behavior(Agent.BEH_REGULAR, check_activated=False)
-        for i in range(2,(self.number_of_behaviors+1)):
+        for i in range(1,(self.number_of_behaviors+1)):
           self.compute_metrics_behavior(i)  
 
         self.destroy_node()
@@ -194,27 +199,37 @@ class HunavEvaluatorNode(Node):
         #return
 
 
-    def compute_metrics_behavior(self, behavior, check_activated=True):
+    def compute_metrics_behavior(self, behavior):
+
+        # first, get the agents with the indicated behavior
         beh_agents = []
         beh_robot = []
+        beh_active = [0]*len(self.agents_list)
+        i=0
         for (la, lr) in zip(self.agents_list, self.robot_list):
             ag = Agents()
             ag.header = la.header
             for a in la.agents:
                 if a.behavior == behavior:
-                    if check_activated and a.behavior_state != Agent.BEH_NO_ACTIVE:
-                        ag.agents.append(a)
-                    elif not check_activated:
-                        ag.agents.append(a)
+                    ag.agents.append(a)
+                if a.behavior_state != a.BEH_NO_ACTIVE:
+                    beh_active[i]=1
             if len(ag.agents) > 0:
                 beh_agents.append(ag)
-                beh_robot.append(lr)
+                beh_robot.append(lr)  
             else:
                 print("No agents of behavior %i" % behavior)
                 return None
+            i += 1 
 
+        self.metrics_lists['behavior_active']=beh_active
+        # then, compute the metrics for those agents
         for m in self.metrics_to_compute.keys():
-            self.metrics_to_compute[m] = hunav_metrics.metrics[m](beh_agents, beh_robot)
+            metric = hunav_metrics.metrics[m](beh_agents, beh_robot)
+            self.metrics_to_compute[m] = metric[0]
+            if len(metric) > 1:
+                self.metrics_lists[m]=metric[1]
+
         print('Metrics computed behavior %i:' % behavior)
         print(self.metrics_to_compute)
         store_file = self.result_file_path
@@ -227,9 +242,14 @@ class HunavEvaluatorNode(Node):
     
     def store_metrics(self, result_file):
 
+        list_file = result_file
         # add extension if it does not have it
         if not result_file.endswith(".txt"):
             result_file += '.txt'
+            list_file += '_steps_' + str(self.exp_tag) + '.txt'
+        else:
+            list_file = list_file[:-4]
+            list_file += '_steps_' + str(self.exp_tag) + '.txt'
 
         file_was_created = os.path.exists(result_file)
 
@@ -255,6 +275,22 @@ class HunavEvaluatorNode(Node):
             file.write('\t')
         file.write('\n')
         file.close()
+
+        # open and write the second file (metric for each step)
+        file2 = open(list_file,'w')
+        for m in self.metrics_lists.keys():
+            file2.write(m)
+            file2.write('\t')
+        file2.write('\n')
+        length = len(self.metrics_lists['time_stamps'])
+        for i in range(length):
+            for m in self.metrics_lists.keys():
+                v = self.metrics_lists[m]
+                file2.write(str(v[i]))
+                file2.write('\t')
+            file2.write('\n')
+        file2.close()
+
 
 
     def check_data(self):
