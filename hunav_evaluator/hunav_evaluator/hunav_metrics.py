@@ -377,11 +377,11 @@ def avg_robot_angular_speed(agents, robot):
     speed = 0
     for r in robot:
         speed_list.append(r.angular_vel)
-        speed += r.angular_vel
+        speed += np.abs(r.angular_vel)
 
     speed = speed / len(robot)
 
-    print('Average_robot_speed: %.2f m/s' % speed)
+    print('Average_robot_speed: %.2f rad/s' % speed)
     return [speed, speed_list]
 
 
