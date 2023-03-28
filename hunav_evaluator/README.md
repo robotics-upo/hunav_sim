@@ -162,7 +162,7 @@ $$ IS_{prox}^k = (\frac{1}{N} \sum_{j=1}^{N} F(||x_r^j - x_f^j||_2 \lt \delta^k)
 
 Metrics from the SEAN simulator [2]:
 
-- *Completed* $C$. true when the robot's final pose is within a specified threshold distance of the goal.
+- *Completed* $C$. true when the robot's final pose is within a specified threshold distance of the goal (by default $\gamma_g$ = 0.20 m).
   
 $$ C = F(\({||x_r^N - x_{g}||}_{2}  - \gamma_g \) \lt 0.0) $$
 

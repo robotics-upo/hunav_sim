@@ -326,10 +326,11 @@ def time_not_moving(agents, robot):
 
 
 def goal_reached(agents, robot):
+    mind = 0.20
     if(len(robot[-1].goals)):
         for g in robot[-1].goals:
             d = euclidean_distance(robot[-1].position, g) - robot[-1].goal_radius
-            if d<0.0:
+            if d<mind:
                 return [True]
     return [False]
    
