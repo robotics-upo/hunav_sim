@@ -116,6 +116,8 @@ def avg_closest_person(agents, robot):
             d = euclidean_distance(robot[i].position, agent.position) - robot[i].radius - agent.radius
             if(d < min_dist):
                 min_dist = d
+                if min_dist < 0.0:
+                    min_dist = 0.0
         if(len(agents[i].agents)>0):
             avg_dist += min_dist
             min_dist_list.append(min_dist)
@@ -130,7 +132,10 @@ def minimum_distance_to_people(agents, robot):
 
     for i in range(len(robot)):
         for agent in agents[i].agents:
-            min_distance.append(euclidean_distance(robot[i].position, agent.position) - robot[i].radius) 
+            d = euclidean_distance(robot[i].position, agent.position) - robot[i].radius - agent.radius
+            if d<0.0:
+                d = 0.0
+            min_distance.append(d) 
     
     min_dist = min(min_distance)
     
@@ -160,9 +165,11 @@ def space_intrusions(agents, robot, k):
     for i in range(len(robot)):
         min_dist = 10000
         for agent in agents[i].agents:
-            d = euclidean_distance(robot[i].position, agent.position) - robot[i].radius
+            d = euclidean_distance(robot[i].position, agent.position) - robot[i].radius - agent.radius
             if d < min_dist:
                 min_dist = d
+                if min_dist < 0.0:
+                    min_dist = 0.0
         indicator = indicator_function(min_dist, k)
         if indicator == 1:
             space_intrusions += 1
@@ -317,7 +324,7 @@ def time_not_moving(agents, robot):
 
     count = 0
     for index, r in enumerate(robot):
-        if(r.linear_vel < 0.001 and abs(r.angular_vel < 0.01)):
+        if(r.linear_vel < 0.01 and abs(r.angular_vel < 0.02)):
             count=count+1
             not_moving[index]=1
     time_stopped = time_step*count
@@ -326,7 +333,7 @@ def time_not_moving(agents, robot):
 
 
 def goal_reached(agents, robot):
-    mind = 0.20
+    mind = 0.05
     if(len(robot[-1].goals)):
         for g in robot[-1].goals:
             d = euclidean_distance(robot[-1].position, g) - robot[-1].goal_radius

@@ -126,17 +126,17 @@ $$ CHC = \sum_{i=1}^{N-1}(h_r^i - h_r^{i+1})$$
 
 - *Average distance to closest person* $(CP_{avg})$. A measure
 of the mean distance $(meters)$ from the robot to the closest person
-along the trajectory.
+along the trajectory, taking into account the robot radius and approximated human radius.
 
-$$ CP_{avg} = \frac{1}{N} \sum_{i=1}^{N}(||x_r^i - x_{cp}^i||_2)$$
+$$ CP_{avg} = \frac{1}{N} \sum_{i=1}^{N}(||x_r^i - x_{cp}^i||_2 - \gamma_{r}^i - \gamma_{cp}^i)$$
 
-&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;where $x_{cp}^i$ indicates the position of the closest person to the robot at step i.
+&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;where $x_{cp}^i$ indicates the position of the closest person to the robot at step i. $\gamma_{r}$ is the robot radius and $\gamma_{cp}$ is the closest person approximated radius ($meters$).
 
-- *Minimum and maximum distance to people* ( $CP_{min}$ and $CP_{max}$ respectively). The values of the minimum and the maximum distances $(meters)$ from the robot to the people along the trajectory. It can give an idea of the dimension of the robot trajectory with respect to the people in the space.
+- *Minimum and maximum distance to people* ( $CP_{min}$ and $CP_{max}$ respectively). The values of the minimum and the maximum distances $(meters)$ from the robot to the people along the trajectory taking into account the radius of the robot and the human agent (with a lower bound of $0$).
 
-$$ CP_{min} = min \{||x_r^i-x_{cp}^i||_2  \forall i \in N \} $$
+$$ CP_{min} = min \{||x_r^i-x_{cp}^i||_2 - \gamma_{r}^i - \gamma_{cp}^i  \forall i \in N \} $$
 
-$$ CP_{max} = max \{||x_r^i-x_{cp}^i||_2  \forall i \in N \} $$
+$$ CP_{max} = max \{||x_r^i-x_{cp}^i||_2 - \gamma_{r}^i - \gamma_{cp}^i  \forall i \in N \} $$
 
 - *Intimate/Personal/Social space intrusions* $(CP_{prox})$. This metric is based on the Proxemics theory which define personal spaces around people for interaction. These areas are defined as:
 
@@ -145,9 +145,9 @@ $$ CP_{max} = max \{||x_r^i-x_{cp}^i||_2  \forall i \in N \} $$
     - Social. Distance between 1.2 and 3.6m.
     - Public. Distance longer than 3.6m.
 
-&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;Thus, the metric classifies the distance between the robot and the closest person at each time step in one of the Proxemics spaces and obtain a percentage of the time spent in each space for the whole trajectory:
+&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;Thus, the metric classifies the distance between the robot and the closest person (taking into account their approximated radius) at each time step in one of the Proxemics spaces and obtain a percentage of the time spent in each space for the whole trajectory:
 
-$$ CP_{prox}^k = (\frac{1}{N} \sum_{j=1}^{N} F(||x_r^j - x_{cp}^j||_2 \lt \delta^k)) * 100$$
+$$ CP_{prox}^k = (\frac{1}{N} \sum_{j=1}^{N} F(||x_r^j - x_{cp}^j||_2 - \gamma_{r}^j - \gamma_{cp}^j \lt \delta^k)) * 100$$
 
 &ensp;&ensp;&ensp;&ensp;&ensp;&ensp; where N is the total number of time steps in the trajectory, $\delta$ defines the distance range for 
 classification defined by k = {Intimate, Personal, Social + Public}, and F(·) is the indicator function.
@@ -155,7 +155,7 @@ classification defined by k = {Intimate, Personal, Social + Public}, and F(·) i
 - *Interaction space intrusions* $(IS_{prox})$. This metric is inspired by the work of Okal and Arras [6] in formalizing social normative robot behavior, and it is related to groups of interacting persons. It measures the percentage of time spent by the robot in the three Proxemics spaces considered with respect to an interaction area formed by a group of people that are interacting with each other. The detection of the interaction area of the group is based on the detection of F-formations. A F-formation arises whenever two or more people sustain a spatial and orientational relationship in which the space between them is
 one to which they have equal, direct, and exclusive access
 
-$$ IS_{prox}^k = (\frac{1}{N} \sum_{j=1}^{N} F(||x_r^j - x_f^j||_2 \lt \delta^k)) * 100 $$
+$$ IS_{prox}^k = (\frac{1}{N} \sum_{j=1}^{N} F(||x_r^j - x_f^j||_2 - \gamma_{r}^j - \gamma_{cp}^j \lt \delta^k)) * 100 $$
 
 &ensp;&ensp;&ensp;&ensp;&ensp;&ensp;where $x_f^j$ determines the center of the closest formation or group of people $f$ to the robot at step $j$.
 
@@ -182,12 +182,12 @@ $$ TD_{final} = ||x_r^N -x_{g}||_2 $$
 
 &ensp;&ensp;&ensp;&ensp;&ensp;&ensp; where $x_r^N$ is the robot pose in the last time step of the trajectory.
 
-- *Time Not Moving*. Seconds that the robot was not moving. We consider that the robot is not moving when the linear velolcity is lower than $0.001$ $m/s$ and the angular velocity lower than $0.01$ $rad/s$.
+- *Time Not Moving*. Seconds that the robot was not moving. We consider that the robot is not moving when the linear velocity is lower than $0.01$ $m/s$ and the angular velocity lower than $0.02$ $rad/s$.
 
 
 - *Robot on Person Collision*, $RPC$, and *Person on Robot Collision*, $PRC$. Number of times robot collides with a person and vice versa. The SEAN simulator employs the Unity colliding tools to detect the collisions. However, we want our metrics to be independent of any simulator. Therefore, this metric has been implemented by using the positions, the orientations and the velocities of the robot and agents to determine who is running into the other. The collisions are primarily computed as:
 
-$$ Collisions = \sum_{i=1}^{N} F(\({||x_r^i - x_{cp}^i||}_{2}  - \gamma_{r} - \gamma_{cp}\) \lt 0.01) $$
+$$ Collisions = \sum_{i=1}^{N} F(\({||x_r^i - x_{cp}^i||}_{2}  - \gamma_{r}^i - \gamma_{cp}^i\) \lt 0.01) $$
 
 &ensp;&ensp;&ensp;&ensp;&ensp;&ensp; where $x_r^i$ is the robot pose in the time step $i$ of the trajectory, $x_{cp}^i$ is the pose of the closest person to the robot at time step $i$. $\gamma_{r}$ is the radius of the robot and $\gamma_{cp}$ is the radius of the closest person. Then, we check the relative orientations between the agent and the robot and their velocities to determine who is running into the other.  
 

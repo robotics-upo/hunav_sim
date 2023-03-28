@@ -31,7 +31,7 @@ hunav_evaluator_node:
       # Teaching Robot Navigation Behaviors to Optimal RRT Planners. 
       # Int.J. of Soc. Robotics 10, 235–249 (2018). https://doi.org/10.1007/s12369-017-0448-1
       time_to_reach_goal: true
-      path_length: false
+      path_length: true
       cumulative_heading_changes: true
       avg_distance_to_closest_person: true
       minimum_distance_to_people: true
@@ -49,15 +49,16 @@ hunav_evaluator_node:
       completed: true
       minimum_distance_to_target: true
       final_distance_to_target: true
-      robot_on_person_collision: false
-      person_on_robot_collision: false
+      robot_on_person_collision: true
+      person_on_robot_collision: true
       time_not_moving: true
       
       # SocNavBench: A Grounded Simulation Testing Framework for Evaluating Social Navigation
       #ABHIJAT BISWAS, ALLAN WANG, GUSTAVO SILVERA, AARON STEINFELD, and HENNY AD-MONI, Carnegie Mellon University
-      avg_speed: false
-      avg_acceleration: false
-      avg_overacceleration: false
+      avg_robot_linear_speed: true
+      avg_robot_angular_speed: true
+      avg_acceleration: true
+      avg_overacceleration: true
       
       # Learning a Group-Aware Policy for Robot Navigation
       # Kapil Katyal ∗1,2 , Yuxiang Gao ∗2 , Jared Markowitz 1 , Sara Pohland 3 , Corban Rivera 1 , I-Jeng Wang 1 , Chien-Ming Huang 2 
