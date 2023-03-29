@@ -65,7 +65,7 @@ def indicator_function(norm, k):
 def get_time_stamps(agents, robot):
     time_list = []
     t0 = rclpy.time.Time.from_msg(agents[0].header.stamp)
-    for a in agents:
+    for a in agents: 
         t = rclpy.time.Time.from_msg(a.header.stamp)
         dur = (t - t0).to_msg()
         s = float(dur.sec + dur.nanosec/1e9)
@@ -395,7 +395,7 @@ def avg_robot_angular_speed(agents, robot):
 
 def avg_acceleration(agents, robot):
     acceleration = 0
-    acceleration_list = []
+    acceleration_list = [0.0]
     for i in range(len(robot) - 1):
         dv = robot[i+1].linear_vel - robot[i].linear_vel
         tf = rclpy.time.Time.from_msg(agents[i+1].header.stamp)
@@ -418,7 +418,7 @@ def avg_acceleration(agents, robot):
 
 def avg_overacceleration(agents, robot):
     jerk = 0
-    jerk_list = []
+    jerk_list = [0.0]
     for i in range(len(robot) - 1):
         dv = robot[i+1].linear_vel - robot[i].linear_vel
         tf = rclpy.time.Time.from_msg(agents[i+1].header.stamp)
