@@ -458,6 +458,30 @@ def avg_pedestrian_velocity(agents, robot):
     
     return [speed, speed_list]
 
+
+def avg_closest_pedestrian_velocity(agents, robot):
+    speed = 0
+    speed_list = []
+    for i in range(len(robot)):
+        min_dist = 10000 
+        closest = Agent()
+        for agent in agents[i].agents:
+            d = euclidean_distance(robot[i].position, agent.position)
+            if(d < min_dist):
+                min_dist = d
+                closest = agent
+                if min_dist < 0.0:
+                    min_dist = 0.0
+        
+        speed += closest.linear_vel
+        speed_list.append(closest.linear_vel)
+    
+    speed = speed/len(robot)
+    print('Speed average closest person: %.2f m/s' % speed)
+    return [speed, speed_list]
+
+
+
 def avg_pedestrian_angle(agents, robot):
     pass
 
@@ -620,6 +644,7 @@ metrics = {
     # Learning a Group-Aware Policy for Robot Navigation
     # Kapil Katyal ∗1,2 , Yuxiang Gao ∗2 , Jared Markowitz 1 , Sara Pohland 3 , Corban Rivera 1 , I-Jeng Wang 1 , Chien-Ming Huang 2
     'avg_pedestrian_velocity': avg_pedestrian_velocity,
+    'avg_closest_pedestrian_velocity': avg_closest_pedestrian_velocity,
 
     # metrics based on Social Force Model employed in different papers
     'social_force_on_agents': social_force_on_agents,

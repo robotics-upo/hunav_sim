@@ -63,6 +63,7 @@ hunav_evaluator_node:
       # Learning a Group-Aware Policy for Robot Navigation
       # Kapil Katyal ∗1,2 , Yuxiang Gao ∗2 , Jared Markowitz 1 , Sara Pohland 3 , Corban Rivera 1 , I-Jeng Wang 1 , Chien-Ming Huang 2 
       avg_pedestrian_velocity: true
+      avg_closest_pedestrian_velocity: true
 
       # metrics based on Social Force Model employed in 
       # different papers

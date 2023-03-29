@@ -206,6 +206,8 @@ Metrics from the SocNavBench [3]:
 Metrics from [7]:
 
 - *average pedestrians velocity*. Linear velocity $(m/s)$ of all pedestrian on average. 
+  
+- *average closest pedestrian velocity*. Linear velocity $(m/s)$ of the closest pedestrian on average.
 
 
 Metrics based on Social Force Model [8,9,10]. The mathematical equations of the computation of the forces can be consulted [here](https://github.com/robotics-upo/lightsfm):
