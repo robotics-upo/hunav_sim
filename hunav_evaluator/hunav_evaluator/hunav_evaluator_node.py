@@ -125,6 +125,7 @@ class HunavEvaluatorNode(Node):
             if(self.robot_goal is not None):
                 robot_msg.goals.clear()
                 robot_msg.goals.append(self.robot_goal.pose)
+                robot_msg.goal_radius = 0.2
 
             if(self.freq == 0.0):
                 self.robot_list.append(robot_msg)
