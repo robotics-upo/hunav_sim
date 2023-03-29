@@ -404,7 +404,7 @@ def avg_acceleration(agents, robot):
         dt = float(dur.sec + dur.nanosec/1e9)
         if dt != 0.0:
             accel = dv/dt
-            acceleration += accel
+            acceleration += np.abs(accel)
             acceleration_list.append(accel)
         else:
             acceleration_list.append(0.0)
@@ -427,7 +427,7 @@ def avg_overacceleration(agents, robot):
         dt = float(dur.sec + dur.nanosec/1e9)
         if dt != 0.0:
             acceleration = dv/dt
-            jerk += acceleration/dt
+            jerk += np.abs(acceleration/dt)
             jerk_list.append(acceleration/dt)
         else:
             jerk_list.append(0.0)
