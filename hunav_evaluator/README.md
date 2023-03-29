@@ -84,7 +84,8 @@ Example snippet of the metrics configuration file:
       
       # SocNavBench: A Grounded Simulation Testing Framework for Evaluating Social Navigation
       #ABHIJAT BISWAS, ALLAN WANG, GUSTAVO SILVERA, AARON STEINFELD, and HENNY AD-MONI, Carnegie Mellon University
-      avg_speed: false
+      avg_robot_linear_speed: true
+      avg_robot_angular_speed: true
       avg_acceleration: false
       avg_overacceleration: false
       
@@ -191,7 +192,23 @@ $$ Collisions = \sum_{i=1}^{N} F(\({||x_r^i - x_{cp}^i||}_{2}  - \gamma_{r}^i - 
 
 &ensp;&ensp;&ensp;&ensp;&ensp;&ensp; where $x_r^i$ is the robot pose in the time step $i$ of the trajectory, $x_{cp}^i$ is the pose of the closest person to the robot at time step $i$. $\gamma_{r}$ is the radius of the robot and $\gamma_{cp}$ is the radius of the closest person. Then, we check the relative orientations between the agent and the robot and their velocities to determine who is running into the other.  
 
-Metrics based on Social Force Model [7,8,9]. The mathematical equations of the computation of the forces can be consulted [here](https://github.com/robotics-upo/lightsfm):
+
+Metrics from the SocNavBench [3]:
+
+- *average robot linear speed*. robot linear velocity ($m/s$) on average considering that the robot is not moving backwards.
+
+- *average robot angular speed*. robot angular velocity ($rad/s$) on average considering the absolute values of angular velocity.
+  
+- *average acceleration*. robot linear acceleration $(m/s^2)$ on average considering the absolute values of acceleration and decceleration.
+  
+- *average overacceleration or jerk* $(m/s^3)$ considering the absolute values of linear acceleration and decceleration. 
+  
+Metrics from [7]:
+
+- *average pedestrians velocity*. Linear velocity $(m/s)$ of all pedestrian on average. 
+
+
+Metrics based on Social Force Model [8,9,10]. The mathematical equations of the computation of the forces can be consulted [here](https://github.com/robotics-upo/lightsfm):
 
 - *Social Force on Agents*. Summatory of the modulus of the social force provoked by the robot in the agents  
 
@@ -262,16 +279,18 @@ After compiling, the user can add the new function name to the ```metrics.yaml``
 
 [3] A. Biswas, A. Wang, G. Silvera, A. Steinfeld, and H. Admoni,"Socnavbench: A grounded simulation testing framework for evaluating social navigation," ACM Transactions on Human-Robot Interaction, jul 2022. [Online](https://doi.org/10.1145/3476413).
 
-[4] F. Grzeskowiak, D. Gonon, D. Dugas, D. Paez-Granados, J. J. Chung, J. Nieto, R. Siegwart, A. Billard, M. Babel, and J. Pettré, “Crowd against the machine: A simulation-based benchmark tool to evaluate and compare robot capabilities to navigate a human crowd,” in 2021 IEEE International Conference on Robotics and Automation (ICRA), 2021, pp. 3879–3885. 
+[4] F. Grzeskowiak, D. Gonon, D. Dugas, D. Paez-Granados, J. J. Chung, J. Nieto, R. Siegwart, A. Billard, M. Babel, and J. Pettré, "Crowd against the machine: A simulation-based benchmark tool to evaluate and compare robot capabilities to navigate a human crowd," in 2021 IEEE International Conference on Robotics and Automation (ICRA), 2021, pp. 3879–3885. 
 
 [5] Y. Gao and C.-M. Huang, "Evaluation of socially-aware robot navigation," Frontiers in Robotics and AI, vol. 8, 2022.[Online](https://www.frontiersin.org/articles/10.3389/frobt.2021.721317)
 
 [6] Okal B, Arras KO, "Formalizing normative robot behavior," In: Social robotics: 8th international conference, ICSR 2016,Kansas City, MO, USA, November 1-3, 2016 Proceedings.Springer International Publishing, pp 62–71. [Online](https://doi.org/10.1007/978-3-319-47437-3_7)
 
-[7] Helbing, Dirk & Molnar, Peter. (1998). "Social Force Model for Pedestrian Dynamics". Physical Review E. 51. 10.1103/PhysRevE.51.4282. 
+[7] K. Katyal, Y. Gao, J. Markowitz, S. Pohland, C. Rivera, I. Wang, C. Huang, "Learning a Group-Aware Policy for Robot Navigation," in 2022 IEEE International Conference on Intelligent Robots and Systems (IROS), 2022.
 
-[8] Moussaid M, Helbing D, Garnier S, Johansson A, Combe M, et al. (2009) "Experimental study of the behavioural mechanisms underlying self-organization in human crowds". Proceedings of the Royal Society B: Biological Sciences 276: 2755–2762.
+[8] Helbing, Dirk & Molnar, Peter. (1998). "Social Force Model for Pedestrian Dynamics". Physical Review E. 51. 10.1103/PhysRevE.51.4282. 
 
-[9] Moussaïd, Mehdi & Perozo, Niriaska & Garnier, Simon & Helbing, Dirk & Theraulaz, Guy. (2010). "The Walking Behaviour of Pedestrian Social Groups and Its Impact on Crowd Dynamics". PloS one. 5. e10047. 10.1371/journal.pone.0010047.
+[9] Moussaid M, Helbing D, Garnier S, Johansson A, Combe M, et al. (2009) "Experimental study of the behavioural mechanisms underlying self-organization in human crowds". Proceedings of the Royal Society B: Biological Sciences 276: 2755–2762.
+
+[10] Moussaïd, Mehdi & Perozo, Niriaska & Garnier, Simon & Helbing, Dirk & Theraulaz, Guy. (2010). "The Walking Behaviour of Pedestrian Social Groups and Its Impact on Crowd Dynamics". PloS one. 5. e10047. 10.1371/journal.pone.0010047.
 
 
