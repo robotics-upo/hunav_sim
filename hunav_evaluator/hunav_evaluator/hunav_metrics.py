@@ -83,7 +83,7 @@ def total_time(agents, robot):
 def robot_path_length(agents, robot):
     path_length = 0
     for i in range(len(robot)-1):
-        path_length += euclidean_distance(robot[i+1].position, robot[i].position)# - robot[i+1].radius - robot[i].radius
+        path_length += euclidean_distance(robot[i+1].position, robot[i].position)
     print('Path_length computed: %.2f m' % path_length)
     return [path_length]
 
@@ -400,7 +400,8 @@ def avg_acceleration(agents, robot):
         dv = robot[i+1].linear_vel - robot[i].linear_vel
         tf = rclpy.time.Time.from_msg(agents[i+1].header.stamp)
         ti = rclpy.time.Time.from_msg(agents[i].header.stamp)
-        dt = (tf - ti).nanoseconds / 1e9
+        dur = (tf - ti).to_msg()
+        dt = float(dur.sec + dur.nanosec/1e9)
         if dt != 0:
             acceleration += dv/dt
             acceleration_list.append(acceleration)
@@ -413,6 +414,7 @@ def avg_acceleration(agents, robot):
 
     return [acceleration, acceleration_list]
 
+
 def avg_overacceleration(agents, robot):
     jerk = 0
     jerk_list = []
@@ -420,7 +422,8 @@ def avg_overacceleration(agents, robot):
         dv = robot[i+1].linear_vel - robot[i].linear_vel
         tf = rclpy.time.Time.from_msg(agents[i+1].header.stamp)
         ti = rclpy.time.Time.from_msg(agents[i].header.stamp)
-        dt = (tf - ti).nanoseconds / 1e9
+        dur = (tf - ti).to_msg()
+        dt = float(dur.sec + dur.nanosec/1e9)
         if dt != 0:
             acceleration = dv/dt
             jerk += acceleration/dt
