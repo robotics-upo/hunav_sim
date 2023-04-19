@@ -64,15 +64,15 @@ protected Q_SLOTS:
   void closeInitialPoseWindow();
   int checkComboBox();
   int checkComboBoxSkin();
+  void checkParserSkin(int skin);
   void parseYaml();
   void randomRGB();
-  visualization_msgs::msg::Marker createMarker(double point1_x, double point1_y, double ids, std::string marker_shape);
+  visualization_msgs::msg::Marker createMarker(double point1_x, double point1_y, double ids, std::string marker_shape, std::string create_or_parser);
   visualization_msgs::msg::Marker createArrowMarker(double point1_x, double point1_y, double point2_x, double point2_y, double ids);
   void removeCurrentMarkers();
-  void removeGoalsMarkers();
   void removeMarker(visualization_msgs::msg::Marker marker);
   void resetGoal();
-  void openFileExplorer();
+  void openFileExplorer(bool file);
 
 public:
 
@@ -132,6 +132,7 @@ public:
   // Markers
   std::vector<visualization_msgs::msg::Marker> markers_array_to_remove;
   std::vector<visualization_msgs::msg::Marker> arrows_markers_array;
+  std::string person_skin;
 
   // Colors for Markers
   std::vector<double> rgb{255,0};
@@ -143,6 +144,7 @@ public:
   rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr initial_pose_publisher;
   rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr goals_publisher;
   rclcpp::Node::SharedPtr client_node_;
+  visualization_msgs::msg::MarkerArray initial_pose_marker_array;
   visualization_msgs::msg::MarkerArray marker_array;
 
   // Dir to store file

@@ -37,6 +37,8 @@
 #include "headers/actor_panel.hpp"
 #include "headers/goal_pose_updater.hpp"
 
+#include <tf2/LinearMath/Quaternion.h>
+
 using std::placeholders::_1;
 
 namespace hunav_rviz2_panel
@@ -53,7 +55,7 @@ namespace hunav_rviz2_panel
     QPushButton *open_button = new QPushButton("Open");
     actors = new QLineEdit;
     QPushButton *actor_button = new QPushButton("Create agents");
-    checkbox = new QCheckBox("Save file in default directory", this);
+    checkbox = new QCheckBox("Use default directory", this);
     QHBoxLayout *layout = new QHBoxLayout;
 
     topic_button->addWidget(new QLabel("Open yaml file (agents.yaml)"));
@@ -90,12 +92,6 @@ namespace hunav_rviz2_panel
   // Shows the agent creation window.
   void ActorPanel::addAgent(){
     
-    // Only removes markers when the "Create agents" button is clicked (If agent_count > 1 means that agents are being created, 
-    // so markers need to stay in place)
-    if(agent_count == 1){
-      removeCurrentMarkers();
-    }
-  
     window = new QWidget;
 
     QVBoxLayout *topic_layout = new QVBoxLayout(window);
@@ -109,6 +105,12 @@ namespace hunav_rviz2_panel
     reset_goals = new QPushButton("Reset goals");
     QLabel *num_goals_set_label = new QLabel("Set number of goals");
     num_goals_set = new QLineEdit();
+
+    // Only removes markers when the "Create agents" button is clicked (If agent_count > 1 means that agents are being created, 
+    // so markers need to stay in place)
+    if(agent_count == 1){
+      removeCurrentMarkers();
+    }
 
     if(!checkbox->isChecked() && show_file_selector_once == true){
       directory = new QPushButton("Choose directory");
@@ -125,7 +127,6 @@ namespace hunav_rviz2_panel
       topic_layout->addWidget(new QLabel("Agent " + QString::number(agent_count) + "/" + actors->text()));
     }
     
-    
     topic_layout->addWidget(new QLabel("Agent's name:"));
     agent_name = new QLineEdit;
     topic_layout->addWidget(agent_name);
@@ -136,7 +137,7 @@ namespace hunav_rviz2_panel
     behavior_combobox->addItem("Surprised");
     behavior_combobox->addItem("Scared");
     behavior_combobox->addItem("Curious");
-    behavior_combobox->addItem("Threathening");
+    behavior_combobox->addItem("Threatening");
     topic_layout->addWidget(behavior_combobox);
 
     topic_layout->addWidget(new QLabel("Skin:"));
@@ -151,7 +152,6 @@ namespace hunav_rviz2_panel
     skin_combobox->addItem("Red t-shirt");
     topic_layout->addWidget(skin_combobox);
 
-    
     goals_button = new QPushButton("Set goals");
     save_button = new QPushButton("Save");
 
@@ -177,7 +177,10 @@ namespace hunav_rviz2_panel
     connect(initial_pose_button, SIGNAL(clicked()), this, SLOT(setInitialPose()));
 
     if(!checkbox->isChecked() && show_file_selector_once){
-      connect(directory, SIGNAL(clicked()), this, SLOT(openFileExplorer()));
+      connect(directory, &QPushButton::clicked, this, [=](){
+        openFileExplorer(false);
+      });
+      //connect(directory, SIGNAL(clicked()), this, SLOT(openFileExplorer()));
       show_file_selector_once = false;
     }
   }
@@ -197,14 +200,6 @@ namespace hunav_rviz2_panel
     
     topic_layout_init_pose->addWidget(new QLabel("Initial pose"));
     topic_layout_init_pose->addWidget(new QLabel("Use HunavGoals tool to select the initial pose"));
-    
-    // topic_layout_init_pose->addWidget(new QLabel("x: " + QString::fromStdString(std::to_string(initial_pose.pose.position.x))));
-        
-    // topic_layout_init_pose->addWidget(new QLabel("y: " + QString::fromStdString(std::to_string(initial_pose.pose.position.y))));
-    
-    // topic_layout_init_pose->addWidget(new QLabel("z: " + QString::fromStdString(std::to_string(initial_pose.pose.position.z))));
-    
-    
     topic_layout_init_pose->addWidget(close_button);
     
     layout->addLayout(topic_layout_init_pose);
@@ -219,6 +214,11 @@ namespace hunav_rviz2_panel
     // Get point from map to store it in initial pose.
   void ActorPanel::onInitialPose(double x, double y, double theta, QString frame)
   {
+
+    visualization_msgs::msg::Marker marker;
+
+    // Need this variable in order to remove initial pose markers when initial pose button is clicked again.
+    initial_pose_set = true;
     initial_pose = geometry_msgs::msg::PoseStamped();
 
     initial_pose.header.stamp = rclcpp::Clock().now();
@@ -229,20 +229,15 @@ namespace hunav_rviz2_panel
     initial_pose.pose.position.z = 1.25;
     theta = 0;
 
-    // Need this variable in order to remove initial pose markers when initial pose button is clicked again.
-    initial_pose_set = true;
-
     // Random color selector
     srand((unsigned) time(NULL));
     randomRGB();
 
-    visualization_msgs::msg::Marker marker;
-    marker = createMarker(x, y, marker_id, "cylinder");
-
+    marker = createMarker(x, y, marker_id, "person", "create");
     marker_id++;
 
-    auto initial_pose_marker_array = std::make_unique<visualization_msgs::msg::MarkerArray>();
-    initial_pose_marker_array->markers.push_back(marker);
+    initial_pose_marker_array = visualization_msgs::msg::MarkerArray();
+    initial_pose_marker_array.markers.push_back(marker);
 
     initial_pose_publisher->publish(std::move(initial_pose_marker_array));
 
@@ -302,27 +297,11 @@ namespace hunav_rviz2_panel
 
     window1->show();
 
+    // Close connection with thw HuNavGoal tool
     goals_connection->deleteLater();
 
     // Removes older data from inital_pose
     initial_pose = geometry_msgs::msg::PoseStamped();
-    
-    // // If set goals button is clicked again, because someone had an error, this removes the old markers.
-    // if(!poses.empty()){
-    //   oldPose = stored_pose;
-    //   poses.clear();
-
-    //   // I use num_goals_set->text().toInt() to know how many goals the user created in order to delete them.
-    //   goals_to_remove = num_goals_set->text().toInt() * 2;
-      
-    //   //removeGoalsMarkers();
-    //   for(int i = goals_to_remove; i >= 0; i--){
-    //     removeMarker(markers_array[i]);
-    //     markers_array.pop_back();
-    //   }
-      
-    // }
-    
     
     connect(close_button, SIGNAL(clicked()), this, SLOT(closeGoalsWindow()));
     
@@ -331,7 +310,12 @@ namespace hunav_rviz2_panel
   // Get point from map to store goals.
   void ActorPanel::onNewGoal(double x, double y, double theta, QString frame)
   {
-    //int i = 0;
+    // Initialize goals marker_array, which contains all goals markers
+    marker_array = visualization_msgs::msg::MarkerArray();
+    // Marker for new goal
+    visualization_msgs::msg::Marker marker;
+    // Marker for the arrow that connects each marker
+    visualization_msgs::msg::Marker arrow_marker;
 
     pose = geometry_msgs::msg::PoseStamped();
 
@@ -344,22 +328,32 @@ namespace hunav_rviz2_panel
 
     poses.push_back(pose);
 
-    visualization_msgs::msg::Marker marker;
-    marker = createMarker(x, y, marker_id, "cube");
+    // Update initial pose marker orientation to the next goal
+    if(goals_number == 1){
+      float x_orientation = x - oldPose.pose.position.x;
+      float y_orientation = y - oldPose.pose.position.y;
+      float z_orientation = atan2(y_orientation, x_orientation);
 
+      tf2::Quaternion quaternion;
+      quaternion.setRPY(0, 0, z_orientation);
+
+      initial_pose_marker_array.markers.back().pose.orientation = tf2::toMsg(quaternion);
+
+      initial_pose_publisher->publish(std::move(initial_pose_marker_array));
+    }
+    
+    marker = createMarker(x, y, marker_id, "cube", "create");
+    // Increment marker id for next marker.
+    // Maybe move this inside the function
     marker_id++;
     
-    //auto marker_array = std::make_unique<visualization_msgs::msg::MarkerArray>();
-    
-    visualization_msgs::msg::Marker arrow_marker;
-
     arrow_marker = createArrowMarker(oldPose.pose.position.x, oldPose.pose.position.y, x, y, marker_id);
 
     // Increment marker id for next marker.
     marker_id++;
     
+    // Update timestamp to old markers 
     int marker_array_size = static_cast<int>(marker_array.markers.size());
-
     for(int i = 0; i < marker_array_size; i++){
       marker_array.markers[i].header.stamp = rclcpp::Node::now();
     }
@@ -526,6 +520,9 @@ namespace hunav_rviz2_panel
       agent_count = 1;
       poses.clear();
 
+      // Clear goals_marker in order to get new goals if necessary
+      marker_array = visualization_msgs::msg::MarkerArray();
+
     }
     else{
       iterate_actors++;
@@ -552,17 +549,25 @@ namespace hunav_rviz2_panel
 
     removeCurrentMarkers();
 
-    try {
+    // Check if user wants to store file in another directory.
+    if(!checkbox->isChecked()){
+      openFileExplorer(true);
+      pkg_shared_tree_dir_ = dir;
+      RCLCPP_INFO(this->get_logger(), "DIR: %s", pkg_shared_tree_dir_.c_str());
+    }
+    else{
+      try {
         pkg_shared_tree_dir_ =
             ament_index_cpp::get_package_share_directory("hunav_agent_manager");
-
-      } catch (const char* msg) {
-        RCLCPP_ERROR(this->get_logger(),
-                    "Package hunav_agent_manager not found in dir: %s!!!",
-                    pkg_shared_tree_dir_.c_str());
+      } 
+      catch (const char* msg) {
+          RCLCPP_ERROR(this->get_logger(),
+                      "Package hunav_agent_manager not found in dir: %s!!!",
+                      pkg_shared_tree_dir_.c_str());
       }
-    pkg_shared_tree_dir_ = pkg_shared_tree_dir_ + "/config/agents.yaml";
-
+      pkg_shared_tree_dir_ = pkg_shared_tree_dir_ + "/config/agents.yaml";
+    }
+    
     auto marker_array = std::make_unique<visualization_msgs::msg::MarkerArray>();
     
     YAML::Node yaml_file = YAML::LoadFile(pkg_shared_tree_dir_);
@@ -594,12 +599,14 @@ namespace hunav_rviz2_panel
       
       YAML::Node current_agent = yaml_file["hunav_loader"]["ros__parameters"][agents_vector[i]];
       bool first_arrow = true;
-      
+      first_actor = true;
       // Initial pose
-      visualization_msgs::msg::Marker marker;
-      marker = createMarker(current_agent["init_pose"]["x"].as<double>(), current_agent["init_pose"]["y"].as<double>(), ids, "cylinder");
+      visualization_msgs::msg::Marker initial_marker;
+      // Get skin name
+      checkParserSkin(current_agent["skin"].as<int>());
+      initial_marker = createMarker(current_agent["init_pose"]["x"].as<double>(), current_agent["init_pose"]["y"].as<double>(), ids, "person", "parser");
 
-      marker_array->markers.push_back(marker);
+      marker_array->markers.push_back(initial_marker);
 
       ids++;
 
@@ -615,7 +622,18 @@ namespace hunav_rviz2_panel
         
         visualization_msgs::msg::Marker arrow_marker;
         visualization_msgs::msg::Marker marker;
-        marker = createMarker(current_agent[current_goals_vector[k]]["x"].as<double>(), current_agent[current_goals_vector[k]]["y"].as<double>(), ids, "cube");
+        marker = createMarker(current_agent[current_goals_vector[k]]["x"].as<double>(), current_agent[current_goals_vector[k]]["y"].as<double>(), ids, "cube", "parser");
+
+        if(first_actor){
+          float x_orientation = marker.pose.position.x - initial_marker.pose.position.x;
+          float y_orientation = marker.pose.position.y - initial_marker.pose.position.y;
+          float z_orientation = atan2(y_orientation, x_orientation);
+
+          tf2::Quaternion quaternion;
+          quaternion.setRPY(0, 0, z_orientation);
+          marker_array->markers.back().pose.orientation = tf2::toMsg(quaternion);
+          first_actor = false;
+        }
 
         marker_array->markers.push_back(marker);
 
@@ -653,10 +671,8 @@ namespace hunav_rviz2_panel
       
       current_goals_vector.clear();
     }
-
-    initial_pose_publisher->publish(std::move(marker_array));
-
     
+    initial_pose_publisher->publish(std::move(marker_array));
   }
 
   int ActorPanel::checkComboBox(){
@@ -686,30 +702,39 @@ namespace hunav_rviz2_panel
     std::string aux = skin_combobox->currentText().toStdString();
 
     if(aux.compare("Elegant man") == 0){
+      person_skin = "package://hunav_rviz2_panel/meshes/elegant_man.dae";
       return 0;
     }
     else if(aux.compare("Casual man") == 0){
+      person_skin = "package://hunav_rviz2_panel/meshes/casual_man.dae";
       return 1;
     }
     else if(aux.compare("Elegant woman") == 0){
+      person_skin = "package://hunav_rviz2_panel/meshes/elegant_woman.dae";
       return 2;
     }
     else if(aux.compare("Regular man") == 0){
+      person_skin = "package://hunav_rviz2_panel/meshes/regular_man.dae";
       return 3;
     }
     else if(aux.compare("Worker man") == 0){
+      person_skin = "package://hunav_rviz2_panel/meshes/worker_man.dae";
       return 4;
     }
     else if(aux.compare("Blue jeans") == 0){
+      person_skin = "package://hunav_rviz2_panel/meshes/walk.dae";
       return 5;
     }
     else if(aux.compare("Green t-shirt") == 0){
+      person_skin = "package://hunav_rviz2_panel/meshes/walk.dae";
       return 6;
     }
     else if(aux.compare("Blue t-shirt") == 0){
+      person_skin = "package://hunav_rviz2_panel/meshes/walk.dae";
       return 7;
     }
     else if(aux.compare("Red t-shirt") == 0){
+      person_skin = "package://hunav_rviz2_panel/meshes/walk.dae";
       return 8;
     }
     else{
@@ -717,19 +742,56 @@ namespace hunav_rviz2_panel
     }
   }
 
-  visualization_msgs::msg::Marker ActorPanel::createMarker(double point1_x, double point1_y, double ids, std::string marker_shape){
+  void ActorPanel::checkParserSkin(int skin){
+    if(skin == 0){
+      person_skin = "package://hunav_rviz2_panel/meshes/elegant_man.dae";
+    }
+    else if(skin == 1){
+      person_skin = "package://hunav_rviz2_panel/meshes/casual_man.dae";
+    }
+    else if(skin == 2){
+      person_skin = "package://hunav_rviz2_panel/meshes/elegant_woman.dae";
+    }
+    else if(skin == 3){
+      person_skin = "package://hunav_rviz2_panel/meshes/regular_man.dae";
+    }
+    else if(skin == 4){
+      person_skin = "package://hunav_rviz2_panel/meshes/worker_man.dae";
+    }
+    else{
+      person_skin = "package://hunav_rviz2_panel/meshes/walk.dae";
+    }
+  }
+
+  visualization_msgs::msg::Marker ActorPanel::createMarker(double point1_x, double point1_y, double ids, std::string marker_shape, std::string create_or_parser){
     
     visualization_msgs::msg::Marker marker;
     uint32_t shape;
     float scale;
-
-    if(marker_shape.compare("cylinder") == 0){
-      shape = visualization_msgs::msg::Marker::CYLINDER;
-      scale = 0.5;
+    
+    if(marker_shape.compare("person") == 0){
+      // The variable create_or_parser is used to know from where we are calling the createMarker function
+      // If the function is being called from the creation of agents, we need to check which skin is selected in the combobox
+      // If the function is being called from the parser, we already know which skin it has by reading the yaml file.
+      if(create_or_parser.compare("create") == 0){
+        //Check which skin is selected
+        checkComboBoxSkin();
+      }
+      
+      shape = visualization_msgs::msg::Marker::MESH_RESOURCE;
+      marker.mesh_resource = person_skin;
+      scale = 1;
+      marker.pose.position.z = 0.0;
     }
     else{
-      shape = visualization_msgs::msg::Marker::CUBE;
       scale = 0.3;
+      shape = visualization_msgs::msg::Marker::CUBE;
+      //marker.mesh_resource = "package://hunav_rviz2_panel/meshes/ring.dae";
+      marker.color.r = rgb[red];
+      marker.color.g = rgb[green];
+      marker.color.b = rgb[blue];
+      marker.color.a = 1.0; // alpha has to be non-zero
+      marker.pose.position.z = 0.5;
     }
     
     marker.header.frame_id = "/map";
@@ -738,19 +800,15 @@ namespace hunav_rviz2_panel
     marker.id = ids;
     marker.type = shape;
     marker.action = visualization_msgs::msg::Marker::ADD;
+    
+    marker.mesh_use_embedded_materials = true;
 
     marker.pose.position.x = point1_x;
     marker.pose.position.y = point1_y;
-    marker.pose.position.z = 0.0;
 
     marker.scale.x = scale;
     marker.scale.y = scale;
     marker.scale.z = scale;
-
-    marker.color.r = rgb[red];
-    marker.color.g = rgb[green];
-    marker.color.b = rgb[blue];
-    marker.color.a = 1.0; // alpha has to be non-zero
 
     markers_array_to_remove.push_back(marker);
     
@@ -770,12 +828,12 @@ namespace hunav_rviz2_panel
     geometry_msgs::msg::Point point1;
     point1.x = point1_x;
     point1.y = point1_y;
-    point1.z = 0.0;
+    point1.z = 0.5;
 
     geometry_msgs::msg::Point point2;
     point2.x = point2_x;
     point2.y = point2_y;
-    point2.z = 0.0;
+    point2.z = 0.5;
     
     arrow_marker.points.push_back(point1);
     arrow_marker.points.push_back(point2);
@@ -843,17 +901,6 @@ namespace hunav_rviz2_panel
 
   }
 
-  void ActorPanel::removeGoalsMarkers(){
-    auto marker_array = std::make_unique<visualization_msgs::msg::MarkerArray>();
-
-    visualization_msgs::msg::Marker markerDeletionG;
-    markerDeletionG.header.frame_id = "map";    
-    markerDeletionG.action = visualization_msgs::msg::Marker::DELETEALL;
-
-    marker_array->markers.push_back(markerDeletionG);
-    goals_publisher->publish(std::move(marker_array));
-  }
-
   void ActorPanel::resetGoal(){
     int size = static_cast<int>(markers_array_to_remove.size());
 
@@ -865,22 +912,6 @@ namespace hunav_rviz2_panel
       markers_array_to_remove[i].action = visualization_msgs::msg::Marker::DELETE;
       markers.markers.push_back(markers_array_to_remove[i]);
     }
-
-    // int i = size;
-    // int aux = static_cast<int>(marker_array.markers.size());
-    // aux -= 1;
-
-    // RCLCPP_INFO(this->get_logger(), "Size of goals:%i", static_cast<int>(marker_array.markers.size()));
-    // RCLCPP_INFO(this->get_logger(), "Size to remove:%i, difference:%i", size, aux);
-
-    // while(size > 0){
-    //   m = marker_array.markers.at(aux);
-    //   m.header.frame_id = "map";
-    //   m.action = visualization_msgs::msg::Marker::DELETE;
-    //   markers.markers.push_back(m);
-    //   size--;
-    //   aux--;
-    // }
 
     goals_publisher->publish(markers);
     
@@ -894,10 +925,20 @@ namespace hunav_rviz2_panel
     oldPose = stored_pose;
   }
 
-  void ActorPanel::openFileExplorer(){
-    QString fileName = QFileDialog::getExistingDirectory(this, tr("Open Folder"), "/home", QFileDialog::ShowDirsOnly);
+  void ActorPanel::openFileExplorer(bool file){
+    QString fileName;
+    
+    if (file){
+      fileName = QFileDialog::getOpenFileName(this, tr("Open file"), "/home", tr("YAML Files (*.yaml)"));
+      show_file_selector_once = true;
+      checkbox->setChecked(true);
+    }
+    else{
+      fileName = QFileDialog::getExistingDirectory(this, tr("Open folder"), "/home", QFileDialog::ShowDirsOnly);
+      window->activateWindow();
+    }
+
     dir = fileName.toStdString();
-    window->activateWindow();
   }
   
   void ActorPanel::save(rviz_common::Config config) const
