@@ -2,8 +2,9 @@
 
 A controller of human navigation behaviors for Robotics based on ROS2.
 
-**Tested in ROS2 Humble** 
 **This is a work in progress version**
+
+**Tested in ROS2 Humble**
 
 The simulated people are affected by the obstacles and other people using the [Social Force Model](https://github.com/robotics-upo/lightsfm).
 Besides, a set of human reactions to the presence of robots have been included.
