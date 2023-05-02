@@ -134,7 +134,7 @@ $$ CHC = \sum_{i=1}^{N-1}(h_r^i - h_r^{i+1})$$
 of the mean distance $(meters)$ from the robot to the closest person
 along the trajectory, taking into account the robot radius and approximated human radius.
 
-$$ CP_{avg} = \frac{1}{N} \sum_{i=1}^{N}(||x_r^i - x_{cp}^i||_2 - \gamma_{r}^i - \gamma_{cp}^i)$$
+$$ CP_{avg} = \frac{1}{N} \sum_{i=1}^{N}(||x_r^i - x_{cp}^i||_2 - \gamma_{r}^i - \gamma_{cp}^i) $$
 
 &ensp;&ensp;&ensp;&ensp;&ensp;&ensp;where $x_{cp}^i$ indicates the position of the closest person to the robot at step i. $\gamma_{r}$ is the robot radius and $\gamma_{cp}$ is the closest person approximated radius ($meters$).
 
@@ -170,7 +170,7 @@ Metrics from the SEAN simulator [2]:
 
 - *Completed* $C$. true when the robot's final pose is within a specified threshold distance of the goal (by default $\gamma_g$ = 0.20 m).
   
-$$ C = F(\({||x_r^N - x_{g}||}_{2}  - \gamma_g \) \lt 0.0) $$
+$$ C = F(({||x_r^N - x_{g}||}_{2}  - \gamma_g ) \lt 0.0) $$
 
 &ensp;&ensp;&ensp;&ensp;&ensp;&ensp; where $x_r^N$ is the robot pose in the last time step of the trajectory, $x_{g}$ is the goal position and  $\gamma_{g}$ is the goal radius. $F(·)$ is the indicator function.
 
@@ -193,7 +193,7 @@ $$ TD_{final} = ||x_r^N -x_{g}||_2 $$
 
 - *Robot on Person Collision*, $RPC$, and *Person on Robot Collision*, $PRC$. Number of times robot collides with a person and vice versa. The SEAN simulator employs the Unity colliding tools to detect the collisions. However, we want our metrics to be independent of any simulator. Therefore, this metric has been implemented by using the positions, the orientations and the velocities of the robot and agents to determine who is running into the other. The collisions are primarily computed as:
 
-$$ Collisions = \sum_{i=1}^{N} F(\({||x_r^i - x_{cp}^i||}_{2}  - \gamma_{r}^i - \gamma_{cp}^i\) \lt 0.01) $$
+$$ Collisions = \sum_{i=1}^{N} F(({||x_r^i - x_{cp}^i||}_{2}  - \gamma_{r}^i - \gamma_{cp}^i) \lt 0.01) $$
 
 &ensp;&ensp;&ensp;&ensp;&ensp;&ensp; where $x_r^i$ is the robot pose in the time step $i$ of the trajectory, $x_{cp}^i$ is the pose of the closest person to the robot at time step $i$. $\gamma_{r}$ is the radius of the robot and $\gamma_{cp}$ is the radius of the closest person. Then, we check the relative orientations between the agent and the robot and their velocities to determine who is running into the other.  
 
@@ -299,5 +299,3 @@ After compiling, the user can add the new function name to the ```metrics.yaml``
 [9] Moussaid M, Helbing D, Garnier S, Johansson A, Combe M, et al. (2009) "Experimental study of the behavioural mechanisms underlying self-organization in human crowds". Proceedings of the Royal Society B: Biological Sciences 276: 2755–2762.
 
 [10] Moussaïd, Mehdi & Perozo, Niriaska & Garnier, Simon & Helbing, Dirk & Theraulaz, Guy. (2010). "The Walking Behaviour of Pedestrian Social Groups and Its Impact on Crowd Dynamics". PloS one. 5. e10047. 10.1371/journal.pone.0010047.
-
-
