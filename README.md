@@ -12,7 +12,8 @@ A pre-print version of the paper submitted to the RA-L Journal is available [her
 
 This work is partially supported by Programa Operativo FEDER Andalucia 2014-2020, Consejeria de Economía, Conocimiento y Universidades (DeepBot, PY20\_00817) and the project NHoA PLEC2021-007868, funded by MCIN/AEI/10.13039/501100011033 and the European Union NextGenerationEU/PRTR.
 
-![](https://github.com/robotics-upo/hunav_sim/blob/master/images/image.png | width=100)
+<!---![](https://github.com/robotics-upo/hunav_sim/blob/master/images/image.png | width=100) -->
+<img src="https://github.com/robotics-upo/hunav_sim/blob/master/images/image.png" width="100">
 
 
 ## Dependencies
