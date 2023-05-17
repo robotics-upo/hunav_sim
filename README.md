@@ -10,6 +10,9 @@ Besides, a set of human reactions to the presence of robots have been included.
 
 A pre-print version of the paper submitted to the RA-L Journal is available [here](https://arxiv.org/abs/2305.01303). 
 
+This work is partially supported by Programa Operativo FEDER Andalucia 2014-2020, Consejeria de Economía, Conocimiento y Universidades (DeepBot, PY20\_00817) and the project NHoA PLEC2021-007868, funded by MCIN/AEI/10.13039/501100011033 and the European Union NextGenerationEU/PRTR.
+![](https://github.com/robotics-upo/hunav_gazebo_wrapper/blob/master/media/images/image.png)
+
 
 ## Dependencies
 
