@@ -52,11 +52,13 @@ namespace hunav_rviz2_panel
   {
     
     QVBoxLayout *topic_button = new QVBoxLayout;
-    QPushButton *open_button = new QPushButton("Open");
-    actors = new QLineEdit;
-    QPushButton *actor_button = new QPushButton("Create agents");
-    checkbox = new QCheckBox("Use default directory", this);
     QHBoxLayout *layout = new QHBoxLayout;
+    open_button = new QPushButton("Open");
+    actors = new QLineEdit;
+    actor_button = new QPushButton("Create agents");
+    checkbox = new QCheckBox("Use default directory", this);
+
+    actors->setValidator(new QIntValidator(0, 100, this));
 
     topic_button->addWidget(new QLabel("Open yaml file (agents.yaml)"));
     topic_button->addWidget(open_button);
@@ -80,19 +82,18 @@ namespace hunav_rviz2_panel
 
   }
 
-  // Destructor, close and disconnect windows.
   ActorPanel::~ActorPanel(){
-    window->close();
-    window1->close();
-    window2->close();
-    disconnect(&GoalUpdater, SIGNAL(updateGoal(double,double,double,QString)), this, SLOT(onInitialPose(double,double,double,QString)));
-    disconnect(&GoalUpdater, SIGNAL(updateGoal(double,double,double,QString)), this, SLOT(onNewGoal(double,double,double,QString)));
+
   }
 
   // Shows the agent creation window.
   void ActorPanel::addAgent(){
     
     window = new QWidget;
+    window->setWindowFlags(window->windowFlags() & ~Qt::WindowCloseButtonHint); // Unables close button
+
+    open_button->setEnabled(false);
+    actor_button->setEnabled(false);
 
     QVBoxLayout *topic_layout = new QVBoxLayout(window);
     QHBoxLayout *layout = new QHBoxLayout;
@@ -102,9 +103,13 @@ namespace hunav_rviz2_panel
     // Combobox for skin selection.
     skin_combobox = new QComboBox();
     initial_pose_button = new QPushButton("Set initial pose");
+    reset_initial_pose = new QPushButton("Reset initial pose");
     reset_goals = new QPushButton("Reset goals");
     QLabel *num_goals_set_label = new QLabel("Set number of goals");
     num_goals_set = new QLineEdit();
+    // exit_button = new QPushButton("Exit agent creation");
+
+    num_goals_set->setValidator(new QIntValidator(0, 100, this));
 
     // Only removes markers when the "Create agents" button is clicked (If agent_count > 1 means that agents are being created, 
     // so markers need to stay in place)
@@ -158,13 +163,17 @@ namespace hunav_rviz2_panel
     save_button->setEnabled(false);
     goals_button->setEnabled(false);
     reset_goals->setEnabled(false);
+    reset_initial_pose->setEnabled(false);
+    // exit_button->setEnabled(true);
 
     topic_layout->addWidget(initial_pose_button);
+    topic_layout->addWidget(reset_initial_pose);
     topic_layout->addWidget(num_goals_set_label);
     topic_layout->addWidget(num_goals_set);
     topic_layout->addWidget(goals_button);
     topic_layout->addWidget(reset_goals);
     topic_layout->addWidget(save_button);
+    // topic_layout->addWidget(exit_button);
 
     layout->addLayout(topic_layout);
     setLayout(layout);
@@ -173,8 +182,10 @@ namespace hunav_rviz2_panel
 
     connect(save_button, SIGNAL(clicked()), this, SLOT(saveAgents()));
     connect(reset_goals, SIGNAL(clicked()), this, SLOT(resetGoal()));
+    connect(reset_initial_pose, SIGNAL(clicked()), this, SLOT(resetInitialPose()));
     connect(goals_button, SIGNAL(clicked()), this, SLOT(getNewGoal()));
     connect(initial_pose_button, SIGNAL(clicked()), this, SLOT(setInitialPose()));
+    // connect(exit_button, SIGNAL(clicked()), this, SLOT(exitAgentCreation()));
 
     if(!checkbox->isChecked() && show_file_selector_once){
       connect(directory, &QPushButton::clicked, this, [=](){
@@ -194,6 +205,8 @@ namespace hunav_rviz2_panel
     this, SLOT(onInitialPose(double,double,double,QString)));
 
     window2 = new QWidget();
+    window2->setWindowFlags(window->windowFlags() & ~Qt::WindowCloseButtonHint); // Unables close button
+
     topic_layout_init_pose = new QVBoxLayout(window2);
     QHBoxLayout *layout = new QHBoxLayout;
     QPushButton *close_button = new QPushButton("Close");
@@ -260,11 +273,14 @@ namespace hunav_rviz2_panel
   void ActorPanel::getNewGoal(){
 
     window1 = new QWidget();
+    window1->setWindowFlags(window->windowFlags() & ~Qt::WindowCloseButtonHint); // Unables close button
+    
     goals_layout = new QVBoxLayout(window1);
     QHBoxLayout *layout = new QHBoxLayout;
     QPushButton *close_button = new QPushButton("Close");
     goals_number = 1;
     QString goal = "Goals";
+    finish_arrow = false;
 
     // Reset markers for removing only the current goal.
     markers_array_to_remove.clear();
@@ -284,6 +300,10 @@ namespace hunav_rviz2_panel
     // Fill goal's vector
     for(int j = 0; j < num_goals_set->text().toInt(); j++){
       goals.push_back("G" + QString::number(j));
+    }
+
+    if(num_goals_set->text().toInt() == 0){
+      num_goals_set->setText("1");
     }
 
     goals_remaining = new QLabel("Goals " + QString::number(goals_number) + "/" + num_goals_set->text());
@@ -362,24 +382,31 @@ namespace hunav_rviz2_panel
     marker_array.markers.push_back(arrow_marker);
 
     // If goals == num_goals_set means that another arrow has to be added to close the path.
-    if(goals_number == num_goals_set->text().toInt()){
+    if(goals_number >= num_goals_set->text().toInt() && finish_arrow == false){
       visualization_msgs::msg::Marker arrow_marker1;
 
-      arrow_marker1 = createArrowMarker(x,y,stored_pose.pose.position.x, stored_pose.pose.position.y, marker_id);
+      arrow_marker1 = createArrowMarker(x, y, stored_pose.pose.position.x, stored_pose.pose.position.y, marker_id);
 
       marker_array.markers.push_back(arrow_marker1);
+
+      goals_publisher->publish(std::move(marker_array));
+
+      finish_arrow = true;
+      
+      updateGoalsRemainingText();
+
+      disconnect(&GoalUpdater, SIGNAL(updateGoal(double,double,double,QString)), this, SLOT(onNewGoal(double,double,double,QString)));
     }
-    
-    oldPose = pose;
-    first_actor = false;
+    else if(finish_arrow == false){
+      oldPose = pose;
+      first_actor = false;
 
-    goals_publisher->publish(std::move(marker_array));
+      goals_publisher->publish(std::move(marker_array));
 
-    QObject::disconnect(goals_connection);
+      QObject::disconnect(goals_connection);
 
-    goals_remaining->setText("Goals " + QString::number(goals_number) + "/" + num_goals_set->text());
-    
-    goals_number++;
+      updateGoalsRemainingText();
+    }
 
     // Iterate goal's vector to show selected goals
     // for(QString aux : goals){
@@ -406,6 +433,11 @@ namespace hunav_rviz2_panel
 
   }
 
+  void ActorPanel::updateGoalsRemainingText(){
+    goals_remaining->setText("Goals " + QString::number(goals_number) + "/" + num_goals_set->text());  
+    goals_number++;
+  }
+
   // Saves all information about agents in yaml file
   void ActorPanel::saveAgents(){
 
@@ -414,6 +446,10 @@ namespace hunav_rviz2_panel
 
     // If checkbox is not checked, it means that the user wants to store file in another directory.
     if(!checkbox->isChecked()){
+      if(dir.empty()){
+        RCLCPP_ERROR(this->get_logger(), "The directory to store the output file has not been selected. Using default directory.");
+        dir = ament_index_cpp::get_package_share_directory("hunav_agent_manager") + "/config";
+      }
       pkg_shared_tree_dir_ = dir + "/agents.yaml";
     }
     else{
@@ -522,7 +558,15 @@ namespace hunav_rviz2_panel
 
       // Clear goals_marker in order to get new goals if necessary
       marker_array = visualization_msgs::msg::MarkerArray();
+      // Reset initial pose to false in case user does not close the panel after writing the file.
+      // If initial pose is not reseted in the next iteration the initial pose could be empty.
+      initial_pose_set = false;
+      
+      show_file_selector_once = true;
 
+      // Enables first windows button in order to allow agent creation again
+      open_button->setEnabled(true);
+      actor_button->setEnabled(true);
     }
     else{
       iterate_actors++;
@@ -530,6 +574,7 @@ namespace hunav_rviz2_panel
       // Need this variable in order to remove initial pose markers when initial pose button is clicked again.
       // To generate the next agent, it has to be set to false in order to not remove the current markers. 
       initial_pose_set = false;
+      markers_array_to_remove.clear();
       
       agent_name->clear();
 
@@ -549,7 +594,7 @@ namespace hunav_rviz2_panel
 
     removeCurrentMarkers();
 
-    // Check if user wants to store file in another directory.
+    // Check if user wants to open file from another directory.
     if(!checkbox->isChecked()){
       openFileExplorer(true);
       pkg_shared_tree_dir_ = dir;
@@ -566,11 +611,21 @@ namespace hunav_rviz2_panel
                       pkg_shared_tree_dir_.c_str());
       }
       pkg_shared_tree_dir_ = pkg_shared_tree_dir_ + "/config/agents.yaml";
+      RCLCPP_INFO(this->get_logger(), "Default directory: %s", pkg_shared_tree_dir_.c_str());
     }
     
     auto marker_array = std::make_unique<visualization_msgs::msg::MarkerArray>();
-    
-    YAML::Node yaml_file = YAML::LoadFile(pkg_shared_tree_dir_);
+    YAML::Node yaml_file;
+
+    try{
+      yaml_file = YAML::LoadFile(pkg_shared_tree_dir_);
+    }
+    catch(const YAML::BadFile& ex){
+      pkg_shared_tree_dir_ = ament_index_cpp::get_package_share_directory("hunav_agent_manager") + "/config/agents.yaml";
+      RCLCPP_ERROR(this->get_logger(), "File not found in dir! Using default path: %s.", pkg_shared_tree_dir_.c_str());
+      yaml_file = YAML::LoadFile(pkg_shared_tree_dir_);
+    }
+
     std::vector<std::string> agents_vector;
     std::vector<std::string> current_goals_vector;
     int ids = 0;
@@ -858,9 +913,13 @@ namespace hunav_rviz2_panel
   void ActorPanel::closeGoalsWindow(){
     window1->close();
     window->activateWindow();
-    goals_button->setEnabled(false);
-    save_button->setEnabled(true);
-    reset_goals->setEnabled(true);
+
+    if(goals_number != 1){
+      goals_button->setEnabled(false);
+      save_button->setEnabled(true);
+      reset_goals->setEnabled(true);
+    }
+    
     disconnect(&GoalUpdater, SIGNAL(updateGoal(double,double,double,QString)), this, SLOT(onNewGoal(double,double,double,QString)));
     first_actor = true;
   }
@@ -868,8 +927,13 @@ namespace hunav_rviz2_panel
   void ActorPanel::closeInitialPoseWindow(){
     window2->close();
     window->activateWindow();
-    initial_pose_button->setEnabled(false);
-    goals_button->setEnabled(true);
+    
+    if(initial_pose_set){
+      initial_pose_button->setEnabled(false);
+      goals_button->setEnabled(true);
+      reset_initial_pose->setEnabled(true);
+    }
+    
     disconnect(&GoalUpdater, SIGNAL(updateGoal(double,double,double,QString)), this, SLOT(onInitialPose(double,double,double,QString)));
     QObject::disconnect(initial_pose_connection);
   }
@@ -919,10 +983,36 @@ namespace hunav_rviz2_panel
     marker_array.markers.clear();
     poses.clear();
 
-    goals_button->setEnabled(true);
+    if(initial_pose_button->isEnabled()){
+      goals_button->setEnabled(false);
+    }
+    else{
+      goals_button->setEnabled(true);
+    }
+    
     reset_goals->setEnabled(false);
+    save_button->setEnabled(false);
 
     oldPose = stored_pose;
+  }
+
+  void ActorPanel::resetInitialPose(){
+    visualization_msgs::msg::MarkerArray markers;
+
+    visualization_msgs::msg::Marker marker_to_remove = initial_pose_marker_array.markers.back();
+
+    marker_to_remove.header.frame_id = "map";
+    marker_to_remove.action = visualization_msgs::msg::Marker::DELETE;
+    markers.markers.push_back(marker_to_remove);
+
+    initial_pose_publisher->publish(markers);
+
+    initial_pose_marker_array.markers.pop_back();
+
+    reset_initial_pose->setEnabled(false);
+    initial_pose_button->setEnabled(true);
+
+    resetGoal();
   }
 
   void ActorPanel::openFileExplorer(bool file){
@@ -940,6 +1030,40 @@ namespace hunav_rviz2_panel
 
     dir = fileName.toStdString();
   }
+
+   // // Destructor, close and disconnect windows.
+  // void ActorPanel::exitAgentCreation(){
+    
+  //   if(window->isVisible()){
+  //     window->close();
+  //   }
+    
+  //   if(window1->isVisible()){
+  //     window1->close();
+  //   }
+
+  //   if(window2->isVisible()){
+  //     window2->close();
+  //   }
+
+  //   // resetInitialPose();
+
+  //   // Clear goals_marker in order to get new goals if necessary
+  //   marker_array = visualization_msgs::msg::MarkerArray();
+  //   //Reset initial pose to false in case user does not close the panel after writing the file.
+  //   // If initial pose is not reseted in the next iteration the initial pose could be empty.
+  //   initial_pose_set = false;
+    
+  //   show_file_selector_once = true;
+
+  //   // Enables first windows button in order to allow agent creation again
+  //   // open_button->setEnabled(true);
+  //   // actor_button->setEnabled(true);
+  //   initial_pose_set = false;
+  //   markers_array_to_remove.clear();
+  //   // agent_name->clear();
+  //   poses.clear();
+  // }
   
   void ActorPanel::save(rviz_common::Config config) const
   {
@@ -963,5 +1087,3 @@ namespace hunav_rviz2_panel
 
 #include <pluginlib/class_list_macros.hpp>
 PLUGINLIB_EXPORT_CLASS(hunav_rviz2_panel::ActorPanel, rviz_common::Panel)
-
-

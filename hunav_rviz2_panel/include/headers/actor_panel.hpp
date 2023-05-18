@@ -73,8 +73,15 @@ protected Q_SLOTS:
   void removeMarker(visualization_msgs::msg::Marker marker);
   void resetGoal();
   void openFileExplorer(bool file);
+  void updateGoalsRemainingText();
+  void resetInitialPose();
+  void exitAgentCreation();
 
 public:
+
+  // First panel variables
+  QPushButton *open_button;
+  QPushButton *actor_button;
 
   // QT variables
   QLineEdit *actors;
@@ -101,6 +108,8 @@ public:
   QPushButton *save_button;
   QPushButton *goals_button;
   QPushButton *reset_goals;
+  QPushButton *reset_initial_pose;
+  QPushButton *exit_button;
 
   QVBoxLayout *topic_layout_init_pose;
   QVBoxLayout *goals_layout;
@@ -133,6 +142,7 @@ public:
   std::vector<visualization_msgs::msg::Marker> markers_array_to_remove;
   std::vector<visualization_msgs::msg::Marker> arrows_markers_array;
   std::string person_skin;
+  bool finish_arrow = false;
 
   // Colors for Markers
   std::vector<double> rgb{255,0};
