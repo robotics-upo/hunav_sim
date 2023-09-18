@@ -9,7 +9,25 @@ A controller of human navigation behaviors for Robotics based on ROS2.
 The simulated people are affected by the obstacles and other people using the [Social Force Model](https://github.com/robotics-upo/lightsfm).
 Besides, a set of human reactions to the presence of robots have been included.
 
-A pre-print version of the paper accepted in the RA-L Journal is available [here](https://arxiv.org/abs/2305.01303). 
+If you use this simulator in your work, please cite:
+
+N. Pérez-Higueras, R. Otero, F. Caballero and L. Merino, "HuNavSim: A ROS 2 Human Navigation Simulator for Benchmarking Human-Aware Robot Navigation," in IEEE Robotics and Automation Letters, doi: 10.1109/LRA.2023.3316072.
+
+Bibtex:
+```sh
+@ARTICLE{PerezRal2023,
+  author={Pérez-Higueras, Noé and Otero, Roberto and Caballero, Fernando and Merino, Luis},
+  journal={IEEE Robotics and Automation Letters}, 
+  title={HuNavSim: A ROS 2 Human Navigation Simulator for Benchmarking Human-Aware Robot Navigation}, 
+  year={2023},
+  month={September},
+  volume={},
+  number={},
+  pages={1-8},
+  issn={2377-3766},
+  doi={10.1109/LRA.2023.3316072}}
+```
+A pre-print version of the accepted paper is available [here](https://arxiv.org/abs/2305.01303). 
 
 
 ## Dependencies
