@@ -2,14 +2,14 @@
 
     <TreeNodesModel>
         <Action ID="RegularNav">
-            <input_port name="agent_id">identifier of the agent</input_port>
-            <input_port name="time_step">time step in seconds to compute movement</input_port>
+            <input_port name="agent_id" type="int">identifier of the agent</input_port>
+            <input_port name="time_step" type="double">time step in seconds to compute movement</input_port>
         </Action>
         <Action ID="UpdateGoal">
-            <input_port name="agent_id">identifier of the agent</input_port>
+            <input_port name="agent_id" type="int">identifier of the agent</input_port>
         </Action>
         <Condition ID="IsGoalReached">
-            <input_port name="agent_id">identifier of the agent</input_port>
+            <input_port name="agent_id" type="int">identifier of the agent</input_port>
         </Condition>
     </TreeNodesModel>
 

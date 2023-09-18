@@ -2,16 +2,16 @@
 
     <TreeNodesModel>
         <Action ID="ThreateningNav">
-            <input_port name="agent_id">identifier of the agent</input_port>
-            <input_port name="time_step">time step in seconds to compute movement</input_port>
+            <input_port name="agent_id" type="int">identifier of the agent</input_port>
+            <input_port name="time_step" type="double">time step in seconds to compute movement</input_port>
         </Action>
         <Condition ID="IsRobotVisible">
-            <input_port name="agent_id">identifier of the agent</input_port>
+            <input_port name="agent_id" type="int">identifier of the agent</input_port>
         </Condition>
         <Condition ID="TimeExpiredCondition">
-            <input_port name="seconds">duration of the timer in seconds</input_port>
-            <input_port name="ts">time step to be accumulated</input_port>
-            <input_port name="only_once">boolean to indicate if the timer must be reset at the end or not</input_port>
+            <input_port name="seconds" type="double">duration of the timer in seconds</input_port>
+            <input_port name="ts" type="double">time step to be accumulated</input_port>
+            <input_port name="only_once" type="bool">boolean to indicate if the timer must be reset at the end or not</input_port>
         </Condition>
     </TreeNodesModel>
 

@@ -174,7 +174,9 @@ class HunavEvaluatorNode(Node):
 
 
     def compute_metrics(self):
-        self.check_data()
+        if not self.check_data():
+            self.get_logger().info("Data not collected. Not computing metrics.")
+            return
         agents_size = len(self.agents_list)
         robot_size = len(self.robot_list)
         self.get_logger().info("Hunav evaluator. Collected %i messages of agents and %i of robot" % (agents_size, robot_size))
@@ -300,6 +302,9 @@ class HunavEvaluatorNode(Node):
         #First check the number of messages
         agents_size = len(self.agents_list)
         robot_size = len(self.robot_list)
+
+        if (agents_size == 0 and robot_size == 0):
+            return False
         if(abs(agents_size - robot_size) != 0):
             while(len(self.agents_list) > len(self.robot_list)):
                 self.agents_list.pop()
@@ -308,6 +313,7 @@ class HunavEvaluatorNode(Node):
             
         # check that the robot msg contains a goal?
         # check when the robot reaches the goal?
+        return True
 
 
 def main(args=None):
