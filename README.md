@@ -14,7 +14,7 @@ If you use this simulator in your work, please cite:
 N. Pérez-Higueras, R. Otero, F. Caballero and L. Merino, "HuNavSim: A ROS 2 Human Navigation Simulator for Benchmarking Human-Aware Robot Navigation," in IEEE Robotics and Automation Letters, doi: 10.1109/LRA.2023.3316072.
 
 Bibtex:
-```yaml
+```
 @ARTICLE{PerezRal2023,
   author={Pérez-Higueras, Noé and Otero, Roberto and Caballero, Fernando and Merino, Luis},
   journal={IEEE Robotics and Automation Letters}, 
