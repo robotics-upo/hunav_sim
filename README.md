@@ -213,5 +213,5 @@ Some example launch to run the HuNavSim with Gazebo can be found in the document
 This work is partially supported by Programa Operativo FEDER Andalucia 2014-2020, Consejeria de Economía, Conocimiento y Universidades (DeepBot, PY20\_00817) and the project NHoA (PLEC2021-007868) and NORDIC (TED2021-132476B-I00), funded by MCIN/AEI/10.13039/501100011033 and the European Union NextGenerationEU/PRTR.
 
 <!---![](https://github.com/robotics-upo/hunav_sim/blob/master/images/image.png | width=100) -->
-<img src="https://github.com/robotics-upo/hunav_sim/blob/master/images/image.png" width="400">
+<img src="https://github.com/robotics-upo/hunav_sim/blob/humble/images/image.png" width="400">
 
