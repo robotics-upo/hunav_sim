@@ -49,7 +49,7 @@ A pre-print version of the accepted paper is available [here](https://arxiv.org/
 
 * The simulator core is programmed under the new ROS2 framework (tested in Humble distro).
 
-* A GUI based on a RViz2 panel is employed to easily configure the human agents. For instructions, please check the [hunav_rviz2_panel](https://github.com/robotics-upo/hunav_sim/tree/master/hunav_rviz2_panel) 
+* A GUI based on a RViz2 panel is employed to easily configure the human agents. For instructions, please check the [hunav_rviz2_panel](https://github.com/robotics-upo/hunav_sim/tree/humble/hunav_rviz2_panel) 
 
 * A set of realistic human navigation reactions to the presence of a robot is provided:
 
@@ -62,7 +62,7 @@ A pre-print version of the accepted paper is available [here](https://arxiv.org/
 
 * The navigation behavior defined by the user for each human agent is led by a configurable behavior tree.
 
-* Finally, a set of metrics for social navigation evaluation are provided. This set includes the metrics found in the literature plus some other ones. Moreover, the metrics computed can be easily configured and extended by the user. Further information is provided in the [hunav_evaluator](https://github.com/robotics-upo/hunav_sim/tree/master/hunav_evaluator)
+* Finally, a set of metrics for social navigation evaluation are provided. This set includes the metrics found in the literature plus some other ones. Moreover, the metrics computed can be easily configured and extended by the user. Further information is provided in the [hunav_evaluator](https://github.com/robotics-upo/hunav_sim/tree/humble/hunav_evaluator)
 
 
 
@@ -83,7 +83,7 @@ That communication with HuNavSim can be easily done through different ROS2 servi
 Moreover, the initial configuration parameters of the agents can be read from the *"/hunav_loader"* ROS2 node. This node loads the agents data from the yaml file *'agents.yaml'* located in the *config* directory of the package *hunav_agent_manager*. Then, the parameters can be retreived through the ROS2 service */hunav_loader/get_parameters*. 
 
 
-![](https://github.com/robotics-upo/hunav_sim/blob/master/images/HuNavSim.png)
+![](https://github.com/robotics-upo/hunav_sim/blob/humble/images/HuNavSim.png)
 
 
 A Gazebo (v11) wrapper is provided in: https://github.com/robotics-upo/hunav_gazebo_wrapper
@@ -91,7 +91,7 @@ A Gazebo (v11) wrapper is provided in: https://github.com/robotics-upo/hunav_gaz
 
 ## Configuration
 
-The user must define the desired number and properties of hunav agents. This is done through the file agents.yaml. The user can edit this file directly, o can create it through a GUI, check the [hunav_rviz2_panel](https://github.com/robotics-upo/hunav_sim/tree/master/hunav_rviz2_panel).   
+The user must define the desired number and properties of hunav agents. This is done through the file agents.yaml. The user can edit this file directly, o can create it through a GUI, check the [hunav_rviz2_panel](https://github.com/robotics-upo/hunav_sim/tree/humble/hunav_rviz2_panel).   
 
 An example snippet of a agents.yaml file with two agents can be seen next:
 
@@ -193,7 +193,7 @@ The user must provide the following data under the identification name of each a
 
 ### Metrics parameters  
 
-The user can also configure the set of metrics to be computed. Check the [hunav_evaluator](https://github.com/robotics-upo/hunav_sim/tree/master/hunav_evaluator) to know how.
+The user can also configure the set of metrics to be computed. Check the [hunav_evaluator](https://github.com/robotics-upo/hunav_sim/tree/humble/hunav_evaluator) to know how.
 
 
 ## Example run
