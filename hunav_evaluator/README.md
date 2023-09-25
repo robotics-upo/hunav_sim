@@ -54,7 +54,7 @@ Currently, the metrics implemented are those employed in our previous work [1] a
 The user can configure the metrics to be computed in two different ways:
 
 - By editing the metrics yaml file, and changing the boolean parameters of the metrics (true to compute the metric, false to ignore it).
-- By using a RViz2 panel to select/unselect the metrics and to store them. See the [hunav_rviz2_panel](https://github.com/robotics-upo/hunav_sim/tree/master/hunav_rviz2_panel) for more information on how to use the panel.  
+- By using a RViz2 panel to select/unselect the metrics and to store them. See the [hunav_rviz2_panel](https://github.com/robotics-upo/hunav_sim/tree/humble/hunav_rviz2_panel) for more information on how to use the panel.  
  
 Example snippet of the metrics configuration file:
 
@@ -264,7 +264,7 @@ Every metric function must take the following input parameters:
 * ```robot``` a list of messages *hunav_msgs/msg/Agent* where all information recorded at each time step about the social robot is stored.
 * ```agents``` a list of messages *hunav_msgs/msg/Agents* where all information recorded about the human agents are stored.
 
-See the [hunav_msgs](https://github.com/robotics-upo/hunav_sim/tree/master/hunav_msgs) package to obtain more information about the data stored for each agent. 
+See the [hunav_msgs](https://github.com/robotics-upo/hunav_sim/tree/humble/hunav_msgs) package to obtain more information about the data stored for each agent. 
 
 After programming the new metric function, you must associate a name to it in the *metrics* list at the end of the ```hunav_metrics.py``` file. 
 
