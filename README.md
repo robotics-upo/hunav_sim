@@ -11,7 +11,7 @@ Besides, a set of human reactions to the presence of robots have been included.
 
 If you use this simulator in your work, please cite:
 
-N. Pérez-Higueras, R. Otero, F. Caballero and L. Merino, "HuNavSim: A ROS 2 Human Navigation Simulator for Benchmarking Human-Aware Robot Navigation," in IEEE Robotics and Automation Letters, doi: 10.1109/LRA.2023.3316072.
+N. Pérez-Higueras, R. Otero, F. Caballero and L. Merino, "HuNavSim: A ROS 2 Human Navigation Simulator for Benchmarking Human-Aware Robot Navigation," in IEEE Robotics and Automation Letters, vol. 8, no. 11, pp. 7130-7137, Nov. 2023, doi: 10.1109/LRA.2023.3316072.
 
 Bibtex:
 ```
