@@ -21,12 +21,14 @@ Bibtex:
   title={HuNavSim: A ROS 2 Human Navigation Simulator for Benchmarking Human-Aware Robot Navigation}, 
   year={2023},
   month={September},
-  volume={},
-  number={},
-  pages={1-8},
+  volume={8},
+  number={11},
+  pages={7130-7137},
   issn={2377-3766},
   doi={10.1109/LRA.2023.3316072}}
 ```
+
+
 A pre-print version of the accepted paper is available [here](https://arxiv.org/abs/2305.01303). 
 
 
