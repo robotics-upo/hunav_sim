@@ -216,4 +216,5 @@ This work is partially supported by Programa Operativo FEDER Andalucia 2014-2020
 
 <!---![](https://github.com/robotics-upo/hunav_sim/blob/master/images/image.png | width=100) -->
 <img src="https://github.com/robotics-upo/hunav_sim/blob/humble/images/image.png" width="400">
+<img src="https://github.com/robotics-upo/hunav_sim/blob/humble/images/logos2.jpg" width="400">
 
