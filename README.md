@@ -32,6 +32,11 @@ Bibtex:
 A pre-print version of the accepted paper is available [here](https://arxiv.org/abs/2305.01303). 
 
 
+## Docker
+
+If you want to try HuNavSim through a Docker container, please donwload this repo and follow the instructions: https://github.com/robotics-upo/docker_hunavsim_pmb2
+
+
 ## Dependencies
 
 * You must download and install the Social Force Model library. Follow the instructions here: https://github.com/robotics-upo/lightsfm
