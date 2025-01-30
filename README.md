@@ -34,7 +34,7 @@ A pre-print version of the accepted paper is available [here](https://arxiv.org/
 
 ## Docker
 
-If you want to try HuNavSim through a Docker container, please donwload this repo and follow the instructions: https://github.com/robotics-upo/docker_hunavsim_pmb2
+If you want to try HuNavSim through a Docker container, please clone the following repo and follow the instructions: https://github.com/robotics-upo/docker_hunavsim_pmb2
 
 
 ## Dependencies
