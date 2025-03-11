@@ -1,7 +1,7 @@
 #include <memory>
 #include <string>
 
-#include "behaviortree_cpp_v3/condition_node.h"
+#include "behaviortree_cpp/condition_node.h"
 
 #include "hunav_agent_manager/time_expired_condition.hpp"
 

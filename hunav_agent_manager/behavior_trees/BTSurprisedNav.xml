@@ -1,4 +1,5 @@
-<root main_tree_to_execute = "SurprisedNavTree">
+<?xml version='1.0' encoding='UTF-8'?>
+<root main_tree_to_execute="SurprisedNavTree" BTCPP_format="4">
 
     <TreeNodesModel>
         <Action ID="SurprisedNav">
@@ -16,7 +17,7 @@
         </Condition>
     </TreeNodesModel>
 
-    <include path="BTRegularNav.xml"/>
+    <include path="BTRegularNav.xml" />
 
     <BehaviorTree ID="SurprisedNavTree">
         <Fallback name="SurprisedFallback">
@@ -30,7 +31,7 @@
             <Sequence name="RegNav">
                 <SetBlackboard output_key="agentid" value="{id}" />
                 <SetBlackboard output_key="timestep" value="{dt}" />
-                <SubTree ID="RegularNavTree" id="agentid" dt="timestep" />
+                <SubTree ID="RegularNavTree" id="{agentid}" dt="{timestep}" />
             </Sequence>
         </Fallback>
     </BehaviorTree>
