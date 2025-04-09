@@ -61,37 +61,37 @@ HunavLoader::HunavLoader() : Node("hunav_loader")
       this->set_parameter(rclcpp::Parameter(name + ".behavior.vel", vel));
     }
     double dist = this->declare_parameter<double>(name + ".behavior.dist", 0.0);
-    // ForceFactorDesired   [2, 8]  - def: 2
+    // ForceFactorDesired   [2, 5]  - def: 2
     double facGoal = this->declare_parameter<double>(name + ".behavior.goal_force_factor", 2.0);
     if (facGoal < 2.0)
     {
       facGoal = 2.0;
       this->set_parameter(rclcpp::Parameter(name + ".behavior.goal_force_factor", facGoal));
     }
-    else if (facGoal > 8.0)
+    else if (facGoal > 5.0)
     {
-      facGoal = 8.0;
+      facGoal = 5.0;
       this->set_parameter(rclcpp::Parameter(name + ".behavior.goal_force_factor", facGoal));
     }
 
-    // ForceFactorObstacle  [2, 30] - def: 10
+    // ForceFactorObstacle  [2, 50] - def: 10
     double facObstacle = this->declare_parameter<double>(name + ".behavior.obstacle_force_factor", 10.0);
     if (facObstacle < 2.0)
     {
       facObstacle = 2.0;
       this->set_parameter(rclcpp::Parameter(name + ".behavior.obstacle_force_factor", facObstacle));
     }
-    else if (facObstacle > 30.0)
+    else if (facObstacle > 50.0)
     {
-      facObstacle = 30.0;
+      facObstacle = 50.0;
       this->set_parameter(rclcpp::Parameter(name + ".behavior.obstacle_force_factor", facObstacle));
     }
 
-    // ForceFactorSocial    [2.1, 20] - def: 2.1
+    // ForceFactorSocial    [5.0, 20] - def: 5.0
     double facSocial = this->declare_parameter<double>(name + ".behavior.social_force_factor", 5.0);  // 2.1
-    if (facSocial < 2.1)
+    if (facSocial < 5.0)
     {
-      facSocial = 2.1;
+      facSocial = 5.0;
       this->set_parameter(rclcpp::Parameter(name + ".behavior.social_force_factor", facSocial));
     }
     else if (facSocial > 20.0)
@@ -179,7 +179,7 @@ HunavLoader::HunavLoader() : Node("hunav_loader")
       // std::uniform_real_distribution<> dis_sff(2.1, 15.0);
       std::normal_distribution<> dis_sff{ 4.0, 3.5 };
       facSocial = dis_sff(gen);
-      facSocial = (facSocial < 2.0) ? 2.0 : facSocial;
+      facSocial = (facSocial < 3.0) ? 3.0 : facSocial;
       this->set_parameter(rclcpp::Parameter(name + ".behavior.social_force_factor", facSocial));  // def: 2.1
                                                                                                   // hunav: 5.0
       // this->set_parameter(rclcpp::Parameter(name + ".behavior.once", true));
@@ -239,10 +239,10 @@ HunavLoader::HunavLoader() : Node("hunav_loader")
       std::uniform_real_distribution<> dis_gff(2.0, 5.0);
       facGoal = dis_gff(gen);
       this->set_parameter(rclcpp::Parameter(name + ".behavior.goal_force_factor", facGoal));  // def: 2.0
-      std::uniform_real_distribution<> dis_off(8.0, 15.0);
+      std::uniform_real_distribution<> dis_off(2.0, 50.0);
       facObstacle = dis_off(gen);
       this->set_parameter(rclcpp::Parameter(name + ".behavior.obstacle_force_factor", facObstacle));  // def: 10.0
-      std::uniform_real_distribution<> dis_sff(2.1, 15.0);
+      std::uniform_real_distribution<> dis_sff(4.0, 20.0);
       facSocial = dis_sff(gen);
       this->set_parameter(rclcpp::Parameter(name + ".behavior.social_force_factor", facSocial));  // def: 2.1
                                                                                                   // hunav: 5.0

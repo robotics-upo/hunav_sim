@@ -10,7 +10,7 @@ AgentManager::AgentManager()
 {  //: initialized_(false), max_dist_view_(10.0) {
 
   init();
-  printf("[AgentManager.Constructor] AgentManager initialized \n");
+  //printf("[AgentManager.Constructor] AgentManager initialized \n");
 }
 
 AgentManager::~AgentManager()
@@ -29,7 +29,7 @@ void AgentManager::init()
   step_count2 = 1;
   move = false;
   // max_dist_view_squared_ = max_dist_view_ * max_dist_view_;
-  printf("[AgentManager.init] initialized \n");
+  //printf("[AgentManager.init] initialized \n");
 }
 
 float AgentManager::robotSquaredDistance(int id)
@@ -645,9 +645,9 @@ void AgentManager::computeForces(int id)
   }
   if (isnan(agents_[id].sfmAgent.forces.socialForce.norm()))
   {
-    printf(
-        "[AgentManager.ComputeForces] \tsocial force is nan. Using "
-        "zero.. \n");
+    // printf(
+    //     "[AgentManager.ComputeForces] \tsocial force is nan. Using "
+    //     "zero.. \n");
     agents_[id].sfmAgent.forces.socialForce.set(0, 0);
     compute = true;
   }
@@ -657,6 +657,16 @@ void AgentManager::computeForces(int id)
         agents_[id].sfmAgent.forces.desiredForce + agents_[id].sfmAgent.forces.socialForce +
         agents_[id].sfmAgent.forces.obstacleForce + agents_[id].sfmAgent.forces.groupForce;
   }
+  // if(id == 1)
+  // {
+  //   printf("[AgentManager.ComputeForces] \tForces. global:%.4f, goal:%.4f "
+  //          "soc:%.4f, "
+  //          "obs:%.4f \n",
+  //          agents_[id].sfmAgent.forces.globalForce.norm(),
+  //          agents_[id].sfmAgent.forces.desiredForce.norm(),
+  //          agents_[id].sfmAgent.forces.socialForce.norm(),
+  //          agents_[id].sfmAgent.forces.obstacleForce.norm());
+  // }
 }
 
 void AgentManager::computeForces()

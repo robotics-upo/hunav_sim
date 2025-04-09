@@ -45,7 +45,8 @@ public:
   void registerBTNodes();
 
 protected:
-  void initializeBehaviorTree(hunav_msgs::msg::Agents agents);
+  void initializeBehaviorTrees(const hunav_msgs::msg::Agents& agents);
+  void initializeBehaviorTree(const hunav_msgs::msg::Agent& agent);
   BT::NodeStatus tree_tick(double dt);
 
   BT::NodeStatus tree_tick(int id);

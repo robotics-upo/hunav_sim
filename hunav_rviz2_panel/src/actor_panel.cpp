@@ -1007,11 +1007,11 @@ void ActorPanel::checkComboBoxConf()
     beh_once->setEnabled(true);
     beh_once->setText("[true or false]");
     beh_gff->setEnabled(true);
-    beh_gff->setText("[2.0, 8.0]");
+    beh_gff->setText("[2.0, 5.0]");
     beh_off->setEnabled(true);
-    beh_off->setText("[2.0, 30.0]");
+    beh_off->setText("[2.0, 50.0]");
     beh_sff->setEnabled(true);
-    beh_sff->setText("[2.0, 20.0]");
+    beh_sff->setText("[5.0, 20.0]");
     beh_otherff->setEnabled(true);
     beh_otherff->setText("[0.0, 25.0]");
     beh_vel->setEnabled(true);
@@ -1036,7 +1036,7 @@ void ActorPanel::checkComboBoxConf()
     beh_off->setEnabled(false);
     std::normal_distribution<> dis_sff{ 4.0, 3.5 };
     double facSocial = dis_sff(gen);
-    facSocial = (facSocial < 0.5) ? 0.5 : facSocial;
+    facSocial = (facSocial < 3.0) ? 3.0 : facSocial;
     beh_sff->setText(QString::number(facSocial));
     beh_sff->setEnabled(false);
 
@@ -1104,19 +1104,19 @@ void ActorPanel::checkComboBoxConf()
     std::mt19937 gen(rd());
     std::uniform_real_distribution<> dis_gff(2.0, 5.0);
     double facGoal = dis_gff(gen);
-    facGoal = (facGoal < 0.5) ? 0.5 : facGoal;
+    facGoal = (facGoal < 2.0) ? 2.0 : facGoal;
     beh_gff->setText(QString::number(facGoal));
     beh_gff->setEnabled(false);
 
-    std::uniform_real_distribution<> dis_off(8.0, 15.0);
+    std::uniform_real_distribution<> dis_off(2.0, 50.0);
     double facObstacle = dis_off(gen);
-    facObstacle = (facObstacle < 0.5) ? 0.5 : facObstacle;
+    facObstacle = (facObstacle < 02.0) ? 2.0 : facObstacle;
     beh_off->setText(QString::number(facObstacle));
     beh_off->setEnabled(false);
 
-    std::uniform_real_distribution<> dis_sff(2.0, 15.0);
+    std::uniform_real_distribution<> dis_sff(4.0, 20.0);
     double facSocial = dis_sff(gen);
-    facSocial = (facSocial < 0.5) ? 0.5 : facSocial;
+    facSocial = (facSocial < 4.0) ? 4.0 : facSocial;
     beh_sff->setText(QString::number(facSocial));
     beh_sff->setEnabled(false);
 

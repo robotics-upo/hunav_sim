@@ -112,119 +112,127 @@ void BTnode::registerBTNodes()
   RCLCPP_INFO(this->get_logger(), "BT nodes registered");
 }
 
-void BTnode::initializeBehaviorTree(hunav_msgs::msg::Agents agents)
+
+void BTnode::initializeBehaviorTree(const hunav_msgs::msg::Agent& _agent)
+{
+  RCLCPP_INFO(this->get_logger(), "Initializing Behavior tree of Agent %s, id: %i, behavior: %i", _agent.name.c_str(),
+                _agent.id, (int)_agent.behavior.type);
+
+  // BT::Tree tree;
+  // RCLCPP_INFO(this->get_logger(), "Setting id: %i", agents.agents[i].id);
+  BT::Blackboard::Ptr blackboard = BT::Blackboard::create();
+  blackboard->set<int>("id", (int)_agent.id);
+  blackboard->set<double>("dt", 0.0);
+
+  // Check the agent behavior to create the proper behavior tree
+  switch (_agent.behavior.type)
+  {
+    case hunav_msgs::msg::AgentBehavior::BEH_REGULAR:
+      RCLCPP_INFO(this->get_logger(), "Loading BTRegularNav.xml tree");
+      trees_[_agent.id] =
+          factory_.createTreeFromFile(pkg_shared_tree_dir_ + "BTRegularNav.xml", blackboard);
+      break;
+
+    case hunav_msgs::msg::AgentBehavior::BEH_IMPASSIVE:
+      // we load the regularNav tree since the impassive behavior
+      // is taken into account in the ComputeForces method,
+      // by adding the robot to the agent's obstacles.
+      RCLCPP_INFO(this->get_logger(), "Loading BTRegularNav.xml tree (with impassive behavior)");
+      trees_[_agent.id] =
+          factory_.createTreeFromFile(pkg_shared_tree_dir_ + "BTRegularNav.xml", blackboard);
+      break;
+
+    case hunav_msgs::msg::AgentBehavior::BEH_SURPRISED:
+      blackboard->set<double>("dist", _agent.behavior.dist);
+      blackboard->set<double>("duration", _agent.behavior.duration);
+      blackboard->set<bool>("once", _agent.behavior.once);
+      RCLCPP_INFO(this->get_logger(), "Loading BTSurprisedNav.xml tree");
+      trees_[_agent.id] =
+          factory_.createTreeFromFile(pkg_shared_tree_dir_ + "BTSurprisedNav.xml", blackboard);
+      break;
+
+    case hunav_msgs::msg::AgentBehavior::BEH_SCARED:
+      blackboard->set<double>("duration", _agent.behavior.duration);
+      blackboard->set<bool>("once", _agent.behavior.once);
+      blackboard->set<double>("dist", _agent.behavior.dist);
+      blackboard->set<double>("maxvel", _agent.behavior.vel);
+      blackboard->set<double>("forcefactor", _agent.behavior.other_force_factor);
+      RCLCPP_INFO(this->get_logger(), "Loading BTScaredNav.xml tree");
+      try
+      {
+        trees_[(int)_agent.id] =
+            factory_.createTreeFromFile(pkg_shared_tree_dir_ + "BTScaredNav.xml", blackboard);
+      }
+      catch (const std::exception& e)
+      {
+        std::cerr << "EXCEPTION!!!: " << e.what() << '\n';
+      }
+
+      break;
+
+    case hunav_msgs::msg::AgentBehavior::BEH_CURIOUS:
+      blackboard->set<double>("duration", _agent.behavior.duration);
+      blackboard->set<bool>("once", _agent.behavior.once);
+      blackboard->set<double>("stopdist", _agent.behavior.dist);
+      blackboard->set<double>("maxvel", _agent.behavior.vel);
+      RCLCPP_INFO(this->get_logger(), "Loading BTCuriousNav.xml tree");
+      trees_[_agent.id] =
+          factory_.createTreeFromFile(pkg_shared_tree_dir_ + "BTCuriousNav.xml", blackboard);
+      break;
+
+    case hunav_msgs::msg::AgentBehavior::BEH_THREATENING:
+      blackboard->set<double>("duration", _agent.behavior.duration);
+      blackboard->set<bool>("once", _agent.behavior.once);
+      blackboard->set<double>("frontdist", _agent.behavior.dist);
+      RCLCPP_INFO(this->get_logger(), "Loading BTThreatening.xml tree");
+      trees_[_agent.id] =
+          factory_.createTreeFromFile(pkg_shared_tree_dir_ + "BTThreateningNav.xml", blackboard);
+      break;
+
+    default:
+      RCLCPP_WARN(this->get_logger(), "Behavior of agent %s not defined! Using regular behavior",
+                  _agent.name.c_str());
+      RCLCPP_INFO(this->get_logger(), "Loading default tree");
+      trees_[_agent.id] =
+          factory_.createTreeFromFile(pkg_shared_tree_dir_ + "BTRegularNav.xml", blackboard);
+  }
+  RCLCPP_INFO(this->get_logger(), "Behavior Tree for agent %s [id:%i] loaded!", _agent.name.c_str(),
+              _agent.id);
+
+  // Set the id of the agent
+  // tree_.rootBlackboard()->set<std::string>("id",
+  // std::to_string(agents.agents[i].id));
+  // tree_.rootBlackboard()->set<int>("id", agents.agents[i].id);
+
+  // // This logger prints state changes on console
+  BT::StdCoutLogger logger_cout(trees_[_agent.id]);
+  // // This logger saves state changes on file
+  // std::string filename = "bt_trace_" + std::to_string(agents.agents[i].id);
+  // BT::FileLogger logger_file(tree, (filename + ".fbl").c_str());
+  // // This logger stores the execution time of each node
+  // BT::MinitraceLogger logger_minitrace(tree, (filename + ".json").c_str());
+
+  // #ifdef ZMQ_FOUND
+  //  This logger publish status changes using ZeroMQ. Used by Groot
+  //  BT::PublisherZMQ publisher_zmq(tree);
+  // #endif
+
+  // root_->addChild(trees_[trees_.size() - 1].rootNode());
+  // BT::printTreeRecursively(root_.get());
+  BT::printTreeRecursively(trees_[_agent.id].rootNode());
+
+}
+
+
+void BTnode::initializeBehaviorTrees(const hunav_msgs::msg::Agents& _agents)
 {
   // root_ = std::make_unique<BT::ParallelNode>("root", 1, 1);
   // root_ = std::make_unique<BT::SequenceNode>("root");
-  RCLCPP_INFO(this->get_logger(), "Initializing Behavior Trees of %lu agents...", agents.agents.size());
+  RCLCPP_INFO(this->get_logger(), "Initializing Behavior Trees of %lu agents...", _agents.agents.size());
 
-  for (unsigned int i = 0; i < agents.agents.size(); i++)
+  for (auto a : _agents.agents)
   {
-    RCLCPP_INFO(this->get_logger(), "Agent %s, id: %i, behavior: %i", agents.agents[i].name.c_str(),
-                agents.agents[i].id, (int)agents.agents[i].behavior.type);
-
-    // BT::Tree tree;
-    // RCLCPP_INFO(this->get_logger(), "Setting id: %i", agents.agents[i].id);
-    BT::Blackboard::Ptr blackboard = BT::Blackboard::create();
-    blackboard->set<int>("id", (int)agents.agents[i].id);
-    blackboard->set<double>("dt", 0.0);
-
-    // Check the agent behavior to create the proper behavior tree
-    switch (agents.agents[i].behavior.type)
-    {
-      case hunav_msgs::msg::AgentBehavior::BEH_REGULAR:
-        RCLCPP_INFO(this->get_logger(), "Loading BTRegularNav.xml tree");
-        trees_[agents.agents[i].id] =
-            factory_.createTreeFromFile(pkg_shared_tree_dir_ + "BTRegularNav.xml", blackboard);
-        break;
-
-      case hunav_msgs::msg::AgentBehavior::BEH_IMPASSIVE:
-        // we load the regularNav tree since the impassive behavior
-        // is taken into account in the ComputeForces method,
-        // by adding the robot to the agent's obstacles.
-        RCLCPP_INFO(this->get_logger(), "Loading BTRegularNav.xml tree (with impassive behavior)");
-        trees_[agents.agents[i].id] =
-            factory_.createTreeFromFile(pkg_shared_tree_dir_ + "BTRegularNav.xml", blackboard);
-        break;
-
-      case hunav_msgs::msg::AgentBehavior::BEH_SURPRISED:
-        blackboard->set<double>("dist", agents.agents[i].behavior.dist);
-        blackboard->set<double>("duration", agents.agents[i].behavior.duration);
-        blackboard->set<bool>("once", agents.agents[i].behavior.once);
-        RCLCPP_INFO(this->get_logger(), "Loading BTSurprisedNav.xml tree");
-        trees_[agents.agents[i].id] =
-            factory_.createTreeFromFile(pkg_shared_tree_dir_ + "BTSurprisedNav.xml", blackboard);
-        break;
-
-      case hunav_msgs::msg::AgentBehavior::BEH_SCARED:
-        blackboard->set<double>("duration", agents.agents[i].behavior.duration);
-        blackboard->set<bool>("once", agents.agents[i].behavior.once);
-        blackboard->set<double>("dist", agents.agents[i].behavior.dist);
-        blackboard->set<double>("maxvel", agents.agents[i].behavior.vel);
-        blackboard->set<double>("forcefactor", agents.agents[i].behavior.other_force_factor);
-        RCLCPP_INFO(this->get_logger(), "Loading BTScaredNav.xml tree");
-        try
-        {
-          trees_[(int)agents.agents[i].id] =
-              factory_.createTreeFromFile(pkg_shared_tree_dir_ + "BTScaredNav.xml", blackboard);
-        }
-        catch (const std::exception& e)
-        {
-          std::cerr << "EXCEPTION!!!: " << e.what() << '\n';
-        }
-
-        break;
-
-      case hunav_msgs::msg::AgentBehavior::BEH_CURIOUS:
-        blackboard->set<double>("duration", agents.agents[i].behavior.duration);
-        blackboard->set<bool>("once", agents.agents[i].behavior.once);
-        blackboard->set<double>("stopdist", agents.agents[i].behavior.dist);
-        blackboard->set<double>("maxvel", agents.agents[i].behavior.vel);
-        RCLCPP_INFO(this->get_logger(), "Loading BTCuriousNav.xml tree");
-        trees_[agents.agents[i].id] =
-            factory_.createTreeFromFile(pkg_shared_tree_dir_ + "BTCuriousNav.xml", blackboard);
-        break;
-
-      case hunav_msgs::msg::AgentBehavior::BEH_THREATENING:
-        blackboard->set<double>("duration", agents.agents[i].behavior.duration);
-        blackboard->set<bool>("once", agents.agents[i].behavior.once);
-        blackboard->set<double>("frontdist", agents.agents[i].behavior.dist);
-        RCLCPP_INFO(this->get_logger(), "Loading BTThreatening.xml tree");
-        trees_[agents.agents[i].id] =
-            factory_.createTreeFromFile(pkg_shared_tree_dir_ + "BTThreateningNav.xml", blackboard);
-        break;
-
-      default:
-        RCLCPP_WARN(this->get_logger(), "Behavior of agent %s not defined! Using regular behavior",
-                    agents.agents[i].name.c_str());
-        RCLCPP_INFO(this->get_logger(), "Loading default tree");
-        trees_[agents.agents[i].id] =
-            factory_.createTreeFromFile(pkg_shared_tree_dir_ + "BTRegularNav.xml", blackboard);
-    }
-    RCLCPP_INFO(this->get_logger(), "Behavior Tree for agent %s [id:%i] loaded!", agents.agents[i].name.c_str(),
-                agents.agents[i].id);
-
-    // Set the id of the agent
-    // tree_.rootBlackboard()->set<std::string>("id",
-    // std::to_string(agents.agents[i].id));
-    // tree_.rootBlackboard()->set<int>("id", agents.agents[i].id);
-
-    // // This logger prints state changes on console
-    BT::StdCoutLogger logger_cout(trees_[agents.agents[i].id]);
-    // // This logger saves state changes on file
-    // std::string filename = "bt_trace_" + std::to_string(agents.agents[i].id);
-    // BT::FileLogger logger_file(tree, (filename + ".fbl").c_str());
-    // // This logger stores the execution time of each node
-    // BT::MinitraceLogger logger_minitrace(tree, (filename + ".json").c_str());
-
-    // #ifdef ZMQ_FOUND
-    //  This logger publish status changes using ZeroMQ. Used by Groot
-    //  BT::PublisherZMQ publisher_zmq(tree);
-    // #endif
-
-    // root_->addChild(trees_[trees_.size() - 1].rootNode());
-    // BT::printTreeRecursively(root_.get());
-    BT::printTreeRecursively(trees_[agents.agents[i].id].rootNode());
+    initializeBehaviorTree(a);
   }
   // This logger prints state changes on console
   // BT::StdCoutLogger logger_cout(root_.get());
@@ -276,8 +284,6 @@ void BTnode::computeAgentsService(const std::shared_ptr<hunav_msgs::srv::Compute
   // Update the internal agent states with the
   // received data from the simulator
   btfunc_.updateAllAgents(ro, ag);
-  // RCLCPP_INFO(this->get_logger(), "Sleeping while updating agents...");
-  // sleep(2);
 
   if (!initialized_)
   {
@@ -286,7 +292,7 @@ void BTnode::computeAgentsService(const std::shared_ptr<hunav_msgs::srv::Compute
                 ro->position.position.y, ro->yaw);
     RCLCPP_INFO(this->get_logger(), "Agents received: %li", ag->agents.size());
 
-    initializeBehaviorTree(request->current_agents);
+    initializeBehaviorTrees(request->current_agents);
     response->updated_agents = btfunc_.getUpdatedAgents();
     prev_time_ = rclcpp::Time(ag->header.stamp);
     initialized_ = true;
@@ -310,15 +316,6 @@ void BTnode::computeAgentsService(const std::shared_ptr<hunav_msgs::srv::Compute
   if (time_step_secs < 0.0)
     time_step_secs = 0.0;  // 0.05
 
-  // RCLCPP_INFO(this->get_logger(), "BTNode. Time step computed: %.4f",
-  //            time_step_secs);
-
-  // Call the ticks of the behavior trees (they must update the
-  // sfm_agents_)
-
-  // if (time_step_secs > 0.008) {
-  // Call the ticks of the behavior trees (they must update the
-  // sfm_agents_)
   BT::NodeStatus status = tree_tick(time_step_secs);
   prev_time_ = rclcpp::Time(ag->header.stamp);
   //}
@@ -346,7 +343,7 @@ void BTnode::moveAgentService(const std::shared_ptr<hunav_msgs::srv::MoveAgent::
 
   // Update the internal agent states with the
   // received data from the simulator
-  RCLCPP_INFO(this->get_logger(), "Service call received agent id %i", request->agent_id);
+  //RCLCPP_INFO(this->get_logger(), "Service call received agent id %i", request->agent_id);
   btfunc_.updateAllAgents(ro, ag);
   // RCLCPP_INFO(this->get_logger(), "Agents updated!");
 
@@ -357,7 +354,7 @@ void BTnode::moveAgentService(const std::shared_ptr<hunav_msgs::srv::MoveAgent::
                 ro->position.position.y, ro->yaw);
     RCLCPP_INFO(this->get_logger(), "Agents received: %li", ag->agents.size());
 
-    initializeBehaviorTree(request->current_agents);
+    initializeBehaviorTrees(request->current_agents);
     response->updated_agent = btfunc_.getUpdatedAgent(request->agent_id);
     prev_time_ = rclcpp::Time(ag->header.stamp);
     initialized_ = true;

@@ -10,7 +10,7 @@ BTfunctions::BTfunctions()
   // AgentManager::agents_.clear();
   // AgentManager::sfm_agents_.clear();
   init();
-  printf("[BTfunctions.Constructor] initialized!\n");
+  //printf("[BTfunctions.Constructor] initialized!\n");
 }
 
 BTfunctions::~BTfunctions()
@@ -19,7 +19,7 @@ BTfunctions::~BTfunctions()
 
 void BTfunctions::init()
 {
-  printf("[BTfunctions.init] initialized!\n");
+  //printf("[BTfunctions.init] initialized!\n");
   // agent_manager_.init();
 }
 
