@@ -32,9 +32,10 @@ Bibtex:
 A pre-print version of the accepted paper is available [here](https://arxiv.org/abs/2305.01303). 
 
 
-## Docker
+## Container system
 
-If you want to try HuNavSim through a Docker container, please clone the following repo and follow the instructions: https://github.com/robotics-upo/docker_hunavsim_pmb2
+It is recommended to use the system through containers what ease the deployment of HuNavSim.
+If you want to try HuNavSim through Docker containers, please go to the following repo and follow the instruccions indicated there for installation: https://github.com/robotics-upo/hunavsim_containers
 
 
 ## Dependencies
@@ -52,7 +53,13 @@ If you want to try HuNavSim through a Docker container, please clone the followi
 
 * A core of human navigation behaviors which is independent of any simulator. The core can be used in different simulators by means of a wrapper.
 
-* A wrapper for Gazebo Simulator (tested in Gazebo 11) is provided here: https://github.com/robotics-upo/hunav_gazebo_wrapper
+* The HuNavSim can be use with 3 different robotics simulators:
+
+  - A wrapper for Gazebo Classic v11 is provided here: https://github.com/robotics-upo/hunav_gazebo_wrapper
+
+  - A wrapper for Gazebo Fortress is provided here: https://github.com/robotics-upo/hunav_gazebo_fortress_wrapper
+
+  - A wrapper for Isaac Sim is provided here: https://github.com/robotics-upo/Hunav_isaac_wrapper
 
 * The simulator core is programmed under the new ROS2 framework (tested in Humble distro).
 
@@ -75,7 +82,7 @@ If you want to try HuNavSim through a Docker container, please clone the followi
 
 ## Steps to use HuNavSim with a robotic simulator
 
-The navigation behavior of the human agents spawned in a regular physics simulator can be controlled by HuNavSim. Therefore, HuNavSim can be "connected" to a popular simulators used in Robotics like Gazebo, Webots, Morse or Unity.
+The navigation behavior of the human agents spawned in a regular physics simulator can be controlled by HuNavSim. Therefore, HuNavSim can be "connected" to a popular simulators used in Robotics like Gazebo, Webots or Isaac Sim.
 
 To do so, we must programme a ROS2 wrapper of the particular simulator. At each simulation step, the wrapper must collect the current state of the human agents and the robot (positions and velocities), and send them to HuNavSim. The HuNavSim controller will compute and return the next state of the agents. Finally, the wrapper must update the agents' state in the simulation.
 
