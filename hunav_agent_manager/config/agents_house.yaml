@@ -3,10 +3,12 @@ hunav_loader:
     map: small_house
     publish_people: true
     agents:
-      - Francis
-      - John
-      - Jesus
-    Francis:
+      - agent1
+      - agent2
+      - agent7
+      - agent4
+      - agent5
+    agent1:
       id: 1
       skin: 0
       group_id: -1
@@ -24,34 +26,29 @@ hunav_loader:
         social_force_factor: 5.0
         other_force_factor: 20.0
       init_pose:
-        x: 0.3828
-        y: 1.7832
-        z: 1.250000
-        h: 0.0
+        x: 1.452
+        y: 3.467
+        z: 0.0
+        h: 1.250000
       goal_radius: 0.3
       cyclic_goals: true
       goals:
         - g0
         - g1
         - g2
-        - g3
       g0:
-        x: 3.2767
-        y: 0.3750
+        x: 1.150
+        y: 0.980
         h: 1.250000
       g1:
-        x: 5.5734
-        y: -2.9159
+        x: 5.03
+        y: -1.71
         h: 1.250000
       g2:
-        x: 3.2767
-        y: 0.3750
+        x: 4.17
+        y: -3.05
         h: 1.250000
-      g3:
-        x: 0.3828
-        y: 1.7832
-        h: 1.250000
-    John:
+    agent2:
       id: 2
       skin: 4
       group_id: -1
@@ -69,44 +66,29 @@ hunav_loader:
         social_force_factor: 5.0
         other_force_factor: 20.0
       init_pose:
-        x: 6.93216
-        y: -1.3903
-        z: 1.250000
-        h: 0.0
+        x: 2.933737
+        y: -3.760854721069336
+        z: 0.0
+        h: 1.25
       goal_radius: 0.3
       cyclic_goals: true
       goals:
         - g0
         - g1
         - g2
-        - g3
-        - g4
-        - g5
       g0:
-        x: 3.1124
-        y: -3.8835
+        x: 5.9688920974731445
+        y: -2.6787490844726562
         h: 1.250000
       g1:
-        x: -1.4936
-        y: -4.0631
+        x: 0.8091512322425842
+        y: 1.1181720495224
         h: 1.250000
       g2:
-        x: -1.8306
-        y: -1.6598
+        x: -2.5563764572143555
+        y: -1.0830262899398804
         h: 1.250000
-      g3:
-        x: -1.4936
-        y: -4.0631
-        h: 1.250000
-      g4:
-        x: 3.1124
-        y: -3.8835
-        h: 1.250000
-      g5:
-        x: 6.93216
-        y: -1.3903
-        h: 1.250000
-    Jesus:
+    agent7:
       id: 3
       skin: 3
       group_id: -1
@@ -124,8 +106,88 @@ hunav_loader:
         social_force_factor: 5.0
         other_force_factor: 20.0
       init_pose:
-        x: -7.7623
-        y: -2.7828
+        x: -2.3611209392547607
+        y: -1.0479099750518799
+        z: 0.0
+        h: 1.25
+      goal_radius: 0.3
+      cyclic_goals: true
+      goals:
+        - g0
+        - g1
+        - g2
+      g0:
+        x: -4.864727973937988
+        y: -3.6727828979492188
+        h: 1.250000
+      g1:
+        x: -7.917893409729004
+        y: -2.818157911300659
+        h: 1.250000
+      g2:
+        x: -8.655570030212402
+        y: -2.7183213233947754
+        h: 1.250000
+    agent4:
+      id: 4
+      skin: 2
+      group_id: -1
+      max_vel: 1.5
+      radius: 0.4
+      behavior: 
+        type: 2 # REGULAR=1, IMPASSIVE=2, SURPRISED=3, SCARED=4, CURIOUS=5, THREATENING=6
+        configuration: 2   # def: 0, custom:1, random_normal:2, random_uniform:3
+        duration: 40.0  # seg
+        once: true
+        vel: 0.6
+        dist: 0.0
+        goal_force_factor: 2.0
+        obstacle_force_factor: 10.0
+        social_force_factor: 5.0
+        other_force_factor: 20.0
+      init_pose:
+        x: -7.854982852935791
+        y: -0.11368653923273087
+        z: 0.0
+        h: 1.250000
+      goal_radius: 0.3
+      cyclic_goals: true
+      goals:
+        - g0
+        - g1
+        - g2
+      g0:
+        x: -4.109762668609619
+        y: -0.011960649862885475
+        h: 1.250000
+      g1:
+        x: -1.7079464197158813
+        y: -2.7385916709899902
+        h: 1.250000
+      g2:
+        x: 0.5717478394508362
+        y: -4.081562519073486
+        h: 1.250000
+    agent5:
+      id: 5
+      skin: 1
+      group_id: -1
+      max_vel: 1.5
+      radius: 0.4
+      behavior: 
+        type: 1 # REGULAR=1, IMPASSIVE=2, SURPRISED=3, SCARED=4, CURIOUS=5, THREATENING=6
+        configuration: 3   # def: 0, custom:1, random_normal:2, random_uniform:3
+        duration: 40.0  # seg
+        once: true
+        vel: 0.6
+        dist: 0.0
+        goal_force_factor: 2.0
+        obstacle_force_factor: 10.0
+        social_force_factor: 5.0
+        other_force_factor: 20.0
+      init_pose:
+        x: 7.3533830642700195
+        y: -3.4841134548187256
         z: 1.250000
         h: 0.0
       goal_radius: 0.3
@@ -134,30 +196,15 @@ hunav_loader:
         - g0
         - g1
         - g2
-        - g3
-        - g4
-        - g5
       g0:
-        x: -3.6506
-        y: -2.6256
+        x: 4.51926851272583
+        y: -1.7739657163619995
         h: 1.250000
       g1:
-        x: -1.4486
-        y: -0.0875
-        h: 1.250000
+        x: 1.5064270496368408
+        y: 0.497720867395401
+        h: -0.001434326171875
       g2:
-        x: -0.5499
-        y: 2.3607
-        h: 1.250000
-      g3:
-        x: -1.4486
-        y: -0.0875
-        h: 1.250000
-      g4:
-        x: -3.6506
-        y: -2.6256
-        h: 1.250000
-      g5:
-        x: -7.7623
-        y: -2.7828
+        x: -0.9957631230354309
+        y: 2.4631121158599854
         h: 1.250000
