@@ -1,4 +1,5 @@
-<root main_tree_to_execute = "RegularNavTree">
+<?xml version='1.0' encoding='UTF-8'?>
+<root main_tree_to_execute="RegularNavTree" BTCPP_format="4">
 
     <TreeNodesModel>
         <Action ID="RegularNav">
