@@ -1,6 +1,7 @@
 #include "hunav_agent_manager/agent_manager.hpp"
 
 #include "rclcpp/rclcpp.hpp"
+#include "std_msgs/msg/string.hpp"
 #include <ament_index_cpp/get_package_prefix.hpp>
 #include <ament_index_cpp/get_package_share_directory.hpp>
 
@@ -28,6 +29,8 @@
 #include <lightsfm/sfm.hpp>
 
 namespace hunav {
+
+  extern AgentManager* g_agent_manager;
 
 class BTfunctions {
 public:
@@ -83,6 +86,24 @@ public:
   // to the agent's obstacles. So we do not need to
   // implement the method.
   // BT::NodeStatus impassiveNav(BT::TreeNode &self);
+
+  BT::NodeStatus findNearestAgent(BT::TreeNode& self);
+  BT::NodeStatus agentVisible(BT::TreeNode& self);
+  BT::NodeStatus saySomething(BT::TreeNode& self);
+  BT::NodeStatus lookAtAgent(BT::TreeNode& self);
+  BT::NodeStatus lookAtRobot(BT::TreeNode& self);
+  BT::NodeStatus lookAtPoint(BT::TreeNode& self);
+  BT::NodeStatus isRobotClose(BT::TreeNode& self);
+  BT::NodeStatus isAgentClose(BT::TreeNode & self);
+  BT::NodeStatus robotFacingAgent(BT::TreeNode & self);
+  BT::NodeStatus randomChance(BT::TreeNode& self);
+  BT::NodeStatus setGoal(BT::TreeNode & self);
+  BT::NodeStatus setGroupId(BT::TreeNode & self);
+  BT::NodeStatus isAtPosition(BT::TreeNode& self);
+  BT::NodeStatus blockRobot(BT::TreeNode & self);
+  BT::NodeStatus blockAgent(BT::TreeNode & self);
+  BT::NodeStatus resumeMovement(BT::TreeNode& self);
+  BT::NodeStatus stopMovement(BT::TreeNode& self);
 
 private:
   AgentManager agent_manager_;

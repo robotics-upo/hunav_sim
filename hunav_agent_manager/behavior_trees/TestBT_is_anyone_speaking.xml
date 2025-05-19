@@ -1,0 +1,51 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<root main_tree_to_execute="RegularNavTree" BTCPP_format="4">
+
+    <TreeNodesModel>
+        <Action ID="RegularNav">
+            <input_port name="agent_id" type="int">identifier of the agent</input_port>
+            <input_port name="time_step" type="double">time step in seconds to compute movement</input_port>
+        </Action>
+        <Action ID="UpdateGoal">
+            <input_port name="agent_id" type="int">identifier of the agent</input_port>
+        </Action>
+        <Condition ID="IsGoalReached">
+            <input_port name="agent_id" type="int">identifier of the agent</input_port>
+        </Condition>
+        <Condition ID="IsAnyoneSpeaking">
+            <input_port name="agent_id" type="int">1</input_port>
+            <input_port name="distance_threshold" type="double" default="5.0"/>
+            <input_port name="duration" type="double" default="5.0"/>
+            <output_port name="speaker_id" type="int"/>
+        </Condition>
+            <Action ID="ApproachAgent">
+            <input_port name="agent_id" type="int"/>
+            <input_port name="time_step" type="double"/>
+            <input_port name="target_agent_id" type="int"/>
+            <input_port name="duration" type="double"/>
+        </Action>
+    </TreeNodesModel>
+
+    <BehaviorTree ID="RegularNavTree">
+        <Fallback name="RegularNavFallback">
+
+            <Sequence>
+                <RunOnce> 
+                    <IsAnyoneSpeaking agent_id="{id}" time_step="{dt}" distance_threshold="50" duration="30" speaker_id="{speaker_id}"/>
+                </RunOnce>
+                <RunOnce> 
+                    <ApproachAgent agent_id="{id}" time_step="{dt}" target_agent_id="{speaker_id}"/>
+                </RunOnce>
+            </Sequence>
+
+            <Sequence name="RegularNavigation">
+                <Inverter>
+                    <IsGoalReached agent_id="{id}" />
+                </Inverter>
+                <RegularNav agent_id="{id}" time_step="{dt}" />
+            </Sequence>
+            <UpdateGoal agent_id="{id}" />
+        </Fallback>
+    </BehaviorTree>
+
+</root>

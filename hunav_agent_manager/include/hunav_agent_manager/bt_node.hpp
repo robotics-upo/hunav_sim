@@ -19,6 +19,22 @@
 #include "hunav_msgs/srv/reset_agents.hpp"
 
 #include "hunav_agent_manager/time_expired_condition.hpp"
+#include "hunav_agent_manager/stop_and_wait_timer_action_node.hpp"
+#include "hunav_agent_manager/conversation_formation_node.hpp"
+#include "hunav_agent_manager/go_to_node.hpp"
+#include "hunav_agent_manager/approach_agent_node.hpp"
+#include "hunav_agent_manager/follow_agent_node.hpp"
+#include "hunav_agent_manager/approach_robot_node.hpp"
+#include "hunav_agent_manager/block_robot_node.hpp"
+#include "hunav_agent_manager/block_agent_node.hpp"
+#include "hunav_agent_manager/time_delay_decorator.hpp"
+#include "hunav_agent_manager/group_walk_node.hpp"
+#include "hunav_agent_manager/is_anyone_speaking_node.hpp"
+#include "hunav_agent_manager/is_speaking_node.hpp"
+#include "hunav_agent_manager/is_anyone_looking_at_me_node.hpp"
+#include "hunav_agent_manager/is_looking_at_me_node.hpp"
+
+
 //#include "nav2_behavior_tree/plugins/condition/time_expired_condition.hpp"
 
 #include <functional>

@@ -1,0 +1,68 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<root main_tree_to_execute="RegularNavTree" BTCPP_format="4">
+
+    <TreeNodesModel>
+        <Action ID="RegularNav">
+            <input_port name="agent_id" type="int">identifier of the agent</input_port>
+            <input_port name="time_step" type="double">time step in seconds to compute movement</input_port>
+        </Action>
+        <Action ID="UpdateGoal">
+            <input_port name="agent_id" type="int">identifier of the agent</input_port>
+        </Action>
+        <Condition ID="IsGoalReached">
+            <input_port name="agent_id" type="int">identifier of the agent</input_port>
+        </Condition>
+        <Condition ID="IsAnyoneSpeaking">
+            <input_port name="agent_id" type="int">1</input_port>
+            <input_port name="distance_threshold" type="double" default="5.0"/>
+            <input_port name="duration" type="double" default="5.0"/>
+            <output_port name="speaker_id" type="int"/>
+        </Condition>
+        <Action ID="FollowAgent">
+            <input_port name="agent_id" type="int"/>
+            <input_port name="time_step" type="double"/>
+            <input_port name="target_agent_id" type="int"/>
+            <input_port name="duration" type="double"/>
+        </Action>
+        <Condition ID="IsAnyoneLookingAtMe">
+            <input_port name="agent_id" type="int">1</input_port>
+            <input_port name="time_step" type="double"/>
+            <input_port name="distance_threshold" type="double" default="5.0"/>
+            <input_port name="angle_threshold" type="double" default="0.2"/>
+            <input_port name="duration" type="double" default="5.0"/>
+            <output_port name="observer_id" type="int"/>
+        </Condition>
+        <Condition ID="IsLookingAtMe">
+            <input_port name="agent_id" type="int">1</input_port>
+            <input_port name="time_step" type="double"/>
+            <input_port name="target_id" type="int">2</input_port>
+            <input_port name="distance_threshold" type="double" />
+            <input_port name="angle_threshold" type="double"/>
+            <input_port name="duration" type="double"/>
+        </Condition>
+    </TreeNodesModel>
+
+    <BehaviorTree ID="RegularNavTree">
+        <Fallback name="RegularNavFallback">
+
+            <Sequence>
+                <RunOnce>
+                    <IsAnyoneLookingAtMe agent_id="{id}" time_step="{dt}" duration="40" observer_id="{observer_id}"/>
+                    <!-- <IsLookingAtMe agent_id="{id}" target_id="{target_id}" distance_threshold="{threshold}" angle_threshold="{angle_threshold}" duration="{duration}" target_id_out="{target_id_out}"/> -->
+                </RunOnce>
+                <RunOnce>
+                    <FollowAgent agent_id="{id}" time_step="{dt}" target_agent_id="{observer_id}"/>
+                </RunOnce>
+            </Sequence>
+
+            <Sequence name="RegularNavigation">
+                <Inverter>
+                    <IsGoalReached agent_id="{id}" />
+                </Inverter>
+                <RegularNav agent_id="{id}" time_step="{dt}" />
+            </Sequence>
+            <UpdateGoal agent_id="{id}" />
+        </Fallback>
+    </BehaviorTree>
+
+</root>

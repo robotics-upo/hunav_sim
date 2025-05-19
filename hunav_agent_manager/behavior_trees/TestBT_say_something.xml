@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root main_tree_to_execute="SocialNavTree" BTCPP_format="4">
+
+  <TreeNodesModel>
+
+    <Action ID="RegularNav">
+      <input_port name="agent_id" type="int">identifier of the agent</input_port>
+      <input_port name="time_step" type="double">time step in seconds for movement</input_port>
+    </Action>
+    <Action ID="UpdateGoal">
+      <input_port name="agent_id" type="int">identifier of the agent</input_port>
+    </Action>
+    <Condition ID="IsGoalReached">
+      <input_port name="agent_id" type="int">identifier of the agent</input_port>
+    </Condition>
+    
+    <Condition ID="RandomChanceCondition">
+      <input_port name="probability" type="double">0.3</input_port>
+    </Condition>
+    <Condition ID="IsRobotFacingAgent">
+      <input_port name="agent_id" type="int">identifier of the agent</input_port>
+    </Condition>
+    <Action ID="StopAndWaitTimerAction">
+      <input_port name="agent_id" type="int">identifier of the agent</input_port>
+      <input_port name="time_duration" type="double">3.0</input_port>
+    </Action>
+    <Action ID="LookAtRobot">
+      <input_port name="agent_id" type="int">identifier of the agent</input_port>
+    </Action>
+    <Action ID="SaySomething">
+      <input_port name="agent_id" type="int">1</input_port>
+      <input_port name="message" type="std::string">Hello everyone!</input_port>
+    </Action>
+      <Condition ID="TimeExpiredCondition">
+      <input_port name="seconds" type="double">duration of the timer in seconds</input_port>
+      <input_port name="ts" type="double">time step to be accumulated</input_port>
+      <input_port name="only_once" type="bool">boolean to indicate if the timer must be reset at the end or not</input_port>
+    </Condition>
+    <Condition ID="IsAnyoneSpeaking">
+      <input_port name="agent_id" type="int">1</input_port>
+      <input_port name="distance_threshold" type="double" default="5.0"/>
+      <input_port name="duration" type="double" default="5.0"/>
+      <output_port name="speaker_id" type="int"/>
+    </Condition>
+    
+  </TreeNodesModel>
+
+  <BehaviorTree ID="SocialNavTree">
+    <Fallback name="SocialNavFallback">
+      <Sequence name="SaySequence">
+
+        <TimeDelay delay="15.0">
+          <Inverter>
+            <RunOnce> 
+              <SaySomething agent_id="{id}" message="I am here!" />
+            </RunOnce>
+          </Inverter>
+        </TimeDelay>
+        
+      </Sequence>
+      <Sequence name="RegularNavigation">
+        <Inverter>
+          <IsGoalReached agent_id="{id}" />
+        </Inverter>
+        <RegularNav agent_id="{id}" time_step="{dt}" />
+      </Sequence>
+      <UpdateGoal agent_id="{id}" />
+    </Fallback>
+  </BehaviorTree>
+
+</root>

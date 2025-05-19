@@ -1,0 +1,231 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root main_tree_to_execute="DemoTree" BTCPP_format="4">
+  <TreeNodesModel>
+    <!-- Conditions -->
+
+    <!-- Old nodes -->
+  <Condition ID="IsGoalReached">
+    <input_port name="agent_id" type="int">1</input_port>
+  </Condition>
+  <Condition ID="IsRobotVisible">
+    <input_port name="agent_id" type="int">2</input_port>
+    <input_port name="distance" type="double" default="5.0"/>
+  </Condition>
+
+  <!-- New nodes -->
+  <Condition ID="RandomChanceCondition">
+    <input_port name="agent_id" type="int">1</input_port>
+    <input_port name="probability" type="double" default="0.3"/>
+  </Condition>
+  <Condition ID="IsRobotFacingAgent">
+    <input_port name="agent_id" type="int">1</input_port>
+  </Condition>
+  <Condition ID="IsAgentVisible">
+    <input_port name="observer_id" type="int">1</input_port>
+    <input_port name="agent_id" type="int">2</input_port>
+    <input_port name="distance" type="double" default="5.0"/>
+    <input_port name="field_of_view" type="double"/>
+  </Condition>
+  <Condition ID="IsRobotClose">
+    <input_port name="agent_id" type="int">1</input_port>
+    <input_port name="threshold" type="double" default="1.0"/>
+  </Condition>
+  <Condition ID="IsAtPosition">
+    <input_port name="agent_id" type="int">1</input_port>
+    <input_port name="target_x" type="double" default="1.0"/>
+    <input_port name="target_y" type="double" default="1.0"/>
+    <input_port name="tolerance" type="double" default="0.1"/>
+  </Condition>
+  <Condition ID="IsAgentClose">
+    <input_port name="observer_id" type="int">1</input_port>
+    <input_port name="target_agent_id" type="int">2</input_port>
+    <input_port name="threshold" type="double" default="1.0"/>
+  </Condition>
+
+  <!-- Actions (Simple Actions) -->
+
+  <!-- Old nodes -->
+  <Action ID="UpdateGoal">
+    <input_port name="agent_id" type="int">1</input_port>
+  </Action>
+  <Action ID="RegularNav">
+    <input_port name="agent_id" type="int">1</input_port>
+    <input_port name="time_step" type="double" default="0.1"/>
+  </Action>
+  <Action ID="SurprisedNav">
+    <input_port name="agent_id" type="int">1</input_port>
+    <input_port name="time_step" type="double" default="0.1"/>
+    <input_port name="beh_duration" type="double" default="5.0"/>
+    <input_port name="only_once" type="bool" default="true"/>
+  </Action>
+  <Action ID="CuriousNav">
+    <input_port name="agent_id" type="int">1</input_port>
+    <input_port name="time_step" type="double" default="0.1"/>
+    <input_port name="beh_duration" type="double" default="5.0"/>
+    <input_port name="only_once" type="bool" default="true"/>
+    <input_port name="agent_vel" type="double" default="1.0"/>
+    <input_port name="stop_distance" type="double" default="0.5"/>
+  </Action>
+  <Action ID="ScaredNav">
+    <input_port name="agent_id" type="int">1</input_port>
+    <input_port name="time_step" type="double" default="0.1"/>
+    <input_port name="beh_duration" type="double" default="5.0"/>
+    <input_port name="only_once" type="bool" default="true"/>
+    <input_port name="runaway_vel" type="double" default="1.5"/>
+    <input_port name="scary_force_factor" type="double" default="1.0"/>
+  </Action>
+  <Action ID="ThreateningNav">
+    <input_port name="agent_id" type="int">1</input_port>
+    <input_port name="time_step" type="double" default="0.1"/>
+    <input_port name="beh_duration" type="double" default="5.0"/>
+    <input_port name="only_once" type="bool" default="true"/>
+    <input_port name="goal_dist" type="double" default="1.0"/>
+  </Action>
+
+  <!-- New nodes -->
+  <Action ID="FindNearestAgent">
+    <input_port name="agent_id" type="int">1</input_port>
+    <output_port name="target_agent_id" type="int"/>
+  </Action>
+  <Action ID="SaySomething">
+    <input_port name="agent_id" type="int">1</input_port>
+    <input_port name="message" type="std::string">Hello, I am here!</input_port>
+  </Action>
+  <Action ID="LookAtAgent">
+    <input_port name="observer_id" type="int">1</input_port>
+    <input_port name="target_id" type="int">2</input_port>
+  </Action>
+  <Action ID="LookAtRobot">
+    <input_port name="agent_id" type="int">1</input_port>
+  </Action>
+  <Action ID="LookAtPoint">
+    <input_port name="agent_id" type="int">1</input_port>
+    <input_port name="target_x" type="double" default="1.0"/>
+    <input_port name="target_y" type="double" default="1.0"/>
+  </Action>
+  <Action ID="SetGroupId">
+    <input_port name="agent_id" type="int">1</input_port>
+    <input_port name="group_id" type="int">5</input_port>
+  </Action>
+  <Action ID="SetGoal">
+    <input_port name="agent_id" type="int">1</input_port>
+    <input_port name="target_x" type="double" default="1.0"/>
+    <input_port name="target_y" type="double" default="1.0"/>
+  </Action>
+  <Action ID="StopMovement">
+    <input_port name="agent_id" type="int">1</input_port>
+  </Action>
+  <Action ID="ResumeMovement">
+    <input_port name="agent_id" type="int">1</input_port>
+  </Action>
+
+  <!-- Stateful Action Nodes -->
+  <Action ID="StopAndWaitTimerAction">
+    <input_port name="agent_id" type="int">identifier of the agent</input_port>
+    <input_port name="wait_duration" type="double">3.0</input_port>
+  </Action>
+
+  <Action ID="ConversationFormation">
+    <input_port name="main_agent_id" type="int">1</input_port>
+    <input_port name="conversation_duration" type="double" default="10.0"/>
+    <input_port name="center_x" type="double" default="5.0"/>
+    <input_port name="center_y" type="double" default="5.0"/>
+    <input_port name="time_step" type="double" default="0.1"/>
+    <input_port name="non_main_agent_ids" type="std::string"/>
+  </Action>
+  <Action ID="GoTo">
+    <input_port name="agent_id" type="int">1</input_port>
+    <input_port name="target_x" type="double" default="1.0"/>
+    <input_port name="target_y" type="double" default="1.0"/>
+  </Action>
+  <Action ID="ApproachAgent">
+    <input_port name="agent_id" type="int">1</input_port>
+    <input_port name="target_agent_id" type="int">2</input_port>
+    <input_port name="time_step" type="double" default="0.1"/>
+    <input_port name="closest_dist" type="double" default="0.5"/>
+    <input_port name="max_vel" type="double" default="1.0"/>
+    <input_port name="duration" type="double" default="5.0"/>
+  </Action>
+  <Action ID="ApproachRobot">
+    <input_port name="agent_id" type="int">1</input_port>
+    <input_port name="time_step" type="double" default="0.1"/>
+    <input_port name="closest_dist" type="double" default="1.5"/>
+    <input_port name="max_vel" type="double" default="1.8"/>
+    <input_port name="duration" type="double" default="5.0"/>
+  </Action>
+  <Action ID="BlockRobot">
+    <input_port name="agent_id" type="int">1</input_port>
+    <input_port name="time_step" type="double" default="0.1"/>
+    <input_port name="front_dist" type="double" default="1.0"/>
+    <input_port name="duration" type="double" default="5.0"/>
+  </Action>
+  <Action ID="BlockAgent">
+    <input_port name="agent_id" type="int">1</input_port>
+    <input_port name="target_agent_id" type="int">2</input_port>
+    <input_port name="time_step" type="double" default="0.1"/>
+    <input_port name="front_dist" type="double" default="1.0"/>
+    <input_port name="duration" type="double" default="5.0"/>
+  </Action>
+  <Action ID="SetGroupWalk">
+    <input_port name="main_agent_id" type="int">1</input_port>
+    <input_port name="time_step" type="double"/>
+    <input_port name="non_main_agent_ids" type="std::string"/>
+    <input_port name="duration" type="double" default="5.0"/>
+  </Action>
+  <Action ID="FollowAgent">
+    <input_port name="agent_id" type="int"/>
+    <input_port name="time_step" type="double"/>
+    <input_port name="target_agent_id" type="int"/>
+    <input_port name="duration" type="double"/>
+  </Action>
+
+    <!-- Stateful Condition Nodes -->
+  <Condition ID="IsAnyoneSpeaking">
+    <input_port name="agent_id" type="int">1</input_port>
+    <input_port name="time_step" type="double"/>
+    <input_port name="distance_threshold" type="double" default="5.0"/>
+    <input_port name="duration" type="double" default="5.0"/>
+    <output_port name="speaker_id" type="int"/>
+  </Condition>
+  <Condition ID="IsSpeaking">
+    <input_port name="agent_id" type="int">1</input_port>
+    <input_port name="time_step" type="double"/>
+    <input_port name="target_id" type="int">2</input_port>
+    <input_port name="distance_threshold" type="double" default="5.0"/>
+    <input_port name="duration" type="double" default="5.0"/>
+  </Condition>
+  <Condition ID="IsAnyoneLookingAtMe">
+    <input_port name="agent_id" type="int">1</input_port>
+    <input_port name="time_step" type="double"/>
+    <input_port name="distance_threshold" type="double" default="5.0"/>
+    <input_port name="angle_threshold" type="double" default="0.2"/>
+    <input_port name="duration" type="double" default="5.0"/>
+    <output_port name="observer_id" type="int"/>
+  </Condition>
+  <Condition ID="IsLookingAtMe">
+    <input_port name="agent_id" type="int">1</input_port>
+    <input_port name="time_step" type="double"/>
+    <input_port name="target_id" type="int">2</input_port>
+    <input_port name="distance_threshold" type="double" />
+    <input_port name="angle_threshold" type="double"/>
+    <input_port name="duration" type="double"/>
+  </Condition>
+
+</TreeNodesModel>
+
+<BehaviorTree ID="DemoTree">
+  <Fallback name="MainFallback">
+
+    <!-- Regular Navigation Sequence -->
+    <Sequence name="RegularNavigation">
+      <Inverter>
+        <IsGoalReached agent_id="{id}"/>
+      </Inverter>
+      <RegularNav agent_id="{id}" time_step="{dt}"/>
+    </Sequence>
+
+    <!-- Update Goal -->
+    <UpdateGoal agent_id="{id}"/>
+  </Fallback>
+</BehaviorTree>
+</root>
