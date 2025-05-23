@@ -21,7 +21,7 @@ public:
    * @param conf BT node configuration
    */
   TimeExpiredCondition(const std::string &condition_name,
-                       const BT::NodeConfiguration &conf);
+                       const BT::NodeConfig &conf);
 
   TimeExpiredCondition() = delete;
 

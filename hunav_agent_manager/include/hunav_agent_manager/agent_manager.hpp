@@ -168,6 +168,7 @@ public:
    * @return float
    */
   float robotSquaredDistance(int id);
+  
   /**
    * @brief stop the agent translation and changing its orientation to look at
    * the robot
@@ -175,6 +176,8 @@ public:
    * @param id int id of the desired agent (index of the agents_ array too)
    */
   void lookAtTheRobot(int id);
+  void lookAtAgent(int observer_id, int target_id);
+  void lookAtPoint(int agent_id, const utils::Vector2d & target);  
   /**
    * @brief check if the robot is in the field of view of the agent indicated by
    * the parameter id
@@ -203,7 +206,7 @@ public:
    * @param dt time to compute the agent's movement
    * @param closest_dist minimum distance between the robot and the agent
    */
-  void approximateRobot(int id, double dt, double closest_dist = 1.5, double max_vel = 1.8);
+  void approximateRobot(int id, double dt, double closest_dist = 1.5, double max_vel = 1.0);
 
   /**
    * @brief the agent will try to keep more distance from the robot
@@ -220,7 +223,33 @@ public:
    * @param dt time to compute the agent's movement
    */
   void blockRobot(int id, double dt, double front_dist = 1.4);
+  void blockAgent(int id, int target_id, double dt, double front_dist = 1.4);
 
+  int findNearestAgent(int id);
+  bool isAgentVisible(int observer_id, int target_id, double dist, double fov_threshold = (M_PI / 2.0) + 0.17);
+  void approachAgent(int id, int target_id, double dt, double closest_dist = 1.5, double max_vel = 1.5);
+  void followAgent(int id, int target_id, double dt, double threshold = 1.5, double max_vel = 1.5);
+  void freezeAgent(int id);
+  void resumeAgent(int id);
+
+  bool isRobotFacingAgent(int agent_id);
+  bool isAgentClose(int observer_id, int target_id, double threshold);
+  std::vector<int> findNearestAgents(int id, int k);
+
+  void setAgentGoal(int id, const sfm::Goal & goal);
+  void clearAndSetAgentGoal(int id, const sfm::Goal & goal);
+  void setAgentGroupId(int id, int group_id);
+
+  void restoreAgentGoals(int agent_id, const std::list<sfm::Goal>& goals);
+  void overrideAgentGoals(int agent_id, int target_id);
+
+  const std::unordered_map<int, agent>& getAgents() const { return agents_; }
+  std::list<sfm::Goal> getAgentGoals(int id);
+
+  utils::Vector2d computeConversationCenter(int agent_id, double circle_offset);
+
+  double getAgentYaw(int id);
+  utils::Vector2d getAgentPosition(int id);
   bool goalReached(int id);
   bool updateGoal(int id);
 
@@ -258,6 +287,7 @@ public:
     return desiredDirection;
   }
 
+
 protected:
   // std::vector<bool> agent_status_;
   // std::unordered_map<int, bool> agents_computed_;
@@ -289,6 +319,9 @@ protected:
   // // Services provided
   // rclcpp::Service<hunav_msgs::srv::ComputeAgents>::SharedPtr
   // agents_srv_;
+  std::unordered_map<int, std::list<sfm::Goal>> override_goals_data_;
+  std::unordered_map<int, float> orig_desired_vels_;
+  std::unordered_map<int, std::chrono::steady_clock::time_point> last_interaction_time_;
 };
 
 }  // namespace hunav

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root main_tree_to_execute="SocialNavTree" BTCPP_format="4">
+
+  <TreeNodesModel>
+    <Action ID="RegularNav">
+      <input_port name="agent_id" type="int">identifier of the agent</input_port>
+      <input_port name="time_step" type="double">time step in seconds for movement</input_port>
+    </Action>
+    <Action ID="UpdateGoal">
+      <input_port name="agent_id" type="int">identifier of the agent</input_port>
+    </Action>
+    <Condition ID="IsGoalReached">
+      <input_port name="agent_id" type="int">identifier of the agent</input_port>
+    </Condition>
+    
+    <Action ID="BlockRobot">
+      <input_port name="agent_id" type="int">1</input_port>
+      <input_port name="time_step" type="double" default="0.1"/>
+      <input_port name="front_dist" type="double" default="1.0"/>
+      <input_port name="duration" type="double" default="5.0"/>
+    </Action>
+
+    <Action ID="BlockAgent">
+      <input_port name="agent_id" type="int">1</input_port>
+      <input_port name="target_agent_id" type="int">2</input_port>
+      <input_port name="time_step" type="double" default="0.1"/>
+      <input_port name="front_dist" type="double" default="1.0"/>
+      <input_port name="duration" type="double" default="5.0"/>
+    </Action>
+    
+  </TreeNodesModel>
+
+  <BehaviorTree ID="SocialNavTree">
+    <Fallback name="SocialNavFallback">
+      <Sequence name="SocialInteraction">
+        <!-- <BlockRobot agent_id="{id}" time_step="{dt}" front_dist="{front_dist}" duration="{duration}"/> -->
+        <BlockAgent agent_id="{id}" target_agent_id="{target_id}" time_step="{dt}" front_dist="{front_dist}" duration="{duration}"/>
+      </Sequence>
+      <Sequence name="RegularNavigation">
+        <Inverter>
+          <IsGoalReached agent_id="{id}" />
+        </Inverter>
+        <RegularNav agent_id="{id}" time_step="{dt}" />
+      </Sequence>
+      <UpdateGoal agent_id="{id}" />
+    </Fallback>
+  </BehaviorTree>
+
+</root>

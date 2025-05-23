@@ -7,110 +7,209 @@
 namespace hunav
 {
 
-using std::placeholders::_1;
-using std::placeholders::_2;
-// using std::placeholders::_3;
+  using std::placeholders::_1;
+  using std::placeholders::_2;
+  // using std::placeholders::_3;
 
-BTnode::BTnode() : Node("hunav_agent_manager")
-{
-  RCLCPP_INFO(this->get_logger(), "Initializing %s node...", this->get_name());
-  try
+  BTnode::BTnode() : Node("hunav_agent_manager")
   {
-    pkg_shared_tree_dir_ = ament_index_cpp::get_package_share_directory("hunav_agent_manager");
+    RCLCPP_INFO(this->get_logger(), "Initializing %s node...", this->get_name());
+    try
+    {
+      pkg_shared_tree_dir_ = ament_index_cpp::get_package_share_directory("hunav_agent_manager");
+    }
+    catch (const ament_index_cpp::PackageNotFoundError &e)
+    {
+      RCLCPP_ERROR(this->get_logger(), "Package hunav_agent_manager not found: %s", e.what());
+    }
+    pkg_shared_tree_dir_ = pkg_shared_tree_dir_ + "/behavior_trees/";
+    initialized_ = false;
+
+    // node parameter declaration
+    pub_tf_ = this->declare_parameter<bool>("publish_tf", true);
+    pub_forces_ = this->declare_parameter<bool>("publish_sfm_forces", true);
+    // pub_agent_states_ =
+    //    this->declare_parameter<bool>("publish_agent_states", true);
+
+    pub_people_ = this->declare_parameter<bool>("hunav_loader.publish_people", true);
+
+    prev_time_ = this->get_clock()->now();
+    // btfunc_.init();
+
+    registerBTNodes();
+
+    // Initialize the transform broadcaster
+    tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
+
+    agents_srv_ = this->create_service<hunav_msgs::srv::ComputeAgents>(
+        std::string("compute_agents"), std::bind(&BTnode::computeAgentsService, this, _1, _2));
+
+    agent_srv_ = this->create_service<hunav_msgs::srv::ComputeAgent>(
+        std::string("compute_agent"), std::bind(&BTnode::computeAgentService, this, _1, _2));
+
+    move_agent_srv_ = this->create_service<hunav_msgs::srv::MoveAgent>(
+        std::string("move_agent"), std::bind(&BTnode::moveAgentService, this, _1, _2));
+
+    reset_srv_ = this->create_service<hunav_msgs::srv::ResetAgents>(std::string("reset_agents"),
+                                                                    std::bind(&BTnode::resetAgentsService, this, _1, _2));
+
+    if (pub_forces_)
+    {
+      forces_publisher_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("sfm_forces", 5);
+    }
+    // if (pub_agent_states_) {
+    human_state_publisher_ = this->create_publisher<hunav_msgs::msg::Agents>("human_states", 1);
+    robot_state_publisher_ = this->create_publisher<hunav_msgs::msg::Agent>("robot_states", 1);
+    //}
+    if (pub_people_)
+    {
+      people_publisher_ = this->create_publisher<people_msgs::msg::People>("people", 1);
+    }
   }
-  catch (ament_index_cpp::PackageNotFoundError)
+
+  BTnode::~BTnode()
   {
-    RCLCPP_ERROR(this->get_logger(), "Package hunav_agent_manager not found in dir: %s!!!",
-                 pkg_shared_tree_dir_.c_str());
   }
-  pkg_shared_tree_dir_ = pkg_shared_tree_dir_ + "/behavior_trees/";
-  initialized_ = false;
 
-  // node parameter declaration
-  pub_tf_ = this->declare_parameter<bool>("publish_tf", true);
-  pub_forces_ = this->declare_parameter<bool>("publish_sfm_forces", true);
-  // pub_agent_states_ =
-  //    this->declare_parameter<bool>("publish_agent_states", true);
-
-  pub_people_ = this->declare_parameter<bool>("hunav_loader.publish_people", true);
-
-  prev_time_ = this->get_clock()->now();
-  // btfunc_.init();
-
-  registerBTNodes();
-
-  // Initialize the transform broadcaster
-  tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
-
-  agents_srv_ = this->create_service<hunav_msgs::srv::ComputeAgents>(
-      std::string("compute_agents"), std::bind(&BTnode::computeAgentsService, this, _1, _2));
-
-  agent_srv_ = this->create_service<hunav_msgs::srv::ComputeAgent>(
-      std::string("compute_agent"), std::bind(&BTnode::computeAgentService, this, _1, _2));
-
-  move_agent_srv_ = this->create_service<hunav_msgs::srv::MoveAgent>(
-      std::string("move_agent"), std::bind(&BTnode::moveAgentService, this, _1, _2));
-
-  reset_srv_ = this->create_service<hunav_msgs::srv::ResetAgents>(std::string("reset_agents"),
-                                                                  std::bind(&BTnode::resetAgentsService, this, _1, _2));
-
-  if (pub_forces_)
+  void BTnode::registerBTNodes()
   {
-    forces_publisher_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("sfm_forces", 5);
-  }
-  // if (pub_agent_states_) {
-  human_state_publisher_ = this->create_publisher<hunav_msgs::msg::Agents>("human_states", 1);
-  robot_state_publisher_ = this->create_publisher<hunav_msgs::msg::Agent>("robot_states", 1);
-  //}
-  if (pub_people_)
-  {
-    people_publisher_ = this->create_publisher<people_msgs::msg::People>("people", 1);
-  }
-}
+    // Register the conditions
+    factory_.registerNodeType<hunav::TimeExpiredCondition>("TimeExpiredCondition");
 
-BTnode::~BTnode()
-{
-}
+    BT::PortsList simple_port = {BT::InputPort<int>("agent_id")};
+    BT::PortsList visibleports = {BT::InputPort<int>("agent_id"), BT::InputPort<double>("distance")};
+    factory_.registerSimpleCondition("IsRobotVisible", std::bind(&BTfunctions::robotVisible, &btfunc_, _1), visibleports);
 
-void BTnode::registerBTNodes()
-{
-  // Register the conditions
-  factory_.registerNodeType<hunav::TimeExpiredCondition>("TimeExpiredCondition");
+    factory_.registerSimpleCondition("IsGoalReached", std::bind(&BTfunctions::goalReached, &btfunc_, _1), simple_port);
 
-  BT::PortsList simple_port = { BT::InputPort<int>("agent_id") };
-  BT::PortsList visibleports = { BT::InputPort<int>("agent_id"), BT::InputPort<double>("distance") };
-  factory_.registerSimpleCondition("IsRobotVisible", std::bind(&BTfunctions::robotVisible, &btfunc_, _1), visibleports);
+    BT::PortsList agent_visible_ports = {
+        BT::InputPort<int>("observer_id"),
+        BT::InputPort<int>("agent_id"),
+        BT::InputPort<double>("distance"),
+        BT::InputPort<double>("field_of_view")};
+    BT::PortsList proximity_ports = {
+        BT::InputPort<int>("agent_id"),
+        BT::InputPort<double>("threshold", 1.0, "Distance threshold in meters")};
 
-  factory_.registerSimpleCondition("IsGoalReached", std::bind(&BTfunctions::goalReached, &btfunc_, _1), simple_port);
+    BT::PortsList random_ports = {
+        BT::InputPort<double>("probability", 0.3, "Probability to return success")};
+    BT::PortsList facing_ports = {BT::InputPort<int>("agent_id")};
+    BT::PortsList time_since_ports = {
+        BT::InputPort<int>("agent_id"),
+        BT::InputPort<double>("wait_time", 5.0, "Time in seconds since last interaction")};
+    BT::PortsList pos_ports = {
+        BT::InputPort<int>("agent_id"),
+        BT::InputPort<double>("target_x"),
+        BT::InputPort<double>("target_y"),
+        BT::InputPort<double>("tolerance", 0.1, "Tolerance for reaching the target")};
+    BT::PortsList proximity_agent_ports = {
+        BT::InputPort<int>("observer_id"),
+        BT::InputPort<int>("target_agent_id"),
+        BT::InputPort<double>("threshold", 1.0, "Distance threshold in meters")};
 
-  // Register the actions
-  BT::PortsList reg_nav_ports = { BT::InputPort<int>("agent_id"), BT::InputPort<double>("time_step") };
+    factory_.registerSimpleCondition("RandomChanceCondition",
+                                     std::bind(&BTfunctions::randomChance, &btfunc_, _1),
+                                     random_ports);
+    factory_.registerSimpleCondition("IsRobotFacingAgent",
+                                     std::bind(&BTfunctions::robotFacingAgent, &btfunc_, _1),
+                                     simple_port);
+    factory_.registerSimpleCondition("IsAgentVisible",
+                                     std::bind(&BTfunctions::agentVisible, &btfunc_, _1),
+                                     agent_visible_ports);
+    factory_.registerSimpleCondition("IsRobotClose",
+                                     std::bind(&BTfunctions::isRobotClose, &btfunc_, _1),
+                                     proximity_ports);
+    factory_.registerSimpleCondition("IsAtPosition",
+                                     std::bind(&BTfunctions::isAtPosition, &btfunc_, _1),
+                                     pos_ports);
+    factory_.registerSimpleCondition("IsAgentClose",
+                                     std::bind(&BTfunctions::isAgentClose, &btfunc_, _1),
+                                     proximity_agent_ports);
 
-  BT::PortsList sur_nav_ports = { BT::InputPort<int>("agent_id"), BT::InputPort<double>("time_step"),
-                                  BT::InputPort<double>("beh_duration"), BT::InputPort<bool>("only_once") };
+    // Register the actions
+    BT::PortsList reg_nav_ports = {BT::InputPort<int>("agent_id"), BT::InputPort<double>("time_step")};
 
-  BT::PortsList cur_nav_ports = { BT::InputPort<int>("agent_id"),        BT::InputPort<double>("time_step"),
-                                  BT::InputPort<double>("beh_duration"), BT::InputPort<bool>("only_once"),
-                                  BT::InputPort<double>("agent_vel"),    BT::InputPort<double>("stop_distance") };
+    BT::PortsList sur_nav_ports = {BT::InputPort<int>("agent_id"), BT::InputPort<double>("time_step"),
+                                   BT::InputPort<double>("beh_duration"), BT::InputPort<bool>("only_once")};
 
-  BT::PortsList sca_nav_ports = { BT::InputPort<int>("agent_id"),        BT::InputPort<double>("time_step"),
-                                  BT::InputPort<double>("beh_duration"), BT::InputPort<bool>("only_once"),
-                                  BT::InputPort<double>("runaway_vel"),  BT::InputPort<double>("scary_force_factor") };
-
-  BT::PortsList thre_nav_ports = { BT::InputPort<int>("agent_id"), BT::InputPort<double>("time_step"),
+    BT::PortsList cur_nav_ports = {BT::InputPort<int>("agent_id"), BT::InputPort<double>("time_step"),
                                    BT::InputPort<double>("beh_duration"), BT::InputPort<bool>("only_once"),
-                                   BT::InputPort<double>("goal_dist") };
+                                   BT::InputPort<double>("agent_vel"), BT::InputPort<double>("stop_distance")};
 
-  factory_.registerSimpleAction("UpdateGoal", std::bind(&BTfunctions::updateGoal, &btfunc_, _1), simple_port);
-  factory_.registerSimpleAction("RegularNav", std::bind(&BTfunctions::regularNav, &btfunc_, _1), reg_nav_ports);
-  factory_.registerSimpleAction("SurprisedNav", std::bind(&BTfunctions::surprisedNav, &btfunc_, _1), sur_nav_ports);
-  factory_.registerSimpleAction("CuriousNav", std::bind(&BTfunctions::curiousNav, &btfunc_, _1), cur_nav_ports);
-  factory_.registerSimpleAction("ScaredNav", std::bind(&BTfunctions::scaredNav, &btfunc_, _1), sca_nav_ports);
-  factory_.registerSimpleAction("ThreateningNav", std::bind(&BTfunctions::threateningNav, &btfunc_, _1),
-                                thre_nav_ports);
+    BT::PortsList sca_nav_ports = {BT::InputPort<int>("agent_id"), BT::InputPort<double>("time_step"),
+                                   BT::InputPort<double>("beh_duration"), BT::InputPort<bool>("only_once"),
+                                   BT::InputPort<double>("runaway_vel"), BT::InputPort<double>("scary_force_factor")};
 
-  RCLCPP_INFO(this->get_logger(), "BT nodes registered");
-}
+    BT::PortsList thre_nav_ports = {BT::InputPort<int>("agent_id"), BT::InputPort<double>("time_step"),
+                                    BT::InputPort<double>("beh_duration"), BT::InputPort<bool>("only_once"),
+                                    BT::InputPort<double>("goal_dist")};
+
+    factory_.registerSimpleAction("UpdateGoal", std::bind(&BTfunctions::updateGoal, &btfunc_, _1), simple_port);
+    factory_.registerSimpleAction("RegularNav", std::bind(&BTfunctions::regularNav, &btfunc_, _1), reg_nav_ports);
+    factory_.registerSimpleAction("SurprisedNav", std::bind(&BTfunctions::surprisedNav, &btfunc_, _1), sur_nav_ports);
+    factory_.registerSimpleAction("CuriousNav", std::bind(&BTfunctions::curiousNav, &btfunc_, _1), cur_nav_ports);
+    factory_.registerSimpleAction("ScaredNav", std::bind(&BTfunctions::scaredNav, &btfunc_, _1), sca_nav_ports);
+    factory_.registerSimpleAction("ThreateningNav", std::bind(&BTfunctions::threateningNav, &btfunc_, _1),
+                                  thre_nav_ports);
+
+    BT::PortsList find_target_ports = {BT::InputPort<int>("agent_id"), BT::OutputPort<int>("target_agent_id")};
+    BT::PortsList say_ports = {
+        BT::InputPort<int>("agent_id"),
+        BT::InputPort<std::string>("message")};
+    BT::PortsList look_at_agent_ports = {
+        BT::InputPort<int>("observer_id"),
+        BT::InputPort<int>("target_id")};
+    BT::PortsList look_at_point_ports = {
+        BT::InputPort<int>("agent_id"),
+        BT::InputPort<double>("target_x"),
+        BT::InputPort<double>("target_y")};
+    BT::PortsList set_group_id_ports = {
+        BT::InputPort<int>("agent_id"),
+        BT::InputPort<int>("group_id")};
+    BT::PortsList go_to_ports = {
+        BT::InputPort<int>("agent_id"),
+        BT::InputPort<double>("target_x"),
+        BT::InputPort<double>("target_y")};
+
+    factory_.registerSimpleAction("FindNearestAgent",
+                                  std::bind(&BTfunctions::findNearestAgent, &btfunc_, _1), find_target_ports);
+    factory_.registerSimpleAction("SaySomething",
+                                  std::bind(&BTfunctions::saySomething, &btfunc_, _1), say_ports);
+    factory_.registerSimpleAction("LookAtAgent",
+                                  std::bind(&BTfunctions::lookAtAgent, &btfunc_, _1), look_at_agent_ports);
+    factory_.registerSimpleAction("LookAtRobot",
+                                  std::bind(&BTfunctions::lookAtRobot, &btfunc_, _1), simple_port);
+    factory_.registerSimpleAction("LookAtPoint",
+                                  std::bind(&BTfunctions::lookAtPoint, &btfunc_, _1), look_at_point_ports);
+    factory_.registerSimpleAction("SetGroupId",
+                                  std::bind(&BTfunctions::setGroupId, &btfunc_, _1), set_group_id_ports);
+    factory_.registerSimpleAction("SetGoal",
+                                  std::bind(&BTfunctions::setGoal, &btfunc_, _1), go_to_ports);
+    factory_.registerSimpleAction("StopMovement",
+                                  std::bind(&BTfunctions::stopMovement, &btfunc_, _1), simple_port);
+    factory_.registerSimpleAction("ResumeMovement",
+                                  std::bind(&BTfunctions::resumeMovement, &btfunc_, _1), simple_port);
+
+    // Registration of StatefulAction nodes for timed actions
+    factory_.registerNodeType<hunav::StopAndWaitTimerActionNode>("StopAndWaitTimerAction");
+    factory_.registerNodeType<hunav::ConversationFormationNode>("ConversationFormation");
+    factory_.registerNodeType<hunav::GoToNode>("GoTo");
+    factory_.registerNodeType<hunav::ApproachAgentNode>("ApproachAgent");
+    factory_.registerNodeType<hunav::FollowAgentNode>("FollowAgent");
+    factory_.registerNodeType<hunav::ApproachRobotNode>("ApproachRobot");
+    factory_.registerNodeType<hunav::BlockRobotNode>("BlockRobot");
+    factory_.registerNodeType<hunav::BlockAgentNode>("BlockAgent");
+    factory_.registerNodeType<hunav::GroupWalkNode>("SetGroupWalk");
+    factory_.registerNodeType<hunav::IsAnyoneSpeakingNode>("IsAnyoneSpeaking");
+    factory_.registerNodeType<hunav::IsSpeakingNode>("IsSpeaking");
+    factory_.registerNodeType<hunav::IsAnyoneLookingAtMeNode>("IsAnyoneLookingAtMe");
+    factory_.registerNodeType<hunav::IsLookingAtMeNode>("IsLookingAtMe");
+
+    // Decorators
+    factory_.registerNodeType<hunav::TimeDelayDecorator>("TimeDelay");
+
+    RCLCPP_INFO(this->get_logger(), "BT nodes registered");
+  }
 
 
 void BTnode::initializeBehaviorTree(const hunav_msgs::msg::Agent& _agent)
@@ -244,53 +343,53 @@ void BTnode::initializeBehaviorTrees(const hunav_msgs::msg::Agents& _agents)
   RCLCPP_INFO(this->get_logger(), "Behavior trees succesfully initiated!");
 }
 
-BT::NodeStatus BTnode::tree_tick(double dt)
-{
-  // RCLCPP_INFO(this->get_logger(), "Ticking the tree root!");
-  BT::NodeStatus status;
-  std::unordered_map<int, BT::Tree>::iterator itr;
-  for (itr = trees_.begin(); itr != trees_.end(); itr++)
+  BT::NodeStatus BTnode::tree_tick(double dt)
   {
-    // RCLCPP_INFO(this->get_logger(), "Ticking the tree id %i", itr->first);
-    itr->second.rootBlackboard()->set<double>("dt", dt);
-    status = itr->second.tickExactlyOnce();
+    // RCLCPP_INFO(this->get_logger(), "Ticking the tree root!");
+    BT::NodeStatus status;
+    std::unordered_map<int, BT::Tree>::iterator itr;
+    for (itr = trees_.begin(); itr != trees_.end(); itr++)
+    {
+      // RCLCPP_INFO(this->get_logger(), "Ticking the tree id %i", itr->first);
+      itr->second.rootBlackboard()->set<double>("dt", dt);
+      status = itr->second.tickExactlyOnce();
+    }
+    return status;
   }
-  return status;
-}
 
-BT::NodeStatus BTnode::tree_tick(int id)
-{
-  // RCLCPP_INFO(this->get_logger(), "Ticking the tree id %i!", id);
-  BT::NodeStatus status = trees_[id].tickExactlyOnce();
-  return status;
-}
+  BT::NodeStatus BTnode::tree_tick(int id)
+  {
+    // RCLCPP_INFO(this->get_logger(), "Ticking the tree id %i!", id);
+    BT::NodeStatus status = trees_[id].tickExactlyOnce();
+    return status;
+  }
 
-BT::NodeStatus BTnode::tree_tick(int id, double dt)
-{
-  // RCLCPP_INFO(this->get_logger(), "Ticking the tree id %i!", id);
-  trees_[id].rootBlackboard()->set<double>("dt", dt);
-  // RCLCPP_INFO(this->get_logger(), "After setting dt:%.4f!", dt);
-  BT::NodeStatus status = trees_[id].tickExactlyOnce();
-  // RCLCPP_INFO(this->get_logger(), "After ticking the tree!");
-  return status;
-}
+  BT::NodeStatus BTnode::tree_tick(int id, double dt)
+  {
+    // RCLCPP_INFO(this->get_logger(), "Ticking the tree id %i!", id);
+    trees_[id].rootBlackboard()->set<double>("dt", dt);
+    // RCLCPP_INFO(this->get_logger(), "After setting dt:%.4f!", dt);
+    BT::NodeStatus status = trees_[id].tickExactlyOnce();
+    // RCLCPP_INFO(this->get_logger(), "After ticking the tree!");
+    return status;
+  }
 
-void BTnode::computeAgentsService(const std::shared_ptr<hunav_msgs::srv::ComputeAgents::Request> request,
-                                  std::shared_ptr<hunav_msgs::srv::ComputeAgents::Response> response)
-{
-  auto ro = std::make_shared<hunav_msgs::msg::Agent>(request->robot);
-  auto ag = std::make_shared<hunav_msgs::msg::Agents>(request->current_agents);
+  void BTnode::computeAgentsService(const std::shared_ptr<hunav_msgs::srv::ComputeAgents::Request> request,
+                                    std::shared_ptr<hunav_msgs::srv::ComputeAgents::Response> response)
+  {
+    auto ro = std::make_shared<hunav_msgs::msg::Agent>(request->robot);
+    auto ag = std::make_shared<hunav_msgs::msg::Agents>(request->current_agents);
 
   // Update the internal agent states with the
   // received data from the simulator
   btfunc_.updateAllAgents(ro, ag);
 
-  if (!initialized_)
-  {
-    RCLCPP_INFO(this->get_logger(), "First service call received!");
-    RCLCPP_INFO(this->get_logger(), "robot pose x:%.2f, y:%.2f, th:%.2f", ro->position.position.x,
-                ro->position.position.y, ro->yaw);
-    RCLCPP_INFO(this->get_logger(), "Agents received: %li", ag->agents.size());
+    if (!initialized_)
+    {
+      RCLCPP_INFO(this->get_logger(), "First service call received!");
+      RCLCPP_INFO(this->get_logger(), "robot pose x:%.2f, y:%.2f, th:%.2f", ro->position.position.x,
+                  ro->position.position.y, ro->yaw);
+      RCLCPP_INFO(this->get_logger(), "Agents received: %li", ag->agents.size());
 
     initializeBehaviorTrees(request->current_agents);
     response->updated_agents = btfunc_.getUpdatedAgents();
@@ -299,47 +398,47 @@ void BTnode::computeAgentsService(const std::shared_ptr<hunav_msgs::srv::Compute
     return;
   }
 
-  // rclcpp::Time t = this->get_clock()->now();
-  rclcpp::Time t = rclcpp::Time(ag->header.stamp);
-  if (pub_tf_)
-    publish_agents_tf(t, ro, ag);
-  if (pub_forces_)
-    publish_agents_forces(t, ag);
-  // if (pub_agent_states_)
-  publish_agent_states(t, ag);
-  publish_robot_state(t, ro);
-  if (pub_people_)
-    publish_people(t, ag);
+    // rclcpp::Time t = this->get_clock()->now();
+    rclcpp::Time t = rclcpp::Time(ag->header.stamp);
+    if (pub_tf_)
+      publish_agents_tf(t, ro, ag);
+    if (pub_forces_)
+      publish_agents_forces(t, ag);
+    // if (pub_agent_states_)
+    publish_agent_states(t, ag);
+    publish_robot_state(t, ro);
+    if (pub_people_)
+      publish_people(t, ag);
 
-  double time_step_secs = (rclcpp::Time(ag->header.stamp) - prev_time_).seconds();
-  // if the time was reset, we get a negative value
-  if (time_step_secs < 0.0)
-    time_step_secs = 0.0;  // 0.05
+    double time_step_secs = (rclcpp::Time(ag->header.stamp) - prev_time_).seconds();
+    // if the time was reset, we get a negative value
+    if (time_step_secs < 0.0)
+      time_step_secs = 0.0; // 0.05
 
   BT::NodeStatus status = tree_tick(time_step_secs);
   prev_time_ = rclcpp::Time(ag->header.stamp);
   //}
 
-  response->updated_agents = btfunc_.getUpdatedAgents();
-}
+    response->updated_agents = btfunc_.getUpdatedAgents();
+  }
 
-void BTnode::resetAgentsService(const std::shared_ptr<hunav_msgs::srv::ResetAgents::Request> request,
-                                std::shared_ptr<hunav_msgs::srv::ResetAgents::Response> response)
-{
-  auto ro = std::make_shared<hunav_msgs::msg::Agent>(request->robot);
-  auto ag = std::make_shared<hunav_msgs::msg::Agents>(request->current_agents);
+  void BTnode::resetAgentsService(const std::shared_ptr<hunav_msgs::srv::ResetAgents::Request> request,
+                                  std::shared_ptr<hunav_msgs::srv::ResetAgents::Response> response)
+  {
+    auto ro = std::make_shared<hunav_msgs::msg::Agent>(request->robot);
+    auto ag = std::make_shared<hunav_msgs::msg::Agents>(request->current_agents);
 
-  // Update the internal agent states with the
-  // received data from the simulator
-  btfunc_.updateAllAgents(ro, ag);
-  response->ok = true;
-}
+    // Update the internal agent states with the
+    // received data from the simulator
+    btfunc_.updateAllAgents(ro, ag);
+    response->ok = true;
+  }
 
-void BTnode::moveAgentService(const std::shared_ptr<hunav_msgs::srv::MoveAgent::Request> request,
-                              std::shared_ptr<hunav_msgs::srv::MoveAgent::Response> response)
-{
-  auto ro = std::make_shared<hunav_msgs::msg::Agent>(request->robot);
-  auto ag = std::make_shared<hunav_msgs::msg::Agents>(request->current_agents);
+  void BTnode::moveAgentService(const std::shared_ptr<hunav_msgs::srv::MoveAgent::Request> request,
+                                std::shared_ptr<hunav_msgs::srv::MoveAgent::Response> response)
+  {
+    auto ro = std::make_shared<hunav_msgs::msg::Agent>(request->robot);
+    auto ag = std::make_shared<hunav_msgs::msg::Agents>(request->current_agents);
 
   // Update the internal agent states with the
   // received data from the simulator
@@ -347,12 +446,12 @@ void BTnode::moveAgentService(const std::shared_ptr<hunav_msgs::srv::MoveAgent::
   btfunc_.updateAllAgents(ro, ag);
   // RCLCPP_INFO(this->get_logger(), "Agents updated!");
 
-  if (!initialized_)
-  {
-    RCLCPP_INFO(this->get_logger(), "First service call received!");
-    RCLCPP_INFO(this->get_logger(), "robot pose x:%.2f, y:%.2f, th:%.2f", ro->position.position.x,
-                ro->position.position.y, ro->yaw);
-    RCLCPP_INFO(this->get_logger(), "Agents received: %li", ag->agents.size());
+    if (!initialized_)
+    {
+      RCLCPP_INFO(this->get_logger(), "First service call received!");
+      RCLCPP_INFO(this->get_logger(), "robot pose x:%.2f, y:%.2f, th:%.2f", ro->position.position.x,
+                  ro->position.position.y, ro->yaw);
+      RCLCPP_INFO(this->get_logger(), "Agents received: %li", ag->agents.size());
 
     initializeBehaviorTrees(request->current_agents);
     response->updated_agent = btfunc_.getUpdatedAgent(request->agent_id);
@@ -361,174 +460,174 @@ void BTnode::moveAgentService(const std::shared_ptr<hunav_msgs::srv::MoveAgent::
     return;
   }
 
-  // rclcpp::Time t = this->get_clock()->now();
-  rclcpp::Time t = rclcpp::Time(ag->header.stamp);
-  if (pub_tf_)
-    publish_agents_tf(t, ro, ag);
-  if (pub_forces_)
-    publish_agents_forces(t, ag);
-  // if (pub_agent_states_)
-  publish_agent_states(t, ag);
-  publish_robot_state(t, ro);
-  if (pub_people_)
-    publish_people(t, ag);
+    // rclcpp::Time t = this->get_clock()->now();
+    rclcpp::Time t = rclcpp::Time(ag->header.stamp);
+    if (pub_tf_)
+      publish_agents_tf(t, ro, ag);
+    if (pub_forces_)
+      publish_agents_forces(t, ag);
+    // if (pub_agent_states_)
+    publish_agent_states(t, ag);
+    publish_robot_state(t, ro);
+    if (pub_people_)
+      publish_people(t, ag);
 
-  double time_step_secs = (rclcpp::Time(ag->header.stamp) - prev_time_).seconds();
-  // time_step_secs = 0.1;
+    double time_step_secs = (rclcpp::Time(ag->header.stamp) - prev_time_).seconds();
+    // time_step_secs = 0.1;
 
-  // RCLCPP_INFO(this->get_logger(), "Time step computed: %.4f",
-  // time_step_secs);
+    // RCLCPP_INFO(this->get_logger(), "Time step computed: %.4f",
+    // time_step_secs);
 
-  // we do not tick the tree if the frequency is higher than 100Hz approx
-  // if (time_step_secs > 0.008) {
-  // Call the ticks of the behavior trees (they must update the
-  // sfm_agents_)
-  BT::NodeStatus status = tree_tick(request->agent_id, time_step_secs);
-  prev_time_ = rclcpp::Time(ag->header.stamp);
-  //}
+    // we do not tick the tree if the frequency is higher than 100Hz approx
+    // if (time_step_secs > 0.008) {
+    // Call the ticks of the behavior trees (they must update the
+    // sfm_agents_)
+    BT::NodeStatus status = tree_tick(request->agent_id, time_step_secs);
+    prev_time_ = rclcpp::Time(ag->header.stamp);
+    //}
 
-  response->updated_agent = btfunc_.getUpdatedAgent(request->agent_id);
-}
+    response->updated_agent = btfunc_.getUpdatedAgent(request->agent_id);
+  }
 
-void BTnode::computeAgentService(const std::shared_ptr<hunav_msgs::srv::ComputeAgent::Request> request,
-                                 std::shared_ptr<hunav_msgs::srv::ComputeAgent::Response> response)
-{
-  // rclcpp::Rate loop_rate(40);
-  // while (!btfunc_.ok()) {
-  // loop_rate.sleep();
-  //}
-  BT::NodeStatus status = tree_tick(request->id);
-  response->updated_agent = btfunc_.getUpdatedAgent(request->id);
-}
-
-// void BTnode::agentsCallback(const hunav_msgs::msg::Agents &msg) {
-
-//   auto ag = std::make_shared<hunav_msgs::msg::Agents>(msg);
-//   if (!initialized_) {
-//     RCLCPP_INFO(this->get_logger(), "First agent callback received!");
-//     RCLCPP_INFO(this->get_logger(), "Agents received: %li",
-//     ag->agents.size()); hunav_msgs::msg::Agents ags = msg;
-//     ags.agents.pop_back();
-//     initializeBehaviorTree(ags);
-//     initialized_ = true;
-//   }
-//   btfunc_.updateAgentsAndRobot(ag);
-// }
-
-// void BTnode::agentRobotCallback(const hunav_msgs::msg::Agent &msg) {
-//   auto ro = std::make_shared<hunav_msgs::msg::Agent>(msg);
-//   btfunc_.updateAgentRobot(ro);
-// }
-
-void BTnode::publish_agents_tf(rclcpp::Time t, const hunav_msgs::msg::Agent::SharedPtr robot,
-                               const hunav_msgs::msg::Agents::SharedPtr msg)
-{
-  // rclcpp::Time now = this->get_clock()->now();
-  // publish robot TF
-  geometry_msgs::msg::TransformStamped tr;
-  tr.header.stamp = t;
-  tr.header.frame_id = msg->header.frame_id;
-  tr.child_frame_id = robot->name.c_str();
-  tr.transform.translation.x = robot->position.position.x;
-  tr.transform.translation.y = robot->position.position.y;
-  tr.transform.translation.z = robot->position.position.z;
-  tr.transform.rotation = robot->position.orientation;
-  // Send the transformation
-  tf_broadcaster_->sendTransform(tr);
-
-  for (const auto& a : msg->agents)
+  void BTnode::computeAgentService(const std::shared_ptr<hunav_msgs::srv::ComputeAgent::Request> request,
+                                   std::shared_ptr<hunav_msgs::srv::ComputeAgent::Response> response)
   {
-    geometry_msgs::msg::TransformStamped tr2;
-    tr2.header.stamp = t;
-    tr2.header.frame_id = msg->header.frame_id;
-    tr2.child_frame_id = a.name.c_str();
-    tr2.transform.translation.x = a.position.position.x;
-    tr2.transform.translation.y = a.position.position.y;
-    tr2.transform.translation.z = a.position.position.z;
-    tr2.transform.rotation = a.position.orientation;
+    // rclcpp::Rate loop_rate(40);
+    // while (!btfunc_.ok()) {
+    // loop_rate.sleep();
+    //}
+    BT::NodeStatus status = tree_tick(request->id);
+    response->updated_agent = btfunc_.getUpdatedAgent(request->id);
+  }
+
+  // void BTnode::agentsCallback(const hunav_msgs::msg::Agents &msg) {
+
+  //   auto ag = std::make_shared<hunav_msgs::msg::Agents>(msg);
+  //   if (!initialized_) {
+  //     RCLCPP_INFO(this->get_logger(), "First agent callback received!");
+  //     RCLCPP_INFO(this->get_logger(), "Agents received: %li",
+  //     ag->agents.size()); hunav_msgs::msg::Agents ags = msg;
+  //     ags.agents.pop_back();
+  //     initializeBehaviorTree(ags);
+  //     initialized_ = true;
+  //   }
+  //   btfunc_.updateAgentsAndRobot(ag);
+  // }
+
+  // void BTnode::agentRobotCallback(const hunav_msgs::msg::Agent &msg) {
+  //   auto ro = std::make_shared<hunav_msgs::msg::Agent>(msg);
+  //   btfunc_.updateAgentRobot(ro);
+  // }
+
+  void BTnode::publish_agents_tf(rclcpp::Time t, const hunav_msgs::msg::Agent::SharedPtr robot,
+                                 const hunav_msgs::msg::Agents::SharedPtr msg)
+  {
+    // rclcpp::Time now = this->get_clock()->now();
+    // publish robot TF
+    geometry_msgs::msg::TransformStamped tr;
+    tr.header.stamp = t;
+    tr.header.frame_id = msg->header.frame_id;
+    tr.child_frame_id = robot->name.c_str();
+    tr.transform.translation.x = robot->position.position.x;
+    tr.transform.translation.y = robot->position.position.y;
+    tr.transform.translation.z = robot->position.position.z;
+    tr.transform.rotation = robot->position.orientation;
     // Send the transformation
-    tf_broadcaster_->sendTransform(tr2);
-  }
-}
+    tf_broadcaster_->sendTransform(tr);
 
-void BTnode::publish_agent_states(rclcpp::Time t, const hunav_msgs::msg::Agents::SharedPtr msg)
-{
-  human_state_publisher_->publish(*msg);
-}
-
-void BTnode::publish_robot_state(rclcpp::Time t, const hunav_msgs::msg::Agent::SharedPtr msg)
-{
-  robot_state_publisher_->publish(*msg);
-}
-
-void BTnode::publish_people(rclcpp::Time t, const hunav_msgs::msg::Agents::SharedPtr msg)
-{
-  people_msgs::msg::People people;
-  people.header.stamp = t;
-  people.header.frame_id = msg->header.frame_id;
-  for (const auto& a : msg->agents)
-  {
-    people_msgs::msg::Person person;
-    person.name = a.name;
-    person.position = a.position.position;
-    person.position.z = a.yaw;
-    person.velocity.x = a.linear_vel * cos(a.yaw);
-    person.velocity.y = a.linear_vel * sin(a.yaw);
-    // I add the angular velocity in the z coordinate
-    person.velocity.z = a.angular_vel;
-    person.reliability = 1.0;
-    person.tags.push_back(std::to_string(a.id));
-    person.tags.push_back(std::to_string(a.group_id));
-    person.tags.push_back(std::to_string(a.behavior.type));
-    person.tagnames.push_back("id");
-    person.tagnames.push_back("group_id");
-    person.tagnames.push_back("behavior");
-    people.people.push_back(person);
-  }
-  people_publisher_->publish(people);
-}
-
-void BTnode::publish_agents_forces(rclcpp::Time t, const hunav_msgs::msg::Agents::SharedPtr msg)
-{
-  visualization_msgs::msg::MarkerArray markers;
-  for (const auto& a : msg->agents)
-  {
-    sfm::Forces frs = getAgentForces(a.id);
-    publishForceMarker(a.id + 1, a.name, msg->header.frame_id, t, a.position.position, getColor(1, 0, 0, 1),
-                       frs.obstacleForce,
-                       markers);  // RED
-    publishForceMarker(a.id + 2, a.name, msg->header.frame_id, t, a.position.position, getColor(0, 0, 1, 1),
-                       frs.socialForce,
-                       markers);  // BLUE
-    // publishForceMarker(2, getColor(0, 1, 1, 1), robot_.forces.groupForce,
-    //                   markers);
-    publishForceMarker(a.id + 3, a.name, msg->header.frame_id, t, a.position.position, getColor(0, 1, 0, 1),
-                       frs.desiredForce,
-                       markers);  // GREEN
-    publishForceMarker(a.id + 4, a.name, msg->header.frame_id, t, a.position.position, getColor(1, 1, 1, 1),
-                       frs.globalForce,
-                       markers);  // WHITE
-    // publishForceMarker(5, getColor(1, 1, 0, 1), robot_.velocity, markers);
-    visualization_msgs::msg::Marker marker;
-    marker.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
-    marker.header.frame_id = msg->header.frame_id;
-    marker.header.stamp = t;
-    marker.ns = a.name + "/behavior";
-    marker.id = a.id;
-    marker.action = visualization_msgs::msg::Marker::ADD;  // force.norm() > 1e-4 ? 0 : 2;
-    marker.color = getColor(1, 1, 1, 1);
-    marker.lifetime = rclcpp::Duration(1, 0);
-    marker.scale.x = 0.5;
-    marker.scale.y = 0.5;
-    marker.scale.z = 0.5;
-    marker.pose.position = a.position.position;
-    marker.pose.position.z = a.position.position.z + 1.0;
-    tf2::Quaternion myQuaternion;
-    myQuaternion.setRPY(0, 0, frs.globalForce.angle().toRadian());
-    marker.pose.orientation = tf2::toMsg(myQuaternion);
-    marker.text = a.name;
-    switch (a.behavior.type)
+    for (const auto &a : msg->agents)
     {
+      geometry_msgs::msg::TransformStamped tr2;
+      tr2.header.stamp = t;
+      tr2.header.frame_id = msg->header.frame_id;
+      tr2.child_frame_id = a.name.c_str();
+      tr2.transform.translation.x = a.position.position.x;
+      tr2.transform.translation.y = a.position.position.y;
+      tr2.transform.translation.z = a.position.position.z;
+      tr2.transform.rotation = a.position.orientation;
+      // Send the transformation
+      tf_broadcaster_->sendTransform(tr2);
+    }
+  }
+
+  void BTnode::publish_agent_states(rclcpp::Time t, const hunav_msgs::msg::Agents::SharedPtr msg)
+  {
+    human_state_publisher_->publish(*msg);
+  }
+
+  void BTnode::publish_robot_state(rclcpp::Time t, const hunav_msgs::msg::Agent::SharedPtr msg)
+  {
+    robot_state_publisher_->publish(*msg);
+  }
+
+  void BTnode::publish_people(rclcpp::Time t, const hunav_msgs::msg::Agents::SharedPtr msg)
+  {
+    people_msgs::msg::People people;
+    people.header.stamp = t;
+    people.header.frame_id = msg->header.frame_id;
+    for (const auto &a : msg->agents)
+    {
+      people_msgs::msg::Person person;
+      person.name = a.name;
+      person.position = a.position.position;
+      person.position.z = a.yaw;
+      person.velocity.x = a.linear_vel * cos(a.yaw);
+      person.velocity.y = a.linear_vel * sin(a.yaw);
+      // I add the angular velocity in the z coordinate
+      person.velocity.z = a.angular_vel;
+      person.reliability = 1.0;
+      person.tags.push_back(std::to_string(a.id));
+      person.tags.push_back(std::to_string(a.group_id));
+      person.tags.push_back(std::to_string(a.behavior.type));
+      person.tagnames.push_back("id");
+      person.tagnames.push_back("group_id");
+      person.tagnames.push_back("behavior");
+      people.people.push_back(person);
+    }
+    people_publisher_->publish(people);
+  }
+
+  void BTnode::publish_agents_forces(rclcpp::Time t, const hunav_msgs::msg::Agents::SharedPtr msg)
+  {
+    visualization_msgs::msg::MarkerArray markers;
+    for (const auto &a : msg->agents)
+    {
+      sfm::Forces frs = getAgentForces(a.id);
+      publishForceMarker(a.id + 1, a.name, msg->header.frame_id, t, a.position.position, getColor(1, 0, 0, 1),
+                         frs.obstacleForce,
+                         markers); // RED
+      publishForceMarker(a.id + 2, a.name, msg->header.frame_id, t, a.position.position, getColor(0, 0, 1, 1),
+                         frs.socialForce,
+                         markers); // BLUE
+      // publishForceMarker(2, getColor(0, 1, 1, 1), robot_.forces.groupForce,
+      //                   markers);
+      publishForceMarker(a.id + 3, a.name, msg->header.frame_id, t, a.position.position, getColor(0, 1, 0, 1),
+                         frs.desiredForce,
+                         markers); // GREEN
+      publishForceMarker(a.id + 4, a.name, msg->header.frame_id, t, a.position.position, getColor(1, 1, 1, 1),
+                         frs.globalForce,
+                         markers); // WHITE
+      // publishForceMarker(5, getColor(1, 1, 0, 1), robot_.velocity, markers);
+      visualization_msgs::msg::Marker marker;
+      marker.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
+      marker.header.frame_id = msg->header.frame_id;
+      marker.header.stamp = t;
+      marker.ns = a.name + "/behavior";
+      marker.id = a.id;
+      marker.action = visualization_msgs::msg::Marker::ADD; // force.norm() > 1e-4 ? 0 : 2;
+      marker.color = getColor(1, 1, 1, 1);
+      marker.lifetime = rclcpp::Duration(1, 0);
+      marker.scale.x = 0.5;
+      marker.scale.y = 0.5;
+      marker.scale.z = 0.5;
+      marker.pose.position = a.position.position;
+      marker.pose.position.z = a.position.position.z + 1.0;
+      tf2::Quaternion myQuaternion;
+      myQuaternion.setRPY(0, 0, frs.globalForce.angle().toRadian());
+      marker.pose.orientation = tf2::toMsg(myQuaternion);
+      marker.text = a.name;
+      switch (a.behavior.type)
+      {
       case hunav_msgs::msg::AgentBehavior::BEH_REGULAR:
         marker.text = marker.text + "/REGULAR";
         break;
@@ -549,45 +648,45 @@ void BTnode::publish_agents_forces(rclcpp::Time t, const hunav_msgs::msg::Agents
         break;
       default:
         marker.text = marker.text + "/REGULAR";
+      }
+      markers.markers.push_back(marker);
     }
+    forces_publisher_->publish(markers);
+  }
+
+  void BTnode::publishForceMarker(unsigned index, std::string name, std::string frame, rclcpp::Time t,
+                                  geometry_msgs::msg::Point p, const std_msgs::msg::ColorRGBA &color,
+                                  const utils::Vector2d &force, visualization_msgs::msg::MarkerArray &markers)
+  {
+    visualization_msgs::msg::Marker marker;
+    marker.type = visualization_msgs::msg::Marker::ARROW;
+    marker.header.frame_id = frame;
+    marker.header.stamp = t;
+    marker.ns = name + "/robot_forces";
+    marker.id = index;
+    marker.action = force.norm() > 1e-4 ? 0 : 2;
+    marker.color = color;
+    marker.lifetime = rclcpp::Duration(1, 0);
+    marker.scale.x = std::max(1e-4, force.norm());
+    marker.scale.y = 0.1;
+    marker.scale.z = 0.1;
+    marker.pose.position = p;
+    marker.pose.position.z = 0;
+    tf2::Quaternion myQuaternion;
+    myQuaternion.setRPY(0, 0, force.angle().toRadian());
+    marker.pose.orientation = tf2::toMsg(myQuaternion);
+
     markers.markers.push_back(marker);
   }
-  forces_publisher_->publish(markers);
-}
 
-void BTnode::publishForceMarker(unsigned index, std::string name, std::string frame, rclcpp::Time t,
-                                geometry_msgs::msg::Point p, const std_msgs::msg::ColorRGBA& color,
-                                const utils::Vector2d& force, visualization_msgs::msg::MarkerArray& markers)
-{
-  visualization_msgs::msg::Marker marker;
-  marker.type = visualization_msgs::msg::Marker::ARROW;
-  marker.header.frame_id = frame;
-  marker.header.stamp = t;
-  marker.ns = name + "/robot_forces";
-  marker.id = index;
-  marker.action = force.norm() > 1e-4 ? 0 : 2;
-  marker.color = color;
-  marker.lifetime = rclcpp::Duration(1, 0);
-  marker.scale.x = std::max(1e-4, force.norm());
-  marker.scale.y = 0.1;
-  marker.scale.z = 0.1;
-  marker.pose.position = p;
-  marker.pose.position.z = 0;
-  tf2::Quaternion myQuaternion;
-  myQuaternion.setRPY(0, 0, force.angle().toRadian());
-  marker.pose.orientation = tf2::toMsg(myQuaternion);
+  std_msgs::msg::ColorRGBA BTnode::getColor(double r, double g, double b, double a)
+  {
+    std_msgs::msg::ColorRGBA color;
+    color.r = r;
+    color.g = g;
+    color.b = b;
+    color.a = a;
+    return color;
+  }
 
-  markers.markers.push_back(marker);
-}
-
-std_msgs::msg::ColorRGBA BTnode::getColor(double r, double g, double b, double a)
-{
-  std_msgs::msg::ColorRGBA color;
-  color.r = r;
-  color.g = g;
-  color.b = b;
-  color.a = a;
-  return color;
-}
-
-}  // namespace hunav
+} // namespace hunav
