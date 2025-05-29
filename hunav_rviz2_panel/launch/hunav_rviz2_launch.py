@@ -1,6 +1,6 @@
 import os
 
-from click import argument
+#from click import argument
 from ament_index_python.packages import get_package_share_directory
 
 from launch import LaunchDescription
@@ -67,7 +67,8 @@ def generate_launch_description():
                 LogInfo(msg='HunNavRVizPanel started, launching map_server after 2 seconds...'),
                 TimerAction(
                     period=2.0,
-                    actions=[map_server, lyfecycle],
+                    #actions=[map_server, lyfecycle],
+                    actions=[lyfecycle],
                 )
             ]
         )
