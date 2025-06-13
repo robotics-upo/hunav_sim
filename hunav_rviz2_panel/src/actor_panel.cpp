@@ -1007,13 +1007,13 @@ void ActorPanel::checkComboBoxConf()
     beh_once->setEnabled(true);
     beh_once->setText("[true or false]");
     beh_gff->setEnabled(true);
-    beh_gff->setText("[2.0, 5.0]");
+    beh_gff->setText("2.0");
     beh_off->setEnabled(true);
-    beh_off->setText("[2.0, 50.0]");
+    beh_off->setText("10.0");
     beh_sff->setEnabled(true);
-    beh_sff->setText("[5.0, 20.0]");
+    beh_sff->setText("5.0");
     beh_otherff->setEnabled(true);
-    beh_otherff->setText("[0.0, 25.0]");
+    beh_otherff->setText("20.0");
     beh_vel->setEnabled(true);
     beh_vel->setText("[0.4, 1.8]");
     beh_dist->setEnabled(true);
