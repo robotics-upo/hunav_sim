@@ -253,7 +253,7 @@ BT::NodeStatus BTnode::tree_tick(double dt)
   {
     // RCLCPP_INFO(this->get_logger(), "Ticking the tree id %i", itr->first);
     itr->second.rootBlackboard()->set<double>("dt", dt);
-    status = itr->second.tickRoot();
+    status = itr->second.tickExactlyOnce();
   }
   return status;
 }
@@ -261,7 +261,7 @@ BT::NodeStatus BTnode::tree_tick(double dt)
 BT::NodeStatus BTnode::tree_tick(int id)
 {
   // RCLCPP_INFO(this->get_logger(), "Ticking the tree id %i!", id);
-  BT::NodeStatus status = trees_[id].tickRoot();
+  BT::NodeStatus status = trees_[id].tickExactlyOnce();
   return status;
 }
 
@@ -270,7 +270,7 @@ BT::NodeStatus BTnode::tree_tick(int id, double dt)
   // RCLCPP_INFO(this->get_logger(), "Ticking the tree id %i!", id);
   trees_[id].rootBlackboard()->set<double>("dt", dt);
   // RCLCPP_INFO(this->get_logger(), "After setting dt:%.4f!", dt);
-  BT::NodeStatus status = trees_[id].tickRoot();
+  BT::NodeStatus status = trees_[id].tickExactlyOnce();
   // RCLCPP_INFO(this->get_logger(), "After ticking the tree!");
   return status;
 }

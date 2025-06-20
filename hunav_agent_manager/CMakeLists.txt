@@ -15,7 +15,7 @@ find_package(visualization_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(nav2_behavior_tree REQUIRED)
-find_package(behaviortree_cpp_v3 REQUIRED)
+find_package(behaviortree_cpp REQUIRED)
 
 
 include_directories(
@@ -24,7 +24,7 @@ include_directories(
 )
 
 add_executable(hunav_agent_manager src/agent_manager_node.cpp src/agent_manager.cpp src/time_expired_condition.cpp src/bt_functions.cpp src/bt_node.cpp)
-ament_target_dependencies(hunav_agent_manager rclcpp hunav_msgs people_msgs geometry_msgs visualization_msgs nav2_behavior_tree tf2 tf2_ros behaviortree_cpp_v3)
+ament_target_dependencies(hunav_agent_manager rclcpp hunav_msgs people_msgs geometry_msgs visualization_msgs nav2_behavior_tree tf2 tf2_ros behaviortree_cpp)
 
 
 #add_executable(test_agent_manager src/test_agent_manager_node.cpp)
@@ -52,7 +52,7 @@ install(TARGETS
   DESTINATION lib/${PROJECT_NAME}
 )
 
-install(DIRECTORY behavior_trees config
+install(DIRECTORY behavior_trees
    DESTINATION share/${PROJECT_NAME}/
 )
 

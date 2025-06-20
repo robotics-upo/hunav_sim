@@ -61,57 +61,66 @@ HunavLoader::HunavLoader() : Node("hunav_loader")
       this->set_parameter(rclcpp::Parameter(name + ".behavior.vel", vel));
     }
     double dist = this->declare_parameter<double>(name + ".behavior.dist", 0.0);
-    // ForceFactorDesired   [2, 5]  - def: 2
+
     double facGoal = this->declare_parameter<double>(name + ".behavior.goal_force_factor", 2.0);
-    if (facGoal < 2.0)
-    {
-      facGoal = 2.0;
-      this->set_parameter(rclcpp::Parameter(name + ".behavior.goal_force_factor", facGoal));
-    }
-    else if (facGoal > 5.0)
-    {
-      facGoal = 5.0;
-      this->set_parameter(rclcpp::Parameter(name + ".behavior.goal_force_factor", facGoal));
+    if (conf != 1)  // 1->custom
+    {               // ForceFactorDesired   [2, 5]  - def: 2
+      if (facGoal < 2.0)
+      {
+        facGoal = 2.0;
+        this->set_parameter(rclcpp::Parameter(name + ".behavior.goal_force_factor", facGoal));
+      }
+      else if (facGoal > 5.0)
+      {
+        facGoal = 5.0;
+        this->set_parameter(rclcpp::Parameter(name + ".behavior.goal_force_factor", facGoal));
+      }
     }
 
-    // ForceFactorObstacle  [2, 50] - def: 10
     double facObstacle = this->declare_parameter<double>(name + ".behavior.obstacle_force_factor", 10.0);
-    if (facObstacle < 2.0)
-    {
-      facObstacle = 2.0;
-      this->set_parameter(rclcpp::Parameter(name + ".behavior.obstacle_force_factor", facObstacle));
-    }
-    else if (facObstacle > 50.0)
-    {
-      facObstacle = 50.0;
-      this->set_parameter(rclcpp::Parameter(name + ".behavior.obstacle_force_factor", facObstacle));
+    if (conf != 1)
+    {  // ForceFactorObstacle  [2, 50] - def: 10
+      if (facObstacle < 2.0)
+      {
+        facObstacle = 2.0;
+        this->set_parameter(rclcpp::Parameter(name + ".behavior.obstacle_force_factor", facObstacle));
+      }
+      else if (facObstacle > 50.0)
+      {
+        facObstacle = 50.0;
+        this->set_parameter(rclcpp::Parameter(name + ".behavior.obstacle_force_factor", facObstacle));
+      }
     }
 
-    // ForceFactorSocial    [5.0, 20] - def: 5.0
     double facSocial = this->declare_parameter<double>(name + ".behavior.social_force_factor", 5.0);  // 2.1
-    if (facSocial < 5.0)
-    {
-      facSocial = 5.0;
-      this->set_parameter(rclcpp::Parameter(name + ".behavior.social_force_factor", facSocial));
-    }
-    else if (facSocial > 20.0)
-    {
-      facSocial = 20.0;
-      this->set_parameter(rclcpp::Parameter(name + ".behavior.social_force_factor", facSocial));
+    if (conf != 1)
+    {  // ForceFactorSocial    [5.0, 20] - def: 5.0
+      if (facSocial < 5.0)
+      {
+        facSocial = 5.0;
+        this->set_parameter(rclcpp::Parameter(name + ".behavior.social_force_factor", facSocial));
+      }
+      else if (facSocial > 20.0)
+      {
+        facSocial = 20.0;
+        this->set_parameter(rclcpp::Parameter(name + ".behavior.social_force_factor", facSocial));
+      }
     }
 
-    // Other force factor  [0, 25] - def: 20.0
     // currently used as an extra repulsive force for the scary behavior
     double facOther = this->declare_parameter<double>(name + ".behavior.other_force_factor", 20.0);
-    if (facOther < 0.0)
-    {
-      facOther = 0.0;
-      this->set_parameter(rclcpp::Parameter(name + ".behavior.other_force_factor", facOther));
-    }
-    else if (facSocial > 25.0)
-    {
-      facOther = 25.0;
-      this->set_parameter(rclcpp::Parameter(name + ".behavior.other_force_factor", facOther));
+    if (conf != 1)
+    {  // Other force factor  [0, 25] - def: 20.0
+      if (facOther < 0.0)
+      {
+        facOther = 0.0;
+        this->set_parameter(rclcpp::Parameter(name + ".behavior.other_force_factor", facOther));
+      }
+      else if (facSocial > 25.0)
+      {
+        facOther = 25.0;
+        this->set_parameter(rclcpp::Parameter(name + ".behavior.other_force_factor", facOther));
+      }
     }
 
     // If the configuration mode is default, overwrite the values with the default ones:

@@ -34,7 +34,7 @@ A pre-print version of the accepted paper is available [here](https://arxiv.org/
 
 ## Container system
 
-It is recommended to use the system through containers what ease the deployment of HuNavSim.
+It is strongly recommended to use the system through containers what ease the deployment of HuNavSim.
 If you want to try HuNavSim through Docker containers, please go to the following repo and follow the instruccions indicated there for installation: https://github.com/robotics-upo/hunavsim_containers
 
 
@@ -42,10 +42,17 @@ If you want to try HuNavSim through Docker containers, please go to the followin
 
 * You must download and install the Social Force Model library. Follow the instructions here: https://github.com/robotics-upo/lightsfm
 * The ros people_msgs are also required. At the moment of this development, people_msgs were not still available to be installed from the apt ros-humble package server. You can get the package from here: https://github.com/wg-perception/people/tree/ros2. Please, copy it and put it in your workspace.
-* The ROS2 packages *nav2-behavior-tree* and *behaviortree_cpp_v3* are also needed.
+* The ROS2 packages *nav2-behavior-tree* is needed.
   ```sh
-  sudo apt install ros-humble-nav2-behavior-tree ros-humble-behaviortree-cpp-v3
+  sudo apt install ros-humble-nav2-behavior-tree
   ```
+* The version of the Behavior Tree library that we are using is BehaviorTree.CPP 4.6. Install it by cloning these two packages in your ROS 2 workspace:
+  ```sh
+  git clone https://github.com/BehaviorTree/BehaviorTree.CPP.git
+  git clone -b humble https://github.com/BehaviorTree/BehaviorTree.ROS2.git
+  ```
+
+
 
 ## Features
 
