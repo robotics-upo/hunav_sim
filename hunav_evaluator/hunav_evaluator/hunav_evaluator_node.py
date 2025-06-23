@@ -264,13 +264,14 @@ class HunavEvaluatorNode(Node):
         # add extension if it does not have it
 
         file_was_created = os.path.exists(result_file)
+        # be sure thath the parent directory exists
+        os.makedirs(os.path.dirname(result_file), exist_ok=True)
 
         df_metrics = pd.DataFrame(self.metrics_to_compute, index=[self.exp_tag])
         df_metrics.index.name = "experiment_tag"
         df_metrics["run_id"] = self.run_id  # add the run id to the metrics
 
         # save the metrics to a CSV file
-
         df_metrics.to_csv(result_file, mode="a", header=not file_was_created)
         # open and write the second file (metric for each step)
 
