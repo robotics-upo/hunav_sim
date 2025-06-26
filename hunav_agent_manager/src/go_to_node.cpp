@@ -2,26 +2,37 @@
 #include "hunav_agent_manager/agent_manager.hpp"
 #include "hunav_agent_manager/bt_functions.hpp"
 #include <iostream>
+#include <cmath>
 
 namespace hunav
 {
 
   BT::NodeStatus GoToNode::onStart()
   {
+    // 1) Read required inputs
     if (!getInput<int>("agent_id", agent_id_))
       throw BT::RuntimeError("GoToNode: missing [agent_id]");
-    if (!getInput<double>("target_x", target_x_))
-      throw BT::RuntimeError("GoToNode: missing [target_x]");
-    if (!getInput<double>("target_y", target_y_))
-      throw BT::RuntimeError("GoToNode: missing [target_y]");
+
+    // 2) Read required goal_id 
+    auto goal_id_msg = getInput<int>("goal_id");
+    if (!goal_id_msg)
+      throw BT::RuntimeError("GoToNode: missing required input [goal_id]");
+
+    int goal_id = goal_id_msg.value(); 
+
+    if (g_btfunctions == nullptr) {
+      throw BT::RuntimeError("GoToNode: BTfunctions singleton not initialized");
+    }
+    auto pt = g_btfunctions->getGlobalGoal(goal_id);
+    target_x_ = pt.x;
+    target_y_ = pt.y;
+
     if (!getInput<double>("time_step", dt_))
       throw BT::RuntimeError("GoToNode: missing [time_step]");
-    if (!getInput<bool>("temporary", temporary_))
-      throw BT::RuntimeError("GoToNode: missing [temporary]");
-    if (!getInput<double>("stop_duration", stop_duration_))
-      throw BT::RuntimeError("GoToNode: missing [stop_duration]");
+    if (!getInput<double>("tolerance", tolerance_))
+      throw BT::RuntimeError("GoToNode: missing [tolerance]");
 
-    // Retrieve AgentManager pointer
+    // 3) Fetch the global AgentManager pointer
     if (agent_manager_ == nullptr)
     {
       agent_manager_ = hunav::g_agent_manager;
@@ -29,90 +40,57 @@ namespace hunav
         throw BT::RuntimeError("GoToNode: global AgentManager pointer not set");
     }
 
-    // Create a new goal
+    // 4) Snapshot any existing goals, so we can restore later
+    original_goals_ = agent_manager_->getAgentGoals(agent_id_);
+
+    // 5) Create exactly one “temporary” goal at (target_x_, target_y_)
     sfm::Goal goal;
     goal.center.set(target_x_, target_y_);
-    goal.radius = 0.05;
-
-    if (temporary_)
-    {
-      // Save the original goals to restore later
-      original_goals_ = agent_manager_->getAgentGoals(agent_id_);
-    }
-
-    // Set the new goal
+    goal.radius = 0.1;
     agent_manager_->clearAndSetAgentGoal(agent_id_, goal);
-    // std::cout << "[GoToNode] Agent " << agent_id_
-    //           << " goal set to (" << target_x_ << ", " << target_y_ << ")."
-    //           << (temporary_ ? " [Temporary]" : " [Permanent]") << "\n";
-
-    // Reset freeze_start_time_ to indicate timer hasn't started yet
-    freeze_start_time_ = std::chrono::steady_clock::time_point();
 
     return BT::NodeStatus::RUNNING;
   }
 
   BT::NodeStatus GoToNode::onRunning()
   {
-    double dt;
+    // 1) Re‐read dt in case it’s dynamic
     auto dt_msg = getInput<double>("time_step");
     if (!dt_msg)
-      throw BT::RuntimeError("GoToNode: missing input [time_step] during onRunning", dt_msg.error());
-    dt = dt_msg.value();
+      throw BT::RuntimeError("GoToNode: missing input [time_step] during onRunning",
+                             dt_msg.error());
+    dt_ = dt_msg.value();
 
-    // Check if the agent has reached the goal
-    if (!agent_manager_->goalReached(agent_id_))
-    {
-      agent_manager_->updatePosition(agent_id_, dt);
-      return BT::NodeStatus::RUNNING;
-    }
+    // 2) Compute current distance to (target_x_, target_y_)
+    // utils::Vector2d pos = agent_manager_->getAgentPosition(agent_id_);
+    // double dx = pos.getX() - target_x_;
+    // double dy = pos.getY() - target_y_;
+    // double distance = std::sqrt(dx * dx + dy * dy);
 
-    // At this point, the goal has been reached
-    if (!temporary_)
+    // 3) If within tolerance_, remove the temporary goal and succeed
+    if (agent_manager_->goalReached(agent_id_)) //(distance <= tolerance_)
     {
-      // std::cout << "[GoToNode] Agent " << agent_id_
-      //           << " reached the permanent goal (" << target_x_ << ", " << target_y_ << ").\n";
+      // Restore the original goals exactly as they were
+      agent_manager_->restoreAgentGoals(agent_id_, original_goals_);
       return BT::NodeStatus::SUCCESS;
     }
-    else
-    {
-      // For temporary goal: start freeze timer if not already started
-      if (freeze_start_time_ == std::chrono::steady_clock::time_point())
-      {
-        freeze_start_time_ = std::chrono::steady_clock::now();
-        // agent_manager_->freezeAgent(agent_id_);
-        std::cout << "[GoToNode] Agent " << agent_id_
-                  << " reached temporary goal. Freeze timer started.\n";
-      }
-      // Check elapsed freeze time
-      auto now = std::chrono::steady_clock::now();
-      double elapsed = std::chrono::duration_cast<std::chrono::duration<double>>(now - freeze_start_time_).count();
-      if (elapsed >= stop_duration_)
-      {
-        // Restore the original goals
-        agent_manager_->restoreAgentGoals(agent_id_, original_goals_);
-        // agent_manager_->resumeAgent(agent_id_);
-        // std::cout << "[GoToNode] Temporary goal duration elapsed for agent " << agent_id_
-        //           << ". Original goals restored.\n";
-        return BT::NodeStatus::SUCCESS;
-      }
-      return BT::NodeStatus::RUNNING;
-    }
+    // Check if the agent has reached the goal
+    // if (!agent_manager_->goalReached(agent_id_))
+    // {
+    //   agent_manager_->updatePosition(agent_id_, dt);
+    //   return BT::NodeStatus::RUNNING;
+    // }
+
+    // 4) Otherwise, we haven’t reached it yet → keep moving
+    agent_manager_->updatePosition(agent_id_, dt_);
+    return BT::NodeStatus::RUNNING;
   }
 
   void GoToNode::onHalted()
   {
-    if (temporary_)
-    {
-      // Restore original goals if the node is halted
-      agent_manager_->restoreAgentGoals(agent_id_, original_goals_);
-      // std::cout << "[GoToNode] Halted: Temporary goal aborted for agent " << agent_id_
-      //           << ". Original goals restored.\n";
-    }
-    else
-    {
-      // std::cout << "[GoToNode] Halted: Agent " << agent_id_ << " GoTo action aborted.\n";
-    }
+    // If the tree is halted mid‐goal, restore original goals so we don’t leave the
+    // agent stuck on a half‐completed temporary goal.
+    agent_manager_->clearAndSetAgentGoals(agent_id_, original_goals_);
   }
 
 } // namespace hunav

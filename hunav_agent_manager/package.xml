@@ -16,9 +16,9 @@
   <depend>people_msgs</depend>
   <depend>nav2_behavior_tree</depend>
   <depend>behaviortree_cpp</depend>
+  <depend>tf2</depend>
+  <depend>tf2_geometry_msgs</depend>
 
-  <exec_depend>tf2_geometry_msgs</exec_depend>
-  <exec_depend>tf2</exec_depend>
   <exec_depend>tf_transformations</exec_depend>
 
   <!--<test_depend>ament_lint_auto</test_depend>

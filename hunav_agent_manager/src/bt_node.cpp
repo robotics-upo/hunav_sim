@@ -1,4 +1,9 @@
 #include "hunav_agent_manager/bt_node.hpp"
+#include <ament_index_cpp/get_package_share_directory.hpp>
+#include <sys/stat.h>
+#include <cstdlib>
+#include <rclcpp/node_options.hpp>
+#include <rcpputils/split.hpp>
 
 // BT_REGISTER_NODES(factory) {
 //   hunav_agent_manager::registerBTNodes(factory);
@@ -11,59 +16,100 @@ namespace hunav
   using std::placeholders::_2;
   // using std::placeholders::_3;
 
-  BTnode::BTnode() : Node("hunav_agent_manager")
+  BTnode::BTnode()
+  : Node("hunav_agent_manager")
   {
-    RCLCPP_INFO(this->get_logger(), "Initializing %s node...", this->get_name());
-    try
-    {
-      pkg_shared_tree_dir_ = ament_index_cpp::get_package_share_directory("hunav_agent_manager");
-    }
-    catch (const ament_index_cpp::PackageNotFoundError &e)
-    {
-      RCLCPP_ERROR(this->get_logger(), "Package hunav_agent_manager not found: %s", e.what());
-    }
-    pkg_shared_tree_dir_ = pkg_shared_tree_dir_ + "/behavior_trees/";
-    initialized_ = false;
+    RCLCPP_INFO(get_logger(), "Initializing %s node...", get_name());
+  initialized_ = false;
 
-    // node parameter declaration
-    pub_tf_ = this->declare_parameter<bool>("publish_tf", true);
-    pub_forces_ = this->declare_parameter<bool>("publish_sfm_forces", true);
-    // pub_agent_states_ =
-    //    this->declare_parameter<bool>("publish_agent_states", true);
+  // 1) Parameters local to this node
+  pub_tf_     = this->declare_parameter<bool>("publish_tf", true);
+  pub_forces_ = this->declare_parameter<bool>("publish_sfm_forces", true);
 
-    pub_people_ = this->declare_parameter<bool>("hunav_loader.publish_people", true);
+  // 2) Create service client to get parameters from hunav_loader
+  get_parameters_client_ = this->create_client<hunav_msgs::srv::GetParameters>("/get_parameters");
+
+  // 3) Get parameters from hunav_loader node
+  if (!getParametersFromLoader()) {
+    RCLCPP_ERROR(get_logger(), "Failed to get parameters from hunav_loader. Using defaults.");
+    // Set default values
+    pub_people_     = true;
+    map_name_       = "warehouse";
+    simulator_name_ = "Gazebo";
+    yaml_base_name_ = "warehouse_agents";
+  }
+
+  RCLCPP_INFO(get_logger(),
+    "Parameters from loader: map=%s, simulator=%s, yaml_base_name=%s, publish_people=%s",
+    map_name_.c_str(),
+    simulator_name_.c_str(),
+    yaml_base_name_.c_str(),
+    pub_people_ ? "true" : "false");
+
+  // 4) Hand global goals to BT logic:
+  btfunc_.setGlobalGoals(global_goals_);
+
+    // Set the base directory for behavior trees
+    {
+      struct stat buffer;
+      if (simulator_name_ == "Gazebo") {
+        // 1) Try the ROS2 package
+        try {
+          bt_dir_base_ = ament_index_cpp::get_package_share_directory("hunav_gazebo_wrapper")
+                        + "/behavior_trees";
+        } catch (const ament_index_cpp::PackageNotFoundError &e) {
+          // 2) Fallback to home/docker
+          std::string home_path   = std::string(getenv("HOME")) + "/hunav_gazebo_wrapper/behavior_trees";
+          std::string docker_path = "/workspace/hunav_isaac_ws/src/hunav_gazebo_wrapper/behavior_trees";
+          bt_dir_base_ = (stat(docker_path.c_str(), &buffer) == 0)
+                          ? docker_path
+                          : home_path;
+        }
+      }
+      else if (simulator_name_ == "Isaac Sim") {
+        std::string home_path   = std::string(getenv("HOME")) + "/Hunav_isaac_wrapper/behavior_trees";
+        std::string docker_path = "/workspace/hunav_isaac_ws/src/Hunav_isaac_wrapper/behavior_trees";
+        bt_dir_base_ = (stat(docker_path.c_str(), &buffer) == 0)
+                        ? docker_path
+                        : home_path;
+      }
+      else {
+        std::string home_path   = std::string(getenv("HOME")) + "/hunav_webots_wrapper/behavior_trees";
+        std::string docker_path = "/workspace/hunav_isaac_ws/src/hunav_webots_wrapper/behavior_trees";
+        bt_dir_base_ = (stat(docker_path.c_str(), &buffer) == 0)
+                        ? docker_path
+                        : home_path;
+      }
+      RCLCPP_INFO(this->get_logger(),
+                  "Behavior trees will be loaded from: %s",
+                  bt_dir_base_.c_str());
+    }
 
     prev_time_ = this->get_clock()->now();
-    // btfunc_.init();
 
     registerBTNodes();
-
-    // Initialize the transform broadcaster
     tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
 
     agents_srv_ = this->create_service<hunav_msgs::srv::ComputeAgents>(
-        std::string("compute_agents"), std::bind(&BTnode::computeAgentsService, this, _1, _2));
-
+      "compute_agents", std::bind(&BTnode::computeAgentsService, this, _1, _2));
     agent_srv_ = this->create_service<hunav_msgs::srv::ComputeAgent>(
-        std::string("compute_agent"), std::bind(&BTnode::computeAgentService, this, _1, _2));
-
+      "compute_agent", std::bind(&BTnode::computeAgentService, this, _1, _2));
     move_agent_srv_ = this->create_service<hunav_msgs::srv::MoveAgent>(
-        std::string("move_agent"), std::bind(&BTnode::moveAgentService, this, _1, _2));
+      "move_agent", std::bind(&BTnode::moveAgentService, this, _1, _2));
+    reset_srv_ = this->create_service<hunav_msgs::srv::ResetAgents>(
+      "reset_agents", std::bind(&BTnode::resetAgentsService, this, _1, _2));
 
-    reset_srv_ = this->create_service<hunav_msgs::srv::ResetAgents>(std::string("reset_agents"),
-                                                                    std::bind(&BTnode::resetAgentsService, this, _1, _2));
-
-    if (pub_forces_)
-    {
-      forces_publisher_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("sfm_forces", 5);
+    if (pub_forces_) {
+      forces_publisher_ = this->create_publisher<visualization_msgs::msg::MarkerArray>(
+        "sfm_forces", 5);
     }
-    // if (pub_agent_states_) {
-    human_state_publisher_ = this->create_publisher<hunav_msgs::msg::Agents>("human_states", 1);
-    robot_state_publisher_ = this->create_publisher<hunav_msgs::msg::Agent>("robot_states", 1);
-    //}
-    if (pub_people_)
-    {
-      people_publisher_ = this->create_publisher<people_msgs::msg::People>("people", 1);
+    human_state_publisher_ = this->create_publisher<hunav_msgs::msg::Agents>(
+      "human_states", 1);
+    robot_state_publisher_ = this->create_publisher<hunav_msgs::msg::Agent>(
+      "robot_states", 1);
+    if (pub_people_) {
+      people_publisher_ = this->create_publisher<people_msgs::msg::People>(
+        "people", 1);
     }
   }
 
@@ -99,8 +145,7 @@ namespace hunav
         BT::InputPort<double>("wait_time", 5.0, "Time in seconds since last interaction")};
     BT::PortsList pos_ports = {
         BT::InputPort<int>("agent_id"),
-        BT::InputPort<double>("target_x"),
-        BT::InputPort<double>("target_y"),
+        BT::InputPort<int>("goal_id"),
         BT::InputPort<double>("tolerance", 0.1, "Tolerance for reaching the target")};
     BT::PortsList proximity_agent_ports = {
         BT::InputPort<int>("observer_id"),
@@ -169,18 +214,13 @@ namespace hunav
     BT::PortsList go_to_ports = {
         BT::InputPort<int>("agent_id"),
         BT::InputPort<double>("target_x"),
-        BT::InputPort<double>("target_y")};
+        BT::InputPort<double>("target_y"),
+        BT::InputPort<int>("goal_id")};
 
     factory_.registerSimpleAction("FindNearestAgent",
                                   std::bind(&BTfunctions::findNearestAgent, &btfunc_, _1), find_target_ports);
     factory_.registerSimpleAction("SaySomething",
                                   std::bind(&BTfunctions::saySomething, &btfunc_, _1), say_ports);
-    factory_.registerSimpleAction("LookAtAgent",
-                                  std::bind(&BTfunctions::lookAtAgent, &btfunc_, _1), look_at_agent_ports);
-    factory_.registerSimpleAction("LookAtRobot",
-                                  std::bind(&BTfunctions::lookAtRobot, &btfunc_, _1), simple_port);
-    factory_.registerSimpleAction("LookAtPoint",
-                                  std::bind(&BTfunctions::lookAtPoint, &btfunc_, _1), look_at_point_ports);
     factory_.registerSimpleAction("SetGroupId",
                                   std::bind(&BTfunctions::setGroupId, &btfunc_, _1), set_group_id_ports);
     factory_.registerSimpleAction("SetGoal",
@@ -204,6 +244,9 @@ namespace hunav
     factory_.registerNodeType<hunav::IsSpeakingNode>("IsSpeaking");
     factory_.registerNodeType<hunav::IsAnyoneLookingAtMeNode>("IsAnyoneLookingAtMe");
     factory_.registerNodeType<hunav::IsLookingAtMeNode>("IsLookingAtMe");
+    factory_.registerNodeType<hunav::LookAtPointNode>("LookAtPoint");
+    factory_.registerNodeType<hunav::LookAtAgentNode>("LookAtAgent");
+    factory_.registerNodeType<hunav::LookAtRobotNode>("LookAtRobot");
 
     // Decorators
     factory_.registerNodeType<hunav::TimeDelayDecorator>("TimeDelay");
@@ -211,137 +254,88 @@ namespace hunav
     RCLCPP_INFO(this->get_logger(), "BT nodes registered");
   }
 
-
-void BTnode::initializeBehaviorTree(const hunav_msgs::msg::Agent& _agent)
-{
-  RCLCPP_INFO(this->get_logger(), "Initializing Behavior tree of Agent %s, id: %i, behavior: %i", _agent.name.c_str(),
-                _agent.id, (int)_agent.behavior.type);
-
-  // BT::Tree tree;
-  // RCLCPP_INFO(this->get_logger(), "Setting id: %i", agents.agents[i].id);
-  BT::Blackboard::Ptr blackboard = BT::Blackboard::create();
-  blackboard->set<int>("id", (int)_agent.id);
-  blackboard->set<double>("dt", 0.0);
-
-  // Check the agent behavior to create the proper behavior tree
-  switch (_agent.behavior.type)
+  void BTnode::initializeBehaviorTree(const hunav_msgs::msg::Agent &_agent)
   {
-    case hunav_msgs::msg::AgentBehavior::BEH_REGULAR:
-      RCLCPP_INFO(this->get_logger(), "Loading BTRegularNav.xml tree");
-      trees_[_agent.id] =
-          factory_.createTreeFromFile(pkg_shared_tree_dir_ + "BTRegularNav.xml", blackboard);
-      break;
+    RCLCPP_INFO(this->get_logger(), "Initializing Behavior tree of Agent %s, id: %i", _agent.name.c_str(),
+                _agent.id);
 
-    case hunav_msgs::msg::AgentBehavior::BEH_IMPASSIVE:
-      // we load the regularNav tree since the impassive behavior
-      // is taken into account in the ComputeForces method,
-      // by adding the robot to the agent's obstacles.
-      RCLCPP_INFO(this->get_logger(), "Loading BTRegularNav.xml tree (with impassive behavior)");
-      trees_[_agent.id] =
-          factory_.createTreeFromFile(pkg_shared_tree_dir_ + "BTRegularNav.xml", blackboard);
-      break;
+    // BT::Tree tree;
+    // RCLCPP_INFO(this->get_logger(), "Setting id: %i", agents.agents[i].id);
+    BT::Blackboard::Ptr blackboard = BT::Blackboard::create();
+    blackboard->set<int>("id", (int)_agent.id);
+    blackboard->set<double>("dt", 0.0);
 
-    case hunav_msgs::msg::AgentBehavior::BEH_SURPRISED:
-      blackboard->set<double>("dist", _agent.behavior.dist);
-      blackboard->set<double>("duration", _agent.behavior.duration);
-      blackboard->set<bool>("once", _agent.behavior.once);
-      RCLCPP_INFO(this->get_logger(), "Loading BTSurprisedNav.xml tree");
-      trees_[_agent.id] =
-          factory_.createTreeFromFile(pkg_shared_tree_dir_ + "BTSurprisedNav.xml", blackboard);
-      break;
+    // compose the file name and full path
+    const std::string fname = yaml_base_name_
+                              + "__agent_"
+                              + std::to_string(_agent.id)
+                              + "_bt.xml";
+    const std::string fullpath = bt_dir_base_ + "/" + fname;
+    
+    RCLCPP_INFO(this->get_logger(), "Loading BT file: %s", fullpath.c_str());
 
-    case hunav_msgs::msg::AgentBehavior::BEH_SCARED:
-      blackboard->set<double>("duration", _agent.behavior.duration);
-      blackboard->set<bool>("once", _agent.behavior.once);
-      blackboard->set<double>("dist", _agent.behavior.dist);
-      blackboard->set<double>("maxvel", _agent.behavior.vel);
-      blackboard->set<double>("forcefactor", _agent.behavior.other_force_factor);
-      RCLCPP_INFO(this->get_logger(), "Loading BTScaredNav.xml tree");
-      try
+    try
+    {
+      trees_[_agent.id] = factory_.createTreeFromFile(fullpath, blackboard);
+    }
+    catch (const std::exception &e)
+    {
+      RCLCPP_ERROR(
+          this->get_logger(),
+          "Failed to load BT XML for agent %d: %s - Check %s for any format mistakes",
+          _agent.id, e.what(), fullpath.c_str());
+    }
+
+    if (_agent.id == 1)
       {
-        trees_[(int)_agent.id] =
-            factory_.createTreeFromFile(pkg_shared_tree_dir_ + "BTScaredNav.xml", blackboard);
-      }
-      catch (const std::exception& e)
-      {
-        std::cerr << "EXCEPTION!!!: " << e.what() << '\n';
+        publisher_ = std::make_unique<BT::Groot2Publisher>(trees_[_agent.id], 5555);
       }
 
-      break;
+    RCLCPP_INFO(this->get_logger(), "Behavior Tree for agent %s [id:%i] loaded!", _agent.name.c_str(),
+                _agent.id);
 
-    case hunav_msgs::msg::AgentBehavior::BEH_CURIOUS:
-      blackboard->set<double>("duration", _agent.behavior.duration);
-      blackboard->set<bool>("once", _agent.behavior.once);
-      blackboard->set<double>("stopdist", _agent.behavior.dist);
-      blackboard->set<double>("maxvel", _agent.behavior.vel);
-      RCLCPP_INFO(this->get_logger(), "Loading BTCuriousNav.xml tree");
-      trees_[_agent.id] =
-          factory_.createTreeFromFile(pkg_shared_tree_dir_ + "BTCuriousNav.xml", blackboard);
-      break;
+    // Set the id of the agent
+    // tree_.rootBlackboard()->set<std::string>("id",
+    // std::to_string(agents.agents[i].id));
+    // tree_.rootBlackboard()->set<int>("id", agents.agents[i].id);
 
-    case hunav_msgs::msg::AgentBehavior::BEH_THREATENING:
-      blackboard->set<double>("duration", _agent.behavior.duration);
-      blackboard->set<bool>("once", _agent.behavior.once);
-      blackboard->set<double>("frontdist", _agent.behavior.dist);
-      RCLCPP_INFO(this->get_logger(), "Loading BTThreatening.xml tree");
-      trees_[_agent.id] =
-          factory_.createTreeFromFile(pkg_shared_tree_dir_ + "BTThreateningNav.xml", blackboard);
-      break;
+    // // This logger prints state changes on console
+    BT::StdCoutLogger logger_cout(trees_[_agent.id]);
+    // // This logger saves state changes on file
+    // std::string filename = "bt_trace_" + std::to_string(agents.agents[i].id);
+    // BT::FileLogger logger_file(tree, (filename + ".fbl").c_str());
+    // // This logger stores the execution time of each node
+    // BT::MinitraceLogger logger_minitrace(tree, (filename + ".json").c_str());
 
-    default:
-      RCLCPP_WARN(this->get_logger(), "Behavior of agent %s not defined! Using regular behavior",
-                  _agent.name.c_str());
-      RCLCPP_INFO(this->get_logger(), "Loading default tree");
-      trees_[_agent.id] =
-          factory_.createTreeFromFile(pkg_shared_tree_dir_ + "BTRegularNav.xml", blackboard);
+    // #ifdef ZMQ_FOUND
+    //  This logger publish status changes using ZeroMQ. Used by Groot
+    //  BT::PublisherZMQ publisher_zmq(tree);
+    // #endif
+
+    // root_->addChild(trees_[trees_.size() - 1].rootNode());
+    // BT::printTreeRecursively(root_.get());
+    BT::printTreeRecursively(trees_[_agent.id].rootNode());
   }
-  RCLCPP_INFO(this->get_logger(), "Behavior Tree for agent %s [id:%i] loaded!", _agent.name.c_str(),
-              _agent.id);
 
-  // Set the id of the agent
-  // tree_.rootBlackboard()->set<std::string>("id",
-  // std::to_string(agents.agents[i].id));
-  // tree_.rootBlackboard()->set<int>("id", agents.agents[i].id);
-
-  // // This logger prints state changes on console
-  BT::StdCoutLogger logger_cout(trees_[_agent.id]);
-  // // This logger saves state changes on file
-  // std::string filename = "bt_trace_" + std::to_string(agents.agents[i].id);
-  // BT::FileLogger logger_file(tree, (filename + ".fbl").c_str());
-  // // This logger stores the execution time of each node
-  // BT::MinitraceLogger logger_minitrace(tree, (filename + ".json").c_str());
-
-  // #ifdef ZMQ_FOUND
-  //  This logger publish status changes using ZeroMQ. Used by Groot
-  //  BT::PublisherZMQ publisher_zmq(tree);
-  // #endif
-
-  // root_->addChild(trees_[trees_.size() - 1].rootNode());
-  // BT::printTreeRecursively(root_.get());
-  BT::printTreeRecursively(trees_[_agent.id].rootNode());
-
-}
-
-
-void BTnode::initializeBehaviorTrees(const hunav_msgs::msg::Agents& _agents)
-{
-  // root_ = std::make_unique<BT::ParallelNode>("root", 1, 1);
-  // root_ = std::make_unique<BT::SequenceNode>("root");
-  RCLCPP_INFO(this->get_logger(), "Initializing Behavior Trees of %lu agents...", _agents.agents.size());
-
-  for (auto a : _agents.agents)
+  void BTnode::initializeBehaviorTrees(const hunav_msgs::msg::Agents &_agents)
   {
-    initializeBehaviorTree(a);
+    // root_ = std::make_unique<BT::ParallelNode>("root", 1, 1);
+    // root_ = std::make_unique<BT::SequenceNode>("root");
+    RCLCPP_INFO(this->get_logger(), "Initializing Behavior Trees of %lu agents...", _agents.agents.size());
+
+    for (auto a : _agents.agents)
+    {
+      initializeBehaviorTree(a);
+    }
+    // This logger prints state changes on console
+    // BT::StdCoutLogger logger_cout(root_.get());
+    // // This logger saves state changes on file
+    // std::string filename = "bt_trace_" + std::to_string(agents.agents[i].id);
+    // BT::FileLogger logger_file(tree, (filename + ".fbl").c_str());
+    // // This logger stores the execution time of each node
+    // BT::MinitraceLogger logger_minitrace(tree, (filename + ".json").c_str());
+    RCLCPP_INFO(this->get_logger(), "Behavior trees succesfully initiated!");
   }
-  // This logger prints state changes on console
-  // BT::StdCoutLogger logger_cout(root_.get());
-  // // This logger saves state changes on file
-  // std::string filename = "bt_trace_" + std::to_string(agents.agents[i].id);
-  // BT::FileLogger logger_file(tree, (filename + ".fbl").c_str());
-  // // This logger stores the execution time of each node
-  // BT::MinitraceLogger logger_minitrace(tree, (filename + ".json").c_str());
-  RCLCPP_INFO(this->get_logger(), "Behavior trees succesfully initiated!");
-}
 
   BT::NodeStatus BTnode::tree_tick(double dt)
   {
@@ -380,9 +374,9 @@ void BTnode::initializeBehaviorTrees(const hunav_msgs::msg::Agents& _agents)
     auto ro = std::make_shared<hunav_msgs::msg::Agent>(request->robot);
     auto ag = std::make_shared<hunav_msgs::msg::Agents>(request->current_agents);
 
-  // Update the internal agent states with the
-  // received data from the simulator
-  btfunc_.updateAllAgents(ro, ag);
+    // Update the internal agent states with the
+    // received data from the simulator
+    btfunc_.updateAllAgents(ro, ag);
 
     if (!initialized_)
     {
@@ -391,12 +385,12 @@ void BTnode::initializeBehaviorTrees(const hunav_msgs::msg::Agents& _agents)
                   ro->position.position.y, ro->yaw);
       RCLCPP_INFO(this->get_logger(), "Agents received: %li", ag->agents.size());
 
-    initializeBehaviorTrees(request->current_agents);
-    response->updated_agents = btfunc_.getUpdatedAgents();
-    prev_time_ = rclcpp::Time(ag->header.stamp);
-    initialized_ = true;
-    return;
-  }
+      initializeBehaviorTrees(request->current_agents);
+      response->updated_agents = btfunc_.getUpdatedAgents();
+      prev_time_ = rclcpp::Time(ag->header.stamp);
+      initialized_ = true;
+      return;
+    }
 
     // rclcpp::Time t = this->get_clock()->now();
     rclcpp::Time t = rclcpp::Time(ag->header.stamp);
@@ -415,9 +409,9 @@ void BTnode::initializeBehaviorTrees(const hunav_msgs::msg::Agents& _agents)
     if (time_step_secs < 0.0)
       time_step_secs = 0.0; // 0.05
 
-  BT::NodeStatus status = tree_tick(time_step_secs);
-  prev_time_ = rclcpp::Time(ag->header.stamp);
-  //}
+    BT::NodeStatus status = tree_tick(time_step_secs);
+    prev_time_ = rclcpp::Time(ag->header.stamp);
+    //}
 
     response->updated_agents = btfunc_.getUpdatedAgents();
   }
@@ -440,11 +434,11 @@ void BTnode::initializeBehaviorTrees(const hunav_msgs::msg::Agents& _agents)
     auto ro = std::make_shared<hunav_msgs::msg::Agent>(request->robot);
     auto ag = std::make_shared<hunav_msgs::msg::Agents>(request->current_agents);
 
-  // Update the internal agent states with the
-  // received data from the simulator
-  //RCLCPP_INFO(this->get_logger(), "Service call received agent id %i", request->agent_id);
-  btfunc_.updateAllAgents(ro, ag);
-  // RCLCPP_INFO(this->get_logger(), "Agents updated!");
+    // Update the internal agent states with the
+    // received data from the simulator
+    // RCLCPP_INFO(this->get_logger(), "Service call received agent id %i", request->agent_id);
+    btfunc_.updateAllAgents(ro, ag);
+    // RCLCPP_INFO(this->get_logger(), "Agents updated!");
 
     if (!initialized_)
     {
@@ -453,12 +447,12 @@ void BTnode::initializeBehaviorTrees(const hunav_msgs::msg::Agents& _agents)
                   ro->position.position.y, ro->yaw);
       RCLCPP_INFO(this->get_logger(), "Agents received: %li", ag->agents.size());
 
-    initializeBehaviorTrees(request->current_agents);
-    response->updated_agent = btfunc_.getUpdatedAgent(request->agent_id);
-    prev_time_ = rclcpp::Time(ag->header.stamp);
-    initialized_ = true;
-    return;
-  }
+      initializeBehaviorTrees(request->current_agents);
+      response->updated_agent = btfunc_.getUpdatedAgent(request->agent_id);
+      prev_time_ = rclcpp::Time(ag->header.stamp);
+      initialized_ = true;
+      return;
+    }
 
     // rclcpp::Time t = this->get_clock()->now();
     rclcpp::Time t = rclcpp::Time(ag->header.stamp);
@@ -687,6 +681,54 @@ void BTnode::initializeBehaviorTrees(const hunav_msgs::msg::Agents& _agents)
     color.b = b;
     color.a = a;
     return color;
+  }
+
+  bool BTnode::getParametersFromLoader()
+  {
+    RCLCPP_INFO(get_logger(), "Waiting for hunav_loader get_parameters service...");
+    
+    // Wait for service to be available with timeout
+    if (!get_parameters_client_->wait_for_service(std::chrono::seconds(10))) {
+      RCLCPP_ERROR(get_logger(), "Service /get_parameters not available after waiting");
+      return false;
+    }
+
+    // Create request
+    auto request = std::make_shared<hunav_msgs::srv::GetParameters::Request>();
+    
+    // Call service synchronously
+    auto future = get_parameters_client_->async_send_request(request);
+    
+    // Wait for result with timeout
+    if (rclcpp::spin_until_future_complete(this->get_node_base_interface(), future, std::chrono::seconds(5)) ==
+        rclcpp::FutureReturnCode::SUCCESS) {
+      auto response = future.get();
+      
+      // Store received parameters
+      pub_people_ = response->publish_people;
+      map_name_ = response->map;
+      simulator_name_ = response->simulator;
+      yaml_base_name_ = response->yaml_base_name;
+      
+      // Process global goals
+      global_goals_.clear();
+      for (size_t i = 0; i < response->goal_ids.size(); ++i) {
+        geometry_msgs::msg::Point pt;
+        pt.x = response->goal_x_coords[i];
+        pt.y = response->goal_y_coords[i];
+        pt.z = 0.0;
+        global_goals_[response->goal_ids[i]] = pt;
+        
+        RCLCPP_INFO(get_logger(),
+          "Loaded global goal %ld → (%.3f, %.3f)", response->goal_ids[i], pt.x, pt.y);
+      }
+      
+      RCLCPP_INFO(get_logger(), "Successfully retrieved parameters from hunav_loader");
+      return true;
+    } else {
+      RCLCPP_ERROR(get_logger(), "Failed to call service /get_parameters");
+      return false;
+    }
   }
 
 } // namespace hunav

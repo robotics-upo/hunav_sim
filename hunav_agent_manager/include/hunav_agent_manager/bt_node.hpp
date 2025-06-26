@@ -1,4 +1,5 @@
 #include "rclcpp/rclcpp.hpp"
+#include "rcl_interfaces/srv/get_parameters.hpp"
 #include <ament_index_cpp/get_package_prefix.hpp>
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <geometry_msgs/msg/transform_stamped.hpp>
@@ -17,6 +18,7 @@
 #include "hunav_msgs/srv/compute_agents.hpp"
 #include "hunav_msgs/srv/move_agent.hpp"
 #include "hunav_msgs/srv/reset_agents.hpp"
+#include "hunav_msgs/srv/get_parameters.hpp"
 
 #include "hunav_agent_manager/time_expired_condition.hpp"
 #include "hunav_agent_manager/stop_and_wait_timer_action_node.hpp"
@@ -33,6 +35,11 @@
 #include "hunav_agent_manager/is_speaking_node.hpp"
 #include "hunav_agent_manager/is_anyone_looking_at_me_node.hpp"
 #include "hunav_agent_manager/is_looking_at_me_node.hpp"
+#include "hunav_agent_manager/look_at_point_node.hpp"
+#include "hunav_agent_manager/look_at_agent_node.hpp"
+#include "hunav_agent_manager/look_at_robot_node.hpp"
+
+#include "behaviortree_cpp/loggers/groot2_publisher.h"
 
 
 //#include "nav2_behavior_tree/plugins/condition/time_expired_condition.hpp"
@@ -86,6 +93,12 @@ protected:
   void resetAgentsService(
       const std::shared_ptr<hunav_msgs::srv::ResetAgents::Request> request,
       std::shared_ptr<hunav_msgs::srv::ResetAgents::Response> response);
+
+  /**
+   * @brief Get parameters from hunav_loader node via service call
+   * @return true if parameters were successfully retrieved
+   */
+  bool getParametersFromLoader();
 
   /**
    * @brief ROS service to compute the new state of one agent
@@ -192,9 +205,13 @@ protected:
 
   rclcpp::Service<hunav_msgs::srv::ResetAgents>::SharedPtr reset_srv_;
 
+  // Service client to get parameters from hunav_loader
+  rclcpp::Client<hunav_msgs::srv::GetParameters>::SharedPtr get_parameters_client_;
+
   bool initialized_;
   BTfunctions btfunc_;
   std::string pkg_shared_tree_dir_;
+  std::string bt_dir_base_;
   // std::vector<BT::Tree> trees_;
   std::unordered_map<int, BT::Tree> trees_;
 
@@ -204,6 +221,13 @@ protected:
   bool pub_tf_;
   bool pub_forces_;
   bool pub_people_;
+  std::string map_name_;
+  std::string simulator_name_;
+  std::string yaml_base_name_;
+  std::map<int, geometry_msgs::msg::Point> global_goals_;
+
+  // Groot 2 publisher
+  std::unique_ptr<BT::Groot2Publisher> publisher_;
 
   // BT::Tree tree_;
   // std::unique_ptr<BT::ParallelNode> root_;

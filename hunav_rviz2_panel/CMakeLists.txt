@@ -15,13 +15,14 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_AUTOMOC ON)
 
 find_package(ament_cmake REQUIRED)
+find_package(ament_index_cpp REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(nav2_util REQUIRED)
 find_package(nav2_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(hunav_msgs REQUIRED)
 find_package(pluginlib REQUIRED)
-find_package(Qt5 REQUIRED COMPONENTS Core Gui Widgets Test Concurrent)
+find_package(Qt5 REQUIRED COMPONENTS Core Gui Widgets Xml Test Concurrent)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
 find_package(rviz_common REQUIRED)
@@ -71,6 +72,7 @@ set(dependencies
   tf2_geometry_msgs
   visualization_msgs
   hunav_msgs
+  ament_index_cpp
 )
 
 ament_target_dependencies(${library_name}
@@ -79,11 +81,13 @@ ament_target_dependencies(${library_name}
 
 target_include_directories(${library_name} PUBLIC
   ${Qt5Widgets_INCLUDE_DIRS}
+  ${Qt5Xml_INCLUDE_DIRS}
   ${OGRE_INCLUDE_DIRS}
 )
 
 target_link_libraries(${library_name}
   rviz_common::rviz_common
+  Qt5::Xml 
 )
 
 # Causes the visibility macros to use dllexport rather than dllimport,
@@ -117,10 +121,6 @@ install(
 
 install(DIRECTORY launch/
    DESTINATION share/${PROJECT_NAME}/launch
-)
-
-install(DIRECTORY maps/
-   DESTINATION share/${PROJECT_NAME}/maps
 )
 
 if(BUILD_TESTING)

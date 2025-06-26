@@ -9,6 +9,7 @@
 namespace hunav
 {
   AgentManager* g_agent_manager = nullptr;
+  BTfunctions * g_btfunctions = nullptr;
 
 BTfunctions::BTfunctions()
 {
@@ -17,6 +18,7 @@ BTfunctions::BTfunctions()
   // AgentManager::sfm_agents_.clear();
   init();
   g_agent_manager = &agent_manager_;
+  g_btfunctions = this;
 
   //printf("[BTfunctions.Constructor] initialized!\n");
 }
@@ -29,6 +31,15 @@ void BTfunctions::init()
 {
   //printf("[BTfunctions.init] initialized!\n");
   // agent_manager_.init();
+}
+
+geometry_msgs::msg::Point BTfunctions::getGlobalGoal(int id) const
+{
+  auto it = global_goals_.find(id);
+  if (it == global_goals_.end()) {
+    throw std::runtime_error("BTfunctions::getGlobalGoal: no goal " + std::to_string(id));
+  }
+  return it->second;
 }
 
 BT::NodeStatus BTfunctions::robotVisible(BT::TreeNode& self)
@@ -175,26 +186,26 @@ BT::NodeStatus BTfunctions::lookAtRobot(BT::TreeNode & self)
   return BT::NodeStatus::SUCCESS;
 }
 
-BT::NodeStatus BTfunctions::lookAtPoint(BT::TreeNode & self)
-{
-    auto agent_id_msg = self.getInput<int>("agent_id");
-    if (!agent_id_msg)
-      throw BT::RuntimeError("lookAtPoint: missing input [agent_id]", agent_id_msg.error());
+// BT::NodeStatus BTfunctions::lookAtPoint(BT::TreeNode & self)
+// {
+//     auto agent_id_msg = self.getInput<int>("agent_id");
+//     if (!agent_id_msg)
+//       throw BT::RuntimeError("lookAtPoint: missing input [agent_id]", agent_id_msg.error());
     
-    auto x_msg = self.getInput<double>("target_x");
-    auto y_msg = self.getInput<double>("target_y");
-    if (!x_msg || !y_msg)
-      throw BT::RuntimeError("lookAtPoint: missing input [target_x] or [target_y]");
+//     auto x_msg = self.getInput<double>("target_x");
+//     auto y_msg = self.getInput<double>("target_y");
+//     if (!x_msg || !y_msg)
+//       throw BT::RuntimeError("lookAtPoint: missing input [target_x] or [target_y]");
     
-    int agent_id = agent_id_msg.value();
-    double target_x = x_msg.value();
-    double target_y = y_msg.value();
+//     int agent_id = agent_id_msg.value();
+//     double target_x = x_msg.value();
+//     double target_y = y_msg.value();
     
-    utils::Vector2d target(target_x, target_y);
-    agent_manager_.lookAtPoint(agent_id, target);
+//     utils::Vector2d target(target_x, target_y);
+//     agent_manager_.lookAtPoint(agent_id, target);
     
-    return BT::NodeStatus::SUCCESS;
-}
+//     return BT::NodeStatus::SUCCESS;
+// }
 
 BT::NodeStatus BTfunctions::isRobotClose(BT::TreeNode& self)
 {
@@ -316,58 +327,60 @@ BT::NodeStatus BTfunctions::setGroupId(BT::TreeNode & self)
 BT::NodeStatus BTfunctions::setGoal(BT::TreeNode & self)
 {
   auto id_msg = self.getInput<int>("agent_id");
-  auto x_msg  = self.getInput<double>("target_x");
-  auto y_msg  = self.getInput<double>("target_y");
-
   if (!id_msg)
     throw BT::RuntimeError("setGoal: missing required input [agent_id]: ", id_msg.error());
-  if (!x_msg)
-    throw BT::RuntimeError("setGoal: missing required input [target_x]: ", x_msg.error());
-  if (!y_msg)
-    throw BT::RuntimeError("setGoal: missing required input [target_y]: ", y_msg.error());
 
-  int id = id_msg.value();
-  double x = x_msg.value();
-  double y = y_msg.value();
+  auto goal_id_msg = self.getInput<int>("goal_id");
+  if (!goal_id_msg)
+    throw BT::RuntimeError("setGoal: missing required input [goal_id]: ", goal_id_msg.error());
 
-  // Create a new goal
-  sfm::Goal goal;
-  goal.center.set(x, y);
-  goal.radius = 0.1;  
+  int agent_id = id_msg.value();
+  int goal_id = goal_id_msg.value();
 
-  agent_manager_.setAgentGoal(id, goal);
-  // std::cout << "[setGoal] Agent " << id << " goal set to (" << x << ", " << y << ").\n";
+  auto it = global_goals_.find(goal_id);
+  if (it == global_goals_.end())
+    return BT::NodeStatus::FAILURE;
 
+  const auto & pt = it->second;
+  sfm::Goal  goal;
+  goal.center.set(pt.x, pt.y);
+  goal.radius = 0.1;
+
+  agent_manager_.setAgentGoal(agent_id, goal);
   return BT::NodeStatus::SUCCESS;
 }
 
 BT::NodeStatus BTfunctions::isAtPosition(BT::TreeNode& self)
 {
-  auto id_msg   = self.getInput<int>("agent_id");
-  auto x_msg    = self.getInput<double>("target_x");
-  auto y_msg    = self.getInput<double>("target_y");
-  auto tol_msg  = self.getInput<double>("tolerance");
-
+  auto id_msg = self.getInput<int>("agent_id");
   if (!id_msg)
-    throw BT::RuntimeError("IsAtPosition: missing required input [agent_id]: ", id_msg.error());
-  if (!x_msg)
-    throw BT::RuntimeError("IsAtPosition: missing required input [target_x]: ", x_msg.error());
-  if (!y_msg)
-    throw BT::RuntimeError("IsAtPosition: missing required input [target_y]: ", y_msg.error());
-  
+    throw BT::RuntimeError("isAtPosition: missing required input [agent_id]: ", id_msg.error());
+
+  auto goal_id_msg = self.getInput<int>("goal_id");
+  if (!goal_id_msg)
+    throw BT::RuntimeError("isAtPosition: missing required input [goal_id]: ", goal_id_msg.error());
+
+  auto tol_msg  = self.getInput<double>("tolerance");
+  if (!tol_msg)
+    throw BT::RuntimeError("isAtPosition: missing required input [tolerance]: ", tol_msg.error());
+ 
   // Use a default tolerance if not provided
   double tolerance = (tol_msg) ? tol_msg.value() : 0.1;
-  
-  int id = id_msg.value();
-  double target_x = x_msg.value();
-  double target_y = y_msg.value();
+
+  int agent_id = id_msg.value();
+  int goal_id = goal_id_msg.value();
+
+  auto it = global_goals_.find(goal_id);
+  if (it == global_goals_.end())
+    return BT::NodeStatus::FAILURE;
 
   // Retrieve the agent's current position
-  utils::Vector2d pos = agent_manager_.getAgentPosition(id);
+  utils::Vector2d pos = agent_manager_.getAgentPosition(agent_id);
   
   // Compute the Euclidean distance to the target
-  double dx = pos.getX() - target_x;
-  double dy = pos.getY() - target_y;
+  const auto & pt = it->second;
+  double dx = pos.getX() - pt.x;
+  double dy = pos.getY() - pt.y;
   double distance = std::sqrt(dx * dx + dy * dy);
 
   // Return SUCCESS if the agent is within tolerance; FAILURE otherwise

@@ -19,7 +19,7 @@ namespace hunav
         if (!getInput<double>("distance_threshold", distance_threshold_))
             distance_threshold_ = 5.0;
         if (!getInput<double>("duration", duration_))
-            duration_ = 5.0;
+            duration_ = 10.0;
 
         // Retrieve AgentManager pointer
         if (agent_manager_ == nullptr)
@@ -51,12 +51,12 @@ namespace hunav
         dt = dt_msg.value();
 
         // Ensure normal navigation
-        agent_manager_->updatePosition(listener_id_, dt);
+        // agent_manager_->updatePosition(listener_id_, dt);
 
-        if (agent_manager_->goalReached(listener_id_))
-        {
-            agent_manager_->updateGoal(listener_id_);
-        }
+        // if (agent_manager_->goalReached(listener_id_))
+        // {
+        //     agent_manager_->updateGoal(listener_id_);
+        // }
 
         // Get the last published message
         std::string msg = hunav::AgentSayNode::getInstance()->getLastMessage();

@@ -1,82 +1,313 @@
 # HuNav RViz2 Panel
 
-A ROS2 C++ package that contains two RViz2 panels to help in the configuration of the HuNavSim.
+A comprehensive ROS2 C++ package providing interactive RViz2 panels for configuring and managing human agents in the HuNavSim environment.
 
-This package provides two RViz2 panels: 
-* *HuNavPanel* - which allows to create and configure the hunav agents and save them in a Yaml configuration file. 
-* *HunNavMetricsPanel* - which allows the selection of the metrics to be computed for a simulation.
+This package provides two specialized RViz2 panels:
 
+* **HuNavPanel** (`ActorPanel`) - Advanced agent configuration interface for creating/editing human agents, visual goal placement, YAML configuration management, and behavior tree XML generation
+* **HuNavMetricsPanel** (`MetricsPanel`) - Interactive metrics selection interface for simulation evaluation and analysis
+
+## Features
+
+* **Interactive Agent Creation**: Visual pose setting and goal placement using RViz tools
+* **Behavior Tree Integration**: Automatic XML generation with Groot2 editor support
+* **Advanced Force Model Configuration**: Social Force Model parameters with guided defaults
+* **Real-time Visualization**: 3D agent markers, goal indicators, and navigation paths
 
 **Tested in ROS2 Humble**
 
-# Dependencies
+## Dependencies
 
-* ros-humble-nav2-map-server
-* ros-humble-nav2-lifecycle-manager
+### System Dependencies
 
-# HuNavPanel for agents configuration
+* `ros-humble-nav2-map-server` - Map loading and visualization
+* `ros-humble-nav2-lifecycle-manager` - Node lifecycle management  
+* `ament_index_cpp` - Package resource location
+* `yaml-cpp` - YAML file parsing and generation
+* `qtbase5-dev` - Qt5 development libraries
+* `libqt5xml5-dev` - Qt5 XML support
 
-This panel helps to configure the HuNav agents visually. The configuration is then stored in the configuration file *agents.yaml* (placed in the install directory of the ROS workspace).
-This file will be used by the Human Navigation behavior Simulator (HuNavSim) in order to spawn humans with different characteristics.
+### ROS2 Package Dependencies
 
-A previous 2D map of the navigation scenario is required. We will use nav2-map-server to load the map and visualize it in RViz (see the launch file **hunav_rviz2_launch.py**).
+* Core: `rclcpp`, `rclcpp_lifecycle`, `std_msgs`, `geometry_msgs`
+* Navigation: `nav2_msgs`, `nav_msgs`, `tf2_geometry_msgs`
+* Visualization: `rviz_common`, `rviz_default_plugins`, `visualization_msgs`
 
-Beside of creating human agents, it also gives the possibility to open a Yaml file that has been generated previously.
+## Quick Start
 
-## Steps to use HuNavPanel
+### Launch the Panel
 
-A launch file for testing is provided to launch the panel:
-```sh
+A launch file is provided for easy startup:
+
+```bash
 ros2 launch hunav_rviz2_panel hunav_rviz2_launch.py
 ```
 
-Some example maps related to the café simulated scenario are provided in the maps directory.
+This will open RViz2 with the HuNav panels loaded, allowing you to start configuring agents and metrics.
 
-After launching the system we will see:
+### Interface Overview
 
-![](https://github.com/robotics-upo/hunav_sim/blob/humble/hunav_rviz2_panel/images/rviz.png)
+After launching, you'll see the RViz2 interface with the HuNav panels available:
 
-The HuNavPanel provide two options:
+![RViz Interface](https://github.com/robotics-upo/hunav_sim/blob/BT_manual_generation/hunav_rviz2_panel/images/rviz.png)
 
-* To open the base configuration file, agents.yaml
-* To create and configure the hunav agents from scratch.
+## HuNavPanel - Agent Configuration
 
-The first option allows to open a Yaml file that has already been generated. It is stored in the install directory of the ROS2 workspace:
-```sh
-/install/hunav_agent_manager/share/hunav_agent_manager/config/agents.yaml
-```
-Example:
-![](https://github.com/robotics-upo/hunav_sim/blob/humble/hunav_rviz2_panel/images/rviz_agents.png)
+The main panel for creating/editing and managing human agents with comprehensive configuration options.
 
-As result, we will visualize on the map, the initial position and goals for each agent indicated in the yaml file (as can be seen in the image above). In next iterations, we will allow the user to modify the agents features and to store the new changes.  
+![Main Panel Interface](https://github.com/robotics-upo/hunav_sim/blob/BT_manual_generation/hunav_rviz2_panel/images/main_panel.png)
 
-The second option allows to generate a new set of hunav agents. Each agent must have a name, behavior, skin, initial pose and goals.
+### Panel Sections
 
-![](https://github.com/robotics-upo/hunav_sim/blob/humble/hunav_rviz2_panel/images/agent_creation.png) ![](https://github.com/robotics-upo/hunav_sim/blob/humble/hunav_rviz2_panel/images/agent_creation_2.png)
+The panel is organized into functional groups:
 
-The behavior can be selected from an combobox, as well as the parameter configuration. The parameters available for each behavior are showed below of the combobox for the selection of the behavior. In case of selecting a custom configuration of the behavior, the values must be introduced in the text boxes presented.     
+**1. File Operations**
 
-Hunav agents' initial pose and goals are stored by using the HuNav RViz tool. To do so, click the "Set initial pose" button, and then, from the tool panel, select HunavGoals.
+* **Create agents YAML**: Switch to creation mode for new configurations
+* **Load agents YAML**: Load existing agent configurations from file
 
-Once HunavGoals is active, move your mouse to the desired position on the map, and click on it. This will publish a MarkerArray (Agent) on ```/hunav_agent``` topic, and the agent marker will show on the map.
+**2. Simulator and Map Selection**
 
-Follow the same procedure for the agents' goals. These goals are published as a MarkerArray (Squares) on ```/hunav_goals``` topic.
+* **Simulator Selection**: Choose from supported simulators (Gazebo [Classic](https://github.com/robotics-upo/hunav_gazebo_wrapper) | [Fortress](https://github.com/robotics-upo/hunav_gazebo_fortress_wrapper), [Isaac Sim](https://github.com/robotics-upo/Hunav_isaac_wrapper), and Webots)
+* **Map Selection**: Browse and load 2D occupancy maps
 
-Example:
+**3. Agent Creation**
 
-![](https://github.com/robotics-upo/hunav_sim/blob/humble/hunav_rviz2_panel/images/agent_creation.gif)
+* **Agent Count**: Set number of agents to generate
+* **Generate agents**: Launch the agent configuration process
 
+**4. Goal Definition**
 
-Result:
-![](https://github.com/robotics-upo/hunav_sim/blob/humble/hunav_rviz2_panel/images/agent_created.png)
+* **Goal-Picking Mode**: Interactive goal placement system
+* **Goal Assignment**: Assign goals to specific agents with visual feedback
+* **Goal List**: Real-time display of placed goals
 
+**5. Save and Panel Resetting**
 
-# HuNavMetricsPanel for metrics configuration
+* **Default Directory**: Option to use standard save location
+* **Save agents YAML/Generate BTs**: Generate XML files and save configurations
+* **Reset**: Clear all panel data and return to initial state
 
-This panel shows the list of available metrics to be computed for a simulation.
+**6. Behavior Tree Configuration**
 
-Each metric is shown as a checkbox that can be selected or unselected by the user. It loads the current list of the file *metrics.yaml*, which is placed in the install directory of the ROS workspace. 
+* **Edit in Groot2**: Launch behavior tree editor for visualizing and editing generated trees
 
-![](https://github.com/robotics-upo/hunav_sim/blob/humble/hunav_rviz2_panel/images/rviz2_metrics_panel.png)
+##
 
-When the user has made her selection, the *save metrics* button must be pressed in order to store the changes in the file. 
+### Usage Workflow
+
+#### Creating New Agent Configurations
+
+**Step 1: Environment Setup**
+
+![Simulator Selection](https://github.com/robotics-upo/hunav_sim/blob/BT_manual_generation/hunav_rviz2_panel/images/environment_configuration.gif)
+
+1. **Select Simulator**: Choose target simulation environment
+2. **Load Map**: Click "Select map" to choose navigation environment
+   * Supports standard ROS map formats (.yaml, .pgm)
+   * Map automatically loads in RViz for visualization
+3. **Set Agent Count**: Enter desired number of agents
+4. **Generate agents**: Click to start the sequential agent configuration process
+
+**Step 2: Sequential Agent Configuration and Position Setting**
+
+![Agent Configuration and Position Setting](https://github.com/robotics-upo/hunav_sim/blob/BT_manual_generation/hunav_rviz2_panel/images/agent_creation.gif)
+
+The system opens individual configuration dialogs for each agent in sequence. Each dialog includes parameter configuration and interactive position setting.
+
+**Basic Parameters:**
+
+* **Desired Velocity**: Maximum agent speed (m/s)
+* **Behavior Type**: Choose from 6 navigation behaviors:
+  * *Regular* - Standard navigation behavior
+  * *Impassive* - Robot-aware but non-reactive navigation
+  * *Surprised* - Stop and observe behavior when detecting robot
+  * *Scared* - Avoid robot with increased velocity
+  * *Curious* - Approach robot with controlled distance
+  * *Threatening* - Block robot path behavior
+* **Behavior Configuration**: Choose parameter source:
+  * *Default* - Optimized preset values  
+  * *Custom* - Manual fine-tuning with parameter guidance
+  * *Random-normal* - Gaussian distribution around optimal values
+  * *Random-uniform* - Equal probability across parameter ranges
+
+**Behavior-Specific Parameters** (automatically shown based on behavior type):
+
+* **Duration**: Behavior reaction duration (for Surprised, Scared, Curious, Threatening)
+* **Only Once**: Whether reaction occurs only once per robot encounter
+* **Visibility Distance**: Detection range for robot presence
+* **Agent Velocity**: Behavior-specific movement speed (for Scared, Curious)
+* **Front Distance**: Goal placement distance in front of robot (for Threatening)
+
+**Customizable Force Model Parameters** (when Custom is selected):
+
+* **Goal Force Factor**: Attraction strength toward navigation goals
+* **Obstacle Force Factor**: Repulsion strength from obstacles  
+* **Social Force Factor**: Human-human interaction forces
+* **Other force factor**: Extra repulsive force (specific to the Scared behavior)
+
+**Visual Appearance** (Gazebo only):
+
+* Select from 9 skin options: elegant man/woman, casual, worker, colored t-shirts
+
+**Interactive Position Setting:**
+
+1. Click **"Set initial pose"** in the agent configuration window
+2. **Automatic Tool Switch**: RViz automatically activates "HunavGoals" tool
+3. **Interactive Placement**: Click and drag on map to set agent position and orientation
+4. **Immediate Feedback**: 3D human marker appears instantly at selected location
+
+**Step 3: Goal-Picking Mode (after all agents configured)**
+
+![Goal Picking Interface](https://github.com/robotics-upo/hunav_sim/blob/BT_manual_generation/hunav_rviz2_panel/images/goal_picking_mode.png)
+
+1. Click **"Enter Goal-Picking Mode"** to activate interactive goal placement
+2. **RViz Tool Integration**: Panel automatically switches to "PublishPoint" tool
+3. **Interactive Placement**: Click locations on map to place goal markers
+4. **Goal Editing**: Click existing goal markers to change their location
+5. **Real-time List**: Goal coordinates appear in panel's goal list widget
+
+**Step 4: Goal Assignment Dialog**
+
+![Goal Assignment Dialog](https://github.com/robotics-upo/hunav_sim/blob/BT_manual_generation/hunav_rviz2_panel/images/goal_assignment.png)
+
+1. Once finished picking goals, click **"Assign goals to agents"** to open assignment dialog
+2. **Agent Selection**: Use dropdown to select which agent to configure
+3. **Available/Assigned Lists**: Two-panel interface showing available goals and assigned goals
+4. **Arrow Buttons**: Use ▶ and ◀ buttons to move goals between lists  
+5. **Lock Selection**: Click "Lock Selection" to confirm goals for current agent
+
+**Step 5: Final File Generation**
+
+![Behavior Tree Integration](https://github.com/robotics-upo/hunav_sim/blob/BT_manual_generation/hunav_rviz2_panel/images/behavior_tree_section.png)
+
+1. **Save agents YAML/Generate BTs**: Generates both YAML configuration and XML behavior trees
+2. **File Naming Dialog**: Prompts for configuration name
+3. **Reset Panel**: "Reset" button available to clear all data and return to initial state
+4. **Groot2 Integration**: Direct launch of behavior tree editor for visualization
+
+**Generated Files:**
+
+* `[map]_agents_*.yaml` - Complete agent configuration
+* `[yaml basename]__agent_[agent ID]_bt.xml` - Individual behavior trees per agent
+
+##
+
+#### Editing Existing Configurations
+
+![Loaded Configuration](https://github.com/robotics-upo/hunav_sim/blob/BT_manual_generation/hunav_rviz2_panel/images/rviz_agents.png)
+
+The edit mode provides tools for modifying existing agent configurations with immediate visual feedback.
+
+**Loading and Visualization:**
+
+1. Click **"Load agents YAML"** and select simulator to browse existing configurations
+2. Select `.yaml` file from the selected simulator wrapper's `/scenarios/` directory
+3. **Automatic Visualization**: All agents, positions, goals, and paths appear immediately on the map
+
+**Edit Mode Features:**
+
+* **"Edit agents" Button**: Enters sequential agent editing mode with navigation controls
+* **Agent Navigation**: Arrow buttons (◀ ▶) to move between existing agents
+
+**Goal Management in Edit Mode:**
+
+* **"Edit Goals" button**: Enter goal-picking mode to add new goals or move existing ones
+* **"Reset Goals" button**: Clear all loaded goals and their visualizations
+
+## Behavior Tree Generation
+
+The HuNavPanel automatically generates behavior tree XML files for each configured agent based on their behavior type.
+
+### Key Features
+
+* **Automatic XML Generation**: Individual behavior tree files created per agent
+* **Groot2 Integration**: Direct editor launch for tree visualization and editing
+* **Behavior-Specific Templates**: Different XML templates for each navigation behavior
+* **Goal Sequence Integration**: Agent-specific goal navigation patterns embedded in trees
+
+### Generated Files
+
+Files are stored in the selected simulator wrapper's `/behavior_trees/` directory with naming pattern: `[yaml basename]__agent_[agent ID]_bt.xml`
+
+## HuNavMetricsPanel - Metrics Configuration
+
+This panel provides an interface for selecting which metrics to compute during simulation.
+
+![Metrics Panel](https://github.com/robotics-upo/hunav_sim/blob/BT_manual_generation/hunav_rviz2_panel/images/metrics_panel.png)
+
+### Metrics Panel Features
+
+* **Interactive Selection**: Checkbox interface for metric selection
+* **Configuration Persistence**: Saves selections to `metrics.yaml` file
+
+### Usage
+
+1. Each metric is shown as a checkbox that can be selected or unselected
+2. The panel loads the current configuration from `metrics.yaml` in the install directory
+3. After making selections, press the **"Save metrics"** button to store changes
+
+## Configuration Files
+
+The panel generates standard ROS 2 configuration files for agent simulation and metrics evaluation.
+
+### Agent Configuration (agents_*.yaml)
+
+**Format**: Standard ROS 2 parameter structure
+
+**Structure:**
+
+* **Global Settings**: `simulator`, `map`, `yaml_base_name`, `publish_people`
+* **Global Goals**: Shared coordinates library with unique IDs
+* **Agents List**: Array of agent identifiers  
+* **Agent Config**: Individual settings (ID, velocities, pose, behavior, assigned goals)
+
+### Metrics Configuration (metrics.yaml)
+
+**Metric Categories:**
+
+* **Navigation**: Goal completion, path efficiency, movement time
+* **Social Interaction**: Personal space respect, human-robot distances
+* **Safety**: Collision detection, movement patterns
+* **Performance**: Speed, acceleration, trajectory smoothness
+
+## Available Maps
+
+Maps are loaded from simulator-specific wrapper directories based on the selected simulator:
+
+### Gazebo Simulator Maps
+
+Located in `hunav_gazebo_wrapper` ROS2 package share directory under `/maps/`:
+
+* `bookstore` - Bookstore scenario
+* `cafe` - Coffee shop environment  
+* `house` - Residential environment
+* `warehouse` - Industrial warehouse setting
+
+### Isaac Sim Maps
+
+Located in Isaac Sim wrapper `/maps/` directory:
+
+* `warehouse` - Large industrial warehouse environment
+* `hospital` - Medical facility with multiple rooms and corridors  
+* `office` - Modern office building with cubicles and meeting rooms
+
+### Webots Maps
+
+Located in Webots wrapper `/maps/` directory:
+
+* TODO: Maps specific to the Webots simulation environment
+
+## Troubleshooting
+
+If you encounter issues with the HuNav RViz2 Panel, consider the following:
+
+* **Dependencies**: Ensure all system and ROS2 package dependencies are installed correctly
+* **Workspace Setup**: Verify your ROS2 workspace is properly sourced (`source install/setup.bash`)
+* **Panel Not Loading**: Check for errors in the terminal output when launching RViz2
+* **Configuration Issues**: If YAML files fail to load, ensure they are correctly formatted and located in the expected directories
+* **Behavior Tree Errors**: If Groot2 fails to launch, ensure it is installed and it is located in `~/Groot2/bin/groot2`.
+
+## Maintainer
+
+Miguel Escudero Jiménez (<mescjim@upo.es>)

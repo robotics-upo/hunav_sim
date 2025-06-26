@@ -1,3 +1,11 @@
+#pragma once
+
+// forward‐declare so extern compiles
+namespace hunav {
+  class BTfunctions;
+  extern BTfunctions * g_btfunctions;
+}
+
 #include "hunav_agent_manager/agent_manager.hpp"
 
 #include "rclcpp/rclcpp.hpp"
@@ -24,6 +32,10 @@
 #include <math.h> /* fabs */
 #include <mutex>
 #include <string>
+#include <unordered_map>
+#include <utility>
+#include <map>
+#include <geometry_msgs/msg/point.hpp>
 
 // Social Force Model
 #include <lightsfm/sfm.hpp>
@@ -46,6 +58,10 @@ public:
   ~BTfunctions();
 
   void init();
+
+  void setGlobalGoals(const std::map<int,geometry_msgs::msg::Point> &goals) {
+    global_goals_ = goals;
+  }
 
   void updateAllAgents(const hunav_msgs::msg::Agent::SharedPtr robot,
                        const hunav_msgs::msg::Agents::SharedPtr msg) {
@@ -104,6 +120,9 @@ public:
   BT::NodeStatus blockAgent(BT::TreeNode & self);
   BT::NodeStatus resumeMovement(BT::TreeNode& self);
   BT::NodeStatus stopMovement(BT::TreeNode& self);
+
+  std::map<int,geometry_msgs::msg::Point> global_goals_;
+  geometry_msgs::msg::Point getGlobalGoal(int id) const;
 
 private:
   AgentManager agent_manager_;

@@ -25,7 +25,7 @@ namespace hunav
         {
             agent_manager_ = hunav::g_agent_manager;
             if (agent_manager_ == nullptr)
-                throw BT::RuntimeError("ConversationFormationNode: global AgentManager pointer not set");
+                throw BT::RuntimeError("BlockAgentNode: global AgentManager pointer not set");
         }
 
         if (duration_ > 0.0)
@@ -39,7 +39,7 @@ namespace hunav
         double dt;
         auto dt_msg = getInput<double>("time_step");
         if (!dt_msg)
-            throw BT::RuntimeError("GoToNode: missing input [time_step] during onRunning", dt_msg.error());
+            throw BT::RuntimeError("BlockAgentNode: missing input [time_step] during onRunning", dt_msg.error());
         dt = dt_msg.value();
 
         agent_manager_->blockAgent(agent_id_, target_agent_id_, dt, front_dist_);

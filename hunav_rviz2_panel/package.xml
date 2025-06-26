@@ -9,6 +9,7 @@
 
   <buildtool_depend>ament_cmake</buildtool_depend>
   <build_depend>qtbase5-dev</build_depend>
+  <build_depend>libqt5xml5-dev</build_depend>
 
   <depend>geometry_msgs</depend>
   <depend>nav2_util</depend>
@@ -26,11 +27,13 @@
   <depend>tf2_geometry_msgs</depend>
   <depend>visualization_msgs</depend>
   <depend>hunav_msgs</depend>
-  
+  <depend>ament_index_cpp</depend>
+
   <exec_depend>libqt5-core</exec_depend>
   <exec_depend>libqt5-gui</exec_depend>
   <exec_depend>libqt5-opengl</exec_depend>
   <exec_depend>libqt5-widgets</exec_depend>
+  <exec_depend>libqt5xml5</exec_depend>
   <exec_depend>tf2</exec_depend>
   <exec_depend>tf_transformations</exec_depend>
 

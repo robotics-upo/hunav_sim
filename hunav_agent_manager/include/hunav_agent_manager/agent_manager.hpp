@@ -238,6 +238,7 @@ public:
 
   void setAgentGoal(int id, const sfm::Goal & goal);
   void clearAndSetAgentGoal(int id, const sfm::Goal & goal);
+  void clearAndSetAgentGoals(int id, const std::list<sfm::Goal> &goals);
   void setAgentGroupId(int id, int group_id);
 
   void restoreAgentGoals(int agent_id, const std::list<sfm::Goal>& goals);
@@ -250,6 +251,7 @@ public:
 
   double getAgentYaw(int id);
   utils::Vector2d getAgentPosition(int id);
+  utils::Vector2d getRobotPosition();
   bool goalReached(int id);
   bool updateGoal(int id);
 

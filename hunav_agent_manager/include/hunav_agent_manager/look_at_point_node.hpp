@@ -1,33 +1,31 @@
-#ifndef HUNAV_GOTO_NODE_HPP_
-#define HUNAV_GOTO_NODE_HPP_
+#ifndef HUNAV_LOOK_AT_POINT_NODE_HPP_
+#define HUNAV_LOOK_AT_POINT_NODE_HPP_
 
 #include "behaviortree_cpp/behavior_tree.h"
 #include "hunav_agent_manager/agent_manager.hpp"
 #include "hunav_agent_manager/bt_functions.hpp"
-#include <list>
+#include <chrono>
 
 namespace hunav
 {
 
-    class GoToNode : public BT::StatefulActionNode
+    class LookAtPointNode : public BT::StatefulActionNode
     {
     public:
-        GoToNode(const std::string &name, const BT::NodeConfig &config)
+        LookAtPointNode(const std::string &name, const BT::NodeConfig &config)
             : BT::StatefulActionNode(name, config),
               agent_manager_(nullptr)
         {
         }
 
-        GoToNode() = delete;
+        LookAtPointNode() = delete;
 
         static BT::PortsList providedPorts()
         {
             return {
                 BT::InputPort<int>("agent_id"),
-                BT::InputPort<int>("goal_id", "Goal ID to look up from agent's ROS goals"),
-                BT::InputPort<double>("time_step"),
-                BT::InputPort<double>("tolerance", 0.1,
-                                      "Distance [m] to consider 'at goal'")};
+                BT::InputPort<int>("goal_id", "Goal ID from agent's ROS goals to look at"),
+                BT::InputPort<double>("yaw_tolerance", 0.01, "Angle tolerance [rad] to consider 'aligned'")};
         }
 
         BT::NodeStatus onStart() override;
@@ -38,13 +36,13 @@ namespace hunav
         int agent_id_;
         double target_x_;
         double target_y_;
-        double dt_;
-        double tolerance_;
-
+        double yaw_tolerance_;
         AgentManager *agent_manager_;
-        std::list<sfm::Goal> original_goals_;
+
+        // Store the “absolute” desired yaw so we can compare each tick
+        double desired_yaw_rad_;
     };
 
 } // namespace hunav
 
-#endif // HUNAV_GOTO_NODE_HPP_
+#endif // HUNAV_LOOK_AT_POINT_NODE_HPP_

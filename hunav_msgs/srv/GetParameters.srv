@@ -1,0 +1,11 @@
+# Request: empty (get all relevant parameters)
+---
+# Response: key parameters from hunav_loader
+bool publish_people
+string map
+string simulator
+string yaml_base_name
+# Global goals as arrays for easier handling
+int64[] goal_ids
+float64[] goal_x_coords  
+float64[] goal_y_coords

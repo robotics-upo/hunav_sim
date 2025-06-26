@@ -1,13 +1,9 @@
 Panels:
   - Class: rviz_common/Displays
-    Help Height: 78
+    Help Height: 40
     Name: Displays
-    Property Tree Widget:
-      Expanded:
-        - /Global Options1
-        - /Status1
-      Splitter Ratio: 0.5
-    Tree Height: 409
+    Splitter Ratio: 0.1
+    Tree Height: 200
   - Class: rviz_common/Selection
     Name: Selection
   - Class: rviz_common/Tool Properties
@@ -20,12 +16,14 @@ Panels:
     Expanded:
       - /Current View1
     Name: Views
-    Splitter Ratio: 0.5
+    Splitter Ratio: 0.05
   - Class: hunav_rviz2_panel/HunavPanel
     Name: HunavPanel
+    Splitter Ratio: 0.8  
     Topic: ""
   - Class: hunav_rviz2_panel/HunavMetricsPanel
     Name: HunavMetricsPanel
+    Splitter Ratio: 0.95 
     Topic: ""
 Visualization Manager:
   Class: ""
@@ -193,6 +191,6 @@ Window Geometry:
     collapsed: false
   Views:
     collapsed: false
-  Width: 1200
+  Width: 1400
   X: 60
   Y: 60

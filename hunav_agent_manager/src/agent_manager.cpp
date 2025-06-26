@@ -1,4 +1,5 @@
 #include "hunav_agent_manager/agent_manager.hpp"
+#include "hunav_agent_manager/bt_functions.hpp"
 
 namespace hunav
 {
@@ -134,7 +135,7 @@ void AgentManager::lookAtTheRobot(int id)
   // Change the angle step by step according to
   // the time_step_secs_ and a maximum angular vel
   float max_ang_vel = M_PI;                                               // rad/secs
-  utils::Angle max_angle = utils::Angle::fromRadian(max_ang_vel * 0.01);  // time_step_secs_);
+  utils::Angle max_angle = utils::Angle::fromRadian(max_ang_vel * 0.04);  // time_step_secs_);
   if (robotYaw.sign() < 0)
     max_angle.setRadian(max_angle.toRadian() * (-1));
 
@@ -171,7 +172,7 @@ void AgentManager::lookAtAgent(int observer_id, int target_id)
   
   // Use a fixed time-step (0.01 seconds) and maximum angular velocity (π rad/s)
   float max_ang_vel = M_PI; // rad/s
-  utils::Angle max_angle = utils::Angle::fromRadian(max_ang_vel * 0.01);
+  utils::Angle max_angle = utils::Angle::fromRadian(max_ang_vel * 0.04);
   if (targetAngle.sign() < 0)
     max_angle.setRadian(max_angle.toRadian() * (-1));
 
@@ -205,7 +206,7 @@ void AgentManager::lookAtPoint(int agent_id, const utils::Vector2d & target)
     double error = std::remainder(desiredAngle - currentYaw, 2 * M_PI);
     
     // Define maximum angular change per update
-    double maxAngularChange = M_PI * 0.05;
+    double maxAngularChange = M_PI * 0.04;
     
     // Clamp the angular change
     double deltaYaw = (std::fabs(error) > maxAngularChange) ?
@@ -221,65 +222,6 @@ void AgentManager::lookAtPoint(int agent_id, const utils::Vector2d & target)
     // printf("lookAtPoint: Agent %i: currentYaw=%.2f, desiredAngle=%.2f, error=%.2f, newYaw=%.2f\n",
     //        agent_id, currentYaw, desiredAngle, error, newYaw);
 }
-
-
-// void AgentManager::approximateRobot(int id, double dt, double closest_dist, double max_vel)
-// {
-//   std::lock_guard<std::mutex> guard(mutex_);
-
-//   agents_[id].behavior.state = 1;
-
-//   // Robot position
-//   float rx = robot_.sfmAgent.position.getX();
-//   float ry = robot_.sfmAgent.position.getY();
-//   float dist = sqrt(robotSquaredDistance(id));
-
-//   // if the agent is close to the robot,
-//   // stop and look at the robot
-//   if (dist <= closest_dist)  // 1.5
-//   {
-//     // printf("Agent %i stoping and looking at the robot! dist: %.2f\n", id,
-//     // dist);
-//     // Agent position
-//     float ax = agents_[id].sfmAgent.position.getX();
-//     float ay = agents_[id].sfmAgent.position.getY();
-//     float ah = agents_[id].sfmAgent.yaw.toRadian();
-//     // Transform robot position to agent coords system
-//     float nrx = (rx - ax) * cos(ah) + (ry - ay) * sin(ah);
-//     float nry = -(rx - ax) * sin(ah) + (ry - ay) * cos(ah);
-//     utils::Angle robotYaw;  // = utils::Angle::fromRadian(atan2(nry, nrx));
-//     robotYaw.setRadian(atan2(nry, nrx));
-
-//     agents_[id].sfmAgent.yaw = agents_[id].sfmAgent.yaw + robotYaw;
-//   }
-//   else
-//   {
-//     // Change the agent goal
-//     sfm::Goal g;
-//     g.center.set(rx, ry);
-//     g.radius = robot_.sfmAgent.radius;
-//     agents_[id].sfmAgent.goals.push_front(g);
-
-//     // change agent vel according to the proximity of the robot
-//     // move slowly when close
-//     float ini_desired_vel = agents_[id].sfmAgent.desiredVelocity;
-//     agents_[id].sfmAgent.desiredVelocity = max_vel * (dist / max_dist_view_);  // 1.8
-
-//     // printf("Agent %i approximating robot! dist: %.2f, desiredvel: %.3f\n",
-//     // id,
-//     //        dist, agents_[id].sfmAgent.desiredVelocity);
-
-//     // recompute forces
-//     computeForces(id);
-//     // update position
-//     sfm::SFM.updatePosition(agents_[id].sfmAgent, dt);
-
-//     // restore values just in case the approximation
-//     // ends in the next iteration
-//     agents_[id].sfmAgent.goals.pop_front();
-//     agents_[id].sfmAgent.desiredVelocity = ini_desired_vel;
-//   }
-// }
 
 void AgentManager::approximateRobot(int id, double dt, double closest_dist, double max_vel)
 {
@@ -796,6 +738,18 @@ void AgentManager::setAgentGoal(int id, const sfm::Goal & goal)
   agents_[id].sfmAgent.goals.push_front(goal);
 }
 
+void AgentManager::clearAndSetAgentGoals(int id, const std::list<sfm::Goal> &goals)
+{
+    std::lock_guard<std::mutex> guard(mutex_);
+    auto it = agents_.find(id);
+
+    it->second.sfmAgent.goals.clear();
+    for (const auto &g : goals)
+    {
+        it->second.sfmAgent.goals.push_back(g);
+    }
+}
+
 void AgentManager::clearAndSetAgentGoal(int id, const sfm::Goal & goal)
 {
   std::lock_guard<std::mutex> guard(mutex_);
@@ -821,6 +775,12 @@ utils::Vector2d AgentManager::computeConversationCenter(int agent_id, double cir
     // Compute the center: offset in the direction of the agent's current heading
     return utils::Vector2d(x + circle_offset * std::cos(yaw),
                             y + circle_offset * std::sin(yaw));
+}
+
+utils::Vector2d AgentManager::getRobotPosition()
+{
+    std::lock_guard<std::mutex> guard(mutex_);
+    return robot_.sfmAgent.position;
 }
 
 double AgentManager::getAgentYaw(int id) 

@@ -7,6 +7,7 @@
 #include <vector>
 #include <string>
 #include <unordered_map>
+#include <list> // for std::list<sfm::Goal>
 
 namespace hunav
 {
@@ -26,9 +27,8 @@ namespace hunav
     {
       return {
           BT::InputPort<int>("main_agent_id"),
+          BT::InputPort<int>("goal_id", "Global goal ID to use as conversation center"),
           BT::InputPort<double>("conversation_duration", 10.0, "Duration of the conversation (seconds)"),
-          BT::InputPort<double>("center_x", 0.0, "X coordinate of the conversation center"),
-          BT::InputPort<double>("center_y", 0.0, "Y coordinate of the conversation center"),
           BT::InputPort<double>("time_step", 0.1, "Time step (seconds) for navigation updates"),
           BT::InputPort<std::string>("non_main_agent_ids", "1,3", "Comma-separated IDs of non-main agents")};
     }
@@ -40,22 +40,28 @@ namespace hunav
   private:
     int main_agent_id_;
     double conversation_duration_;
-    // Conversation center provided by inputs
+
+    // Conversation center (set in onStart())
     utils::Vector2d conversation_center_;
-    double center_x_, center_y_;
-    // Time step will be read on each tick
+    int center_goal_id_;
+
+    // Time step (read each tick in onRunning())
     double dt_;
+
+    // When all agents first become “ready,” we start this timer
     std::chrono::steady_clock::time_point conversation_start_time_;
+
     AgentManager *agent_manager_;
 
-    // For the input version, store the non-main agent IDs
+    // IDs of participants (main + non-main)
     std::vector<int> non_main_ids_;
-    // List of all agent IDs
     std::vector<int> all_ids_;
-    // Store original goals for non-main agents, so they can be restored
+
+    // To restore each agent’s original goals after the conversation
     std::unordered_map<int, std::list<sfm::Goal>> original_goals_;
-    // Vector for storing (agent_id, current_angle) pairs
-    std::vector<std::pair<int, double>> agent_angles_;
+
+    // For each agent (in the same order as all_ids_), track if it's “ready” (at-spot + oriented)
+    std::vector<bool> readiness_;
   };
 
 } // namespace hunav

@@ -32,7 +32,7 @@ namespace hunav
                 BT::InputPort<double>("time_step"),
                 BT::InputPort<int>("target_id"),
                 BT::InputPort<double>("distance_threshold", 5.0, "Maximum distance for speech to be audible"),
-                BT::InputPort<double>("duration", 5.0, "Listening duration in seconds")};
+                BT::InputPort<double>("duration", 10.0, "Listening duration in seconds")};
         }
 
         BT::NodeStatus onStart() override;
