@@ -222,13 +222,15 @@ namespace hunav_rviz2_panel
           QString msg = QString(R"(
             <html>
               Click on the map to <b><i>add or edit</i></b> navigation goals.<br>
-              To <b>edit</b>, just <b>click on the goal marker</b> you wish to modify.<br><br>
+              To <b>edit</b>, just <b>click on the goal marker</b> you wish to modify.<br>
+              <b>Please note</b>: Be sure to keep goals "visible" to each other (no obstacles in between) to avoid navigation issues.<br><br>
               When you’re done, click on <b><i>%1</i></b> again to exit goal-picking mode,<br>
-              then click <b><i>%2</i></b> to assign your changes.
+              then click on <b><i>%2</i></b> to assign your changes or <b><i>%3</i></b> to save the file.
             </html>
           )")
             .arg(edit_goals_button_->text())
-            .arg(assign_goals_btn_->text());
+            .arg(assign_goals_btn_->text())
+            .arg(save_bt_btn_->text());
           QMessageBox::information(this, tr("Add/Edit Goals"), msg);
         }
 
@@ -248,6 +250,7 @@ namespace hunav_rviz2_panel
         } else {
           // exiting pick mode, put the button back up
           edit_goals_button_->setDown(false);
+          save_bt_btn_->setEnabled(true);
         } });
 
     checkbox = new QCheckBox("Use default directory", this);
@@ -611,13 +614,22 @@ namespace hunav_rviz2_panel
         // closing arrow back to start
         if (node["goals"].size() > 0)
         {
-          auto closing = createArrowMarker(prev_pt.x, prev_pt.y, ipx, ipy, marker_id++);
-          closing.ns = "agent_arrow";
-          closing.color.r = col.redF();
-          closing.color.g = col.greenF();
-          closing.color.b = col.blueF();
-          closing.color.a = 1.0f;
-          goal_markers_.markers.push_back(closing);
+          int first_gid = node["goals"][0].as<int>();
+          auto it_first = loaded_global_goals_.find(first_gid);
+          if (it_first != loaded_global_goals_.end())
+          {
+            auto first_pt = it_first->second;
+            auto closing = createArrowMarker(
+                prev_pt.x, prev_pt.y,
+                first_pt.x, first_pt.y,
+                marker_id++);
+            closing.ns = "agent_arrow";
+            closing.color.r = col.redF();
+            closing.color.g = col.greenF();
+            closing.color.b = col.blueF();
+            closing.color.a = 1.0f;
+            goal_markers_.markers.push_back(closing);
+          }
         }
       }
 
@@ -1648,8 +1660,9 @@ namespace hunav_rviz2_panel
 
       QString msg = QString(
                         "<html>"
-                        "<b>Click on the map to set navigation goals</b>.<br><br>"
+                        "<b>Click on the map to set navigation goals</b>.<br>"
                         "If you want to <b>modify</b> an already set goal, just <b>click on its marker</b>.<br><br>"
+                        "<b>Please note</b>: Be sure to keep goals \"visible\" to each other (no obstacles in between) to avoid navigation issues.<br><br>"
                         "When you’re done, click <b><i>%1</i></b> and then <b><i>%2</i></b>."
                         "</html>")
                         .arg(enter_goal_mode_btn_->text())
@@ -2057,7 +2070,7 @@ namespace hunav_rviz2_panel
   {
     // 1) Clear the in‐memory maps/vectors
     loaded_global_goals_.clear();
-    goal_ids_.clear();   
+    goal_ids_.clear();
     // Each agent’s own “loaded goals” also needs clearing:
     for (auto &vec : loaded_agent_goals_)
     {
@@ -2089,7 +2102,7 @@ namespace hunav_rviz2_panel
     // 3) Clear the QListWidget
     goal_list_widget_->clear();
 
-    // 4) Disable “Assign goals” 
+    // 4) Disable “Assign goals”
     assign_goals_btn_->setEnabled(false);
 
     QMessageBox::information(this,
@@ -2234,10 +2247,13 @@ namespace hunav_rviz2_panel
       if (simulatorName == "Gazebo")
       {
         QString shareDir;
-        try {
+        try
+        {
           shareDir = QString::fromStdString(
-            ament_index_cpp::get_package_share_directory("hunav_gazebo_wrapper"));
-        } catch (const std::exception &e) {
+              ament_index_cpp::get_package_share_directory("hunav_gazebo_wrapper"));
+        }
+        catch (const std::exception &e)
+        {
           QString homePath = QDir::homePath() + "/hunav_gazebo_wrapper";
           QString dockerPath = "/workspace/hunav_isaac_ws/src/hunav_gazebo_wrapper";
           shareDir = QDir(dockerPath).exists() ? dockerPath : homePath;
@@ -2246,16 +2262,16 @@ namespace hunav_rviz2_panel
       }
       else if (simulatorName == "Isaac Sim")
       {
-        QString homePath   = QDir::homePath() + "/Hunav_isaac_wrapper";
+        QString homePath = QDir::homePath() + "/Hunav_isaac_wrapper";
         QString dockerPath = "/workspace/hunav_isaac_ws/src/Hunav_isaac_wrapper";
-        QString basePath   = QDir(dockerPath).exists() ? dockerPath : homePath;
+        QString basePath = QDir(dockerPath).exists() ? dockerPath : homePath;
         mapDir = basePath + "/maps";
       }
-      else // Webots 
+      else // Webots
       {
-        QString homePath   = QDir::homePath() + "/hunav_webots_wrapper";
+        QString homePath = QDir::homePath() + "/hunav_webots_wrapper";
         QString dockerPath = "/workspace/hunav_isaac_ws/src/hunav_webots_wrapper";
-        QString basePath   = QDir(dockerPath).exists() ? dockerPath : homePath;
+        QString basePath = QDir(dockerPath).exists() ? dockerPath : homePath;
         mapDir = basePath + "/maps";
       }
 
@@ -2264,15 +2280,15 @@ namespace hunav_rviz2_panel
       if (!QFile::exists(candidatePath))
       {
         QMessageBox::critical(
-          this,
-          "Map Load Error",
-          QString("Could not locate '%1' in:\n  %2")
-            .arg(mapBasename)
-            .arg(mapDir));
+            this,
+            "Map Load Error",
+            QString("Could not locate '%1' in:\n  %2")
+                .arg(mapBasename)
+                .arg(mapDir));
         return;
       }
 
-      // 2) Call the map_server/load_map service 
+      // 2) Call the map_server/load_map service
       auto client = this->create_client<nav2_msgs::srv::LoadMap>("/map_server/load_map");
       if (!client->wait_for_service(2s))
       {
@@ -2568,22 +2584,26 @@ namespace hunav_rviz2_panel
         prev_pt = goal_pt;
       }
 
-      // 9e) Finally, draw an arrow from last goal back to initial pose
+      // 9e) Finally, draw an arrow from the last goal back to the first goal
       if (!assigned_goals.empty())
       {
-        geometry_msgs::msg::Point init_pt;
-        init_pt.x = ipx;
-        init_pt.y = ipy;
-        init_pt.z = 0.0;
-
-        visualization_msgs::msg::Marker closing_arrow =
-            createArrowMarker(prev_pt.x, prev_pt.y, init_pt.x, init_pt.y, id_counter++);
-        closing_arrow.ns = "agent_arrow";
-        closing_arrow.color.r = qcol.redF();
-        closing_arrow.color.g = qcol.greenF();
-        closing_arrow.color.b = qcol.blueF();
-        closing_arrow.color.a = 1.0f;
-        marker_array->markers.push_back(closing_arrow);
+        // get the first goal’s coordinates
+        int first_gid = assigned_goals.front();
+        auto it_first = loaded_global_goals_.find(first_gid);
+        if (it_first != loaded_global_goals_.end())
+        {
+          const auto &first_pt = it_first->second;
+          visualization_msgs::msg::Marker closing_arrow =
+              createArrowMarker(prev_pt.x, prev_pt.y,
+                                first_pt.x, first_pt.y,
+                                id_counter++);
+          closing_arrow.ns = "agent_arrow";
+          closing_arrow.color.r = qcol.redF();
+          closing_arrow.color.g = qcol.greenF();
+          closing_arrow.color.b = qcol.blueF();
+          closing_arrow.color.a = 1.0f;
+          marker_array->markers.push_back(closing_arrow);
+        }
       }
 
     } // end for(each agent)
@@ -2640,19 +2660,40 @@ namespace hunav_rviz2_panel
     bool ok = false;
 
     if (panel_mode_ == EDIT_MODE)
-      defaultName_ = orig_yaml_base_name_.isEmpty()
-                         ? "agents_updated"
-                         : orig_yaml_base_name_;
+      defaultName_ = orig_yaml_base_name_;
     else
-      defaultName_ = "agents_";
+      defaultName_ = QFileInfo(map_file_).baseName() + "_agents_";
 
-    QString base = QInputDialog::getText(
-        this,
-        "Output YAML Name",
-        "Enter a name for the new agents YAML (no extension):",
-        QLineEdit::Normal,
-        defaultName_,
-        &ok);
+    QString base;
+
+    // Create QInputDialog
+    QInputDialog dlg(this);
+    dlg.setWindowTitle("Output YAML Name");
+    dlg.setLabelText("Enter a name for the agents YAML file:");
+    dlg.setTextValue(defaultName_);
+    dlg.setOption(QInputDialog::NoButtons, false);
+
+    // Grab the embedded QLineEdit
+    QLineEdit *le = dlg.findChild<QLineEdit *>();
+    if (le)
+    {
+      QTimer::singleShot(0, this, [this, le]()
+                         {
+                           le->deselect();                              
+                           le->setCursorPosition(defaultName_.length()); 
+                         });
+    }
+
+    // Exec it
+    if (dlg.exec() == QDialog::Accepted)
+    {
+      base = dlg.textValue();
+      ok = true;
+    }
+    else
+    {
+      ok = false;
+    }
 
     if (!ok || base.trimmed().isEmpty())
     {
@@ -2667,7 +2708,8 @@ namespace hunav_rviz2_panel
     auto p = root["hunav_loader"]["ros__parameters"];
 
     //  2a) write yaml basename, simulator and map name:
-    p["yaml_base_name"] = params_["map"].as<std::string>() + "_" + yaml_base_name_.toStdString();
+    p["yaml_base_name"] = yaml_base_name_.toStdString();
+
     p["simulator"] = simulator_combo_->currentText().toStdString();
     std::string map_str;
     if (panel_mode_ == EDIT_MODE && params_["map"])
@@ -2770,12 +2812,9 @@ namespace hunav_rviz2_panel
       configDir = basePath + "/scenarios";
       btDir = basePath + "/behavior_trees";
     }
-
     QDir().mkpath(configDir);
     QDir().mkpath(btDir);
-    QString outName = QString("%1_%2.yaml")
-                          .arg(QString::fromStdString(p["map"].as<std::string>()))
-                          .arg(yaml_base_name_);
+    QString outName = QString("%1.yaml").arg(yaml_base_name_);
     QString fullpath = configDir + "/" + outName;
 
     std::ofstream ofs(fullpath.toStdString());
@@ -3059,8 +3098,7 @@ namespace hunav_rviz2_panel
 
       QString fullXml = modelXml.left(insertPos) + "\n" + btBlock_ + "\n" + modelXml.mid(insertPos);
 
-      QString fname = btDir + QString("/%1_%2__agent_%3_bt.xml")
-                                  .arg(mapName)
+      QString fname = btDir + QString("/%1__agent_%2_bt.xml")
                                   .arg(yaml_base_name_)
                                   .arg(i + 1);
 
@@ -3278,23 +3316,86 @@ namespace hunav_rviz2_panel
     else if (conf == "Custom")
     {
       beh_duration->setEnabled(true);
-      // beh_duration->setFont(QFont::styleHint());
-      beh_duration->setText("[10.0 - 80.0]");
+      beh_duration->setText("");
+      beh_duration->setPlaceholderText("[10.0 - 80.0]");
+      beh_duration->setStyleSheet(R"(
+                        QLineEdit::placeholder {
+                          font-style: italic;
+                          color: gray;
+                        }
+                      )");
+
       beh_once->setEnabled(true);
-      beh_once->setText("[true or false]");
+      beh_once->setText("");
+      beh_once->setPlaceholderText("[true or false]");
+      beh_once->setStyleSheet(R"(
+                        QLineEdit::placeholder {
+                          font-style: italic;
+                          color: gray;
+                        }
+                      )");
+
       beh_gff->setEnabled(true);
-      beh_gff->setText("[2.0, 5.0]");
+      beh_gff->setText("");
+      beh_gff->setPlaceholderText("[2.0 - 5.0]");
+      beh_gff->setStyleSheet(R"(
+                        QLineEdit::placeholder {
+                          font-style: italic;
+                          color: gray;
+                        }
+                      )");
+
       beh_off->setEnabled(true);
-      beh_off->setText("[2.0, 50.0]");
+      beh_off->setText("");
+      beh_off->setPlaceholderText("[2.0 - 50.0]");
+      beh_off->setStyleSheet(R"(
+                        QLineEdit::placeholder {
+                          font-style: italic;
+                          color: gray;
+                        }
+                      )");
+
       beh_sff->setEnabled(true);
-      beh_sff->setText("[5.0, 20.0]");
+      beh_sff->setText("");
+      beh_sff->setPlaceholderText("[5.0 - 20.0]");
+      beh_sff->setStyleSheet(R"(
+                        QLineEdit::placeholder {
+                          font-style: italic;
+                          color: gray;
+                        }
+                      )");
+
       beh_otherff->setEnabled(true);
-      beh_otherff->setText("[0.0, 25.0]");
+      beh_otherff->setText("");
+      beh_otherff->setPlaceholderText("[0.0 - 25.0]");
+      beh_otherff->setStyleSheet(R"(
+                        QLineEdit::placeholder {
+                          font-style: italic;
+                          color: gray;
+                        }
+                      )");
+
       beh_vel->setEnabled(true);
-      beh_vel->setText("[0.4, 1.8]");
+      beh_vel->setText("");
+      beh_vel->setPlaceholderText("[0.4 - 1.8]");
+      beh_vel->setStyleSheet(R"(
+                        QLineEdit::placeholder {
+                          font-style: italic;
+                          color: gray;
+                        }
+                      )");
+
       beh_dist->setEnabled(true);
-      beh_dist->setText("[0.5, 15.0]");
+      beh_dist->setText("");
+      beh_dist->setPlaceholderText("[0.5 - 15.0]");
+      beh_dist->setStyleSheet(R"(
+                        QLineEdit::placeholder {
+                          font-style: italic;
+                          color: gray;
+                        }
+                      )");
     }
+
     else if (conf == "Random-normal distribution")
     {
       // Generate random values (normal distribution)
@@ -3778,7 +3879,7 @@ namespace hunav_rviz2_panel
     blank.info.resolution = 1.0;
     blank.info.width = 1;
     blank.info.height = 1;
-    // origin somewhere offscreen 
+    // origin somewhere offscreen
     blank.info.origin.position.x = 9999.0;
     blank.info.origin.position.y = 9999.0;
     blank.info.origin.orientation.w = 1.0;
@@ -3810,7 +3911,7 @@ namespace hunav_rviz2_panel
       auto arr = std::make_unique<visualization_msgs::msg::MarkerArray>();
       arr->markers.push_back(m);
 
-      // publish on both topics 
+      // publish on both topics
       initial_pose_publisher->publish(std::move(arr));
 
       auto arr2 = std::make_unique<visualization_msgs::msg::MarkerArray>();

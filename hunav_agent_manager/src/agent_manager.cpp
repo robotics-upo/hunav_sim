@@ -735,7 +735,7 @@ std::list<sfm::Goal> AgentManager::getAgentGoals(int id)
 void AgentManager::setAgentGoal(int id, const sfm::Goal & goal)
 {
   std::lock_guard<std::mutex> guard(mutex_);
-  agents_[id].sfmAgent.goals.push_front(goal);
+  agents_[id].sfmAgent.goals.push_back(goal);
 }
 
 void AgentManager::clearAndSetAgentGoals(int id, const std::list<sfm::Goal> &goals)
