@@ -63,8 +63,8 @@ namespace hunav_rviz2_panel
    */
   enum PanelMode
   {
-    CREATE_MODE,  ///< Mode for creating new agent configurations
-    EDIT_MODE     ///< Mode for editing existing agent configurations
+    CREATE_MODE,    ///< Mode for creating new agent configurations
+    EDIT_MODE,      ///< Mode for editing existing agent configurations
   };
 
   /**
@@ -123,7 +123,12 @@ namespace hunav_rviz2_panel
      * @brief Add a new agent to the configuration
      */
     void addAgent();
-    
+
+    /**
+     * @brief Handle agent addition button click (only if in edit mode)
+     */
+    void onAddAgent();
+
     /**
      * @brief Save all agents and generate behavior trees
      */
@@ -334,6 +339,7 @@ namespace hunav_rviz2_panel
     // Buttons
     QPushButton *actor_button_ = nullptr;           ///< Main actor creation button
     QPushButton *edit_goals_button_ = nullptr;      ///< Edit goals button
+    QPushButton *add_agent_button_;                 ///< Add agent button
     QPushButton *map_select_btn_;                   ///< Map selection button
     QPushButton *initial_pose_button;               ///< Initial pose setting button
     QPushButton *initial_pose_button_dlg_;          ///< Initial pose dialog button
@@ -391,6 +397,7 @@ namespace hunav_rviz2_panel
     
     // Other UI components
     QCheckBox *checkbox;                  ///< Default directory checkbox
+    QCheckBox *cyclic_goals_checkbox;     ///< Cyclic goals checkbox
     QListWidget *goal_list_widget_{nullptr}; ///< List widget for goals
     
     // ================================ CONFIGURATION DATA ================================
@@ -430,8 +437,9 @@ namespace hunav_rviz2_panel
     bool first_actor_ = false;            ///< First actor flag
     bool initial_pose_set = false;        ///< Initial pose set flag
     bool show_file_selector_once = true;  ///< Show file selector once flag
-    bool first_goal_picking_info_shown_{false}; /// First goal picking info shown flag
-    bool initial_pose_tip_shown_{false}; /// Initial pose dialog shown flag
+    bool first_goal_picking_info_shown_{false}; ///< First goal picking info shown flag
+    bool initial_pose_tip_shown_{false};  ///< Initial pose dialog shown flag
+    bool adding_new_agent_ = false;       ///< Adding new agent flag
 
     // ================================ DATA CONTAINERS ================================
     

@@ -189,18 +189,19 @@ namespace hunav_rviz2_panel
     edit_goals_button_->hide();
     // topic_button->addWidget(edit_goals_button_);
 
+    add_agent_button_ = new QPushButton("Add agent", this);
+    add_agent_button_->setEnabled(false);
+    add_agent_button_->hide();  // only in EDIT_MODE
+    connect(add_agent_button_, &QPushButton::clicked,
+            this, &ActorPanel::onAddAgent);
+
     auto *editButtonsLayout = new QHBoxLayout;
     editButtonsLayout->addWidget(actor_button_);
+    editButtonsLayout->addWidget(add_agent_button_);
     editButtonsLayout->addWidget(edit_goals_button_);
     topic_button->addLayout(editButtonsLayout);
 
-    // connect(edit_goals_button_, &QPushButton::clicked, this, [this]()
-    //         {
-    //           removeCurrentMarkers();
-    //           publishAgentMarkers();
-    //           goal_markers_pub_->publish(goal_markers_);
-    //           goal_group_->setEnabled(true);
-    //           assign_goals_btn_->setEnabled(true); });
+    connect(add_agent_button_, &QPushButton::clicked, this, &ActorPanel::onAddAgent);
 
     connect(edit_goals_button_, &QPushButton::clicked, this, [this]()
             {
@@ -213,8 +214,16 @@ namespace hunav_rviz2_panel
 
         goal_group_->setEnabled(true);
 
-        // disable “Assign Goals” until we exit pick mode
-        assign_goals_btn_->setEnabled(!goal_picking_mode_);
+        if (goal_picking_mode_)
+        {
+          // Entering goal picking mode - disable assign goals
+          assign_goals_btn_->setEnabled(false);
+        }
+        else
+        {
+          // Exiting goal picking mode - enable assign goals if goals exist
+          assign_goals_btn_->setEnabled(!loaded_global_goals_.empty());
+        }
 
         // the very first time only: show HTML instructions
         if (goal_picking_mode_ && !first_goal_picking_info_shown_) {
@@ -222,8 +231,7 @@ namespace hunav_rviz2_panel
           QString msg = QString(R"(
             <html>
               Click on the map to <b><i>add or edit</i></b> navigation goals.<br>
-              To <b>edit</b>, just <b>click on the goal marker</b> you wish to modify.<br>
-              <b>Please note</b>: Be sure to keep goals "visible" to each other (no obstacles in between) to avoid navigation issues.<br><br>
+              To <b>edit</b>, just <b>click on the goal marker</b> you wish to modify.<br><br>
               When you’re done, click on <b><i>%1</i></b> again to exit goal-picking mode,<br>
               then click on <b><i>%2</i></b> to assign your changes or <b><i>%3</i></b> to save the file.
             </html>
@@ -234,24 +242,36 @@ namespace hunav_rviz2_panel
           QMessageBox::information(this, tr("Add/Edit Goals"), msg);
         }
 
-        // switch RViz into the PublishPoint tool when entering pick-mode
-        if (goal_picking_mode_) {
-          if (auto *tm = getDisplayContext()->getToolManager()) {
-            for (int i = 0; i < tm->numTools(); ++i) {
-              auto *tool = tm->getTool(i);
-              if (QString(tool->getClassId()) == "rviz_default_plugins/PublishPoint") {
-                tm->setCurrentTool(tool);
-                break;
+        // ── Tool management - switch tools based on mode ──
+        if (auto *tm = getDisplayContext()->getToolManager()) 
+          {
+            if (goal_picking_mode_) 
+            {
+              // Entering goal picking mode - switch to PublishPoint tool
+              for (int i = 0; i < tm->numTools(); ++i) {
+                auto *tool = tm->getTool(i);
+                if (QString(tool->getClassId()) == "rviz_default_plugins/PublishPoint") {
+                  tm->setCurrentTool(tool);
+                  break;
+                }
               }
+              edit_goals_button_->setDown(true);
+            } 
+            else 
+            {
+              // exiting goal picking mode - switch to Interact tool
+              for (int i = 0; i < tm->numTools(); ++i) {
+                auto *tool = tm->getTool(i);
+                if (QString(tool->getClassId()) == "rviz_default_plugins/Interact") {
+                  tm->setCurrentTool(tool);
+                  break;
+                }
+              }
+              edit_goals_button_->setDown(false);
+              save_bt_btn_->setEnabled(true);
             }
           }
-          // highlight the Edit button so user knows we’re in that mode
-          edit_goals_button_->setDown(true);
-        } else {
-          // exiting pick mode, put the button back up
-          edit_goals_button_->setDown(false);
-          save_bt_btn_->setEnabled(true);
-        } });
+        });
 
     checkbox = new QCheckBox("Use default directory", this);
     checkbox->setChecked(true);
@@ -285,7 +305,6 @@ namespace hunav_rviz2_panel
         actors_info_.clear();
 
         // Restore the “create” UI
-        map_group->setEnabled(true);
         actors->show();                  // the “# of agents” line-edit
         n_agents_label_->show();
         actor_button_->setText("Generate agents");
@@ -299,6 +318,8 @@ namespace hunav_rviz2_panel
 
         // Put map/group boxes back to the CREATE titles & states
         map_group->setTitle("Select simulator and map:");
+        map_group->setEnabled(true);
+        map_group->setVisible(true);
         map_select_btn_->show();
         map_select_btn_->setVisible(true);
         current_map_label_->show();
@@ -351,11 +372,13 @@ namespace hunav_rviz2_panel
               create_button_->setDown(false);
               open_button_->setChecked(true);
               create_button_->setChecked(false);
-              parseYaml(); });
 
-    // ─── Goal‐Picking Group (initially disabled) ───
+              parseYaml();
+            });
+
+    // ─── Goal‐Picking Group (initially disabled for create mode) ───
     goal_group_ = new QGroupBox("Define agents goals");
-    goal_group_->setEnabled(false);
+    goal_group_->setEnabled(panel_mode_ == EDIT_MODE);  
 
     enter_goal_mode_btn_ = new QPushButton("Enter Goal-Picking Mode");
     enter_goal_mode_btn_->setCheckable(true);
@@ -371,7 +394,7 @@ namespace hunav_rviz2_panel
 
     // ─── “Reset goals” button (only meaningful in EDIT_MODE) ───
     reset_goals_button_ = new QPushButton("Reset Goals", this);
-    reset_goals_button_->setEnabled(false);
+    reset_goals_button_->setEnabled(true);
     reset_goals_button_->hide(); // initially hidden until we enter EDIT_MODE
     connect(reset_goals_button_, &QPushButton::clicked,
             this, &ActorPanel::onResetLoadedGoals);
@@ -611,8 +634,9 @@ namespace hunav_rviz2_panel
           prev_pt.y = gp.y;
         }
 
-        // closing arrow back to start
-        if (node["goals"].size() > 0)
+        // closing arrow back to start (if any goals were defined and cyclic goals == true)
+        bool is_cyclic = node["cyclic_goals"].as<bool>();
+        if (node["goals"].size() > 0 && is_cyclic)
         {
           int first_gid = node["goals"][0].as<int>();
           auto it_first = loaded_global_goals_.find(first_gid);
@@ -722,7 +746,7 @@ namespace hunav_rviz2_panel
     window->setWindowFlag(Qt::WindowStaysOnTopHint);
 
     // Title:
-    window->setWindowTitle(panel_mode_ == EDIT_MODE ? QString("Edit Agent") : QString("Add Agent"));
+    window->setWindowTitle((panel_mode_ == EDIT_MODE && !adding_new_agent_) ? QString("Edit Agent") : QString("Add Agent"));
 
     // If the layout already existed, clear it out entirely:
     if (topic_layout)
@@ -745,15 +769,19 @@ namespace hunav_rviz2_panel
 
     // (1) Show which agent number this is:
     QString text;
-    if (panel_mode_ == CREATE_MODE)
+    if (adding_new_agent_)
+    {
+      text = QString("Adding New Agent (#%1)").arg(current_edit_idx_ + 1);
+    }
+    else if (panel_mode_ == CREATE_MODE)
     {
       text = QString("Agent %1 / %2").arg(agent_count).arg(num_agents);
     }
     else
     {
       text = QString("Editing Agent %1 / %2")
-                 .arg(current_edit_idx_ + 1)
-                 .arg(num_agents);
+              .arg(current_edit_idx_ + 1)
+              .arg(num_agents);
     }
 
     auto *header = new QLabel(text, window);
@@ -762,7 +790,7 @@ namespace hunav_rviz2_panel
     topic_layout->addWidget(header);
 
     // ─── NAVIGATION BUTTONS (EDIT MODE ONLY) ───
-    if (panel_mode_ == EDIT_MODE)
+    if (panel_mode_ == EDIT_MODE && !adding_new_agent_)
     {
       // a little row to select agent to edit
       auto *nav = new QHBoxLayout;
@@ -802,6 +830,12 @@ namespace hunav_rviz2_panel
     agent_desired_vel = new QLineEdit(window);
     agent_desired_vel->setText(QString::number(1.5, 'f', 1)); // default
     topic_layout->addWidget(agent_desired_vel);
+
+    // Cyclic goals checkbox:
+    cyclic_goals_checkbox = new QCheckBox("Cyclic navigation", window);
+    cyclic_goals_checkbox->setChecked(true); // Default to true
+    cyclic_goals_checkbox->setToolTip("When checked, agent will return to the first goal after reaching the last one and repeat the navigation cycle.");
+    topic_layout->addWidget(cyclic_goals_checkbox);
 
     // (3) Behavior type selection
     topic_layout->addWidget(new QLabel("Behavior type:"));
@@ -945,6 +979,8 @@ namespace hunav_rviz2_panel
             this,
             &ActorPanel::checkComboBoxConf);
 
+    checkComboBoxConf();
+
     // (8) “Next / Save & Next” button:
     save_button_ = new QPushButton("Next agent", window);
     save_button_->setEnabled(false);
@@ -957,9 +993,26 @@ namespace hunav_rviz2_panel
     YAML::Node new_node;
 
     // (a) id (1-based) and group_id
-    int agent_id = (panel_mode_ == EDIT_MODE)
-      ? (current_edit_idx_ + 1)
-      : agent_count; 
+    // int agent_id = (panel_mode_ == EDIT_MODE)
+    //   ? (current_edit_idx_ + 1)
+    //   : agent_count; 
+
+    // (a) id (1-based) and group_id
+    int agent_id;
+    if (adding_new_agent_)
+    {
+      // For new agents, use the next available ID (current list size + 1)
+      agent_id = static_cast<int>(loaded_agent_names_.size()) + 1;
+    }
+    else if (panel_mode_ == EDIT_MODE)
+    {
+      agent_id = current_edit_idx_ + 1;
+    }
+    else // CREATE_MODE
+    {
+      agent_id = agent_count;
+    }
+
     new_node["id"] = agent_id;
     new_node["group_id"] = -1;
 
@@ -975,7 +1028,7 @@ namespace hunav_rviz2_panel
     // (d) radius, goal_radius, cyclic_goals
     new_node["radius"] = "0.4";
     new_node["goal_radius"] = "0.3";
-    new_node["cyclic_goals"] = true;
+    new_node["cyclic_goals"] = cyclic_goals_checkbox->isChecked();
 
     // (e) initial pose (x,y,z) must have been set
     if (!initial_pose_set)
@@ -1047,45 +1100,105 @@ namespace hunav_rviz2_panel
     new_node["behavior"]["social_force_factor"]   = QString::number(beh_sff->text().toDouble(), 'f', 1).toStdString();
     new_node["behavior"]["other_force_factor"]    = QString::number(beh_otherff->text().toDouble(), 'f', 1).toStdString();
 
-    // ────────────────────── WRITE‐BACK & ADVANCE INDEX ────────────────────────
-    if (panel_mode_ == EDIT_MODE)
-    {  
-      // Overwrite the existing node:
+    // ────────────────────── SAVE LOGIC ────────────────────────
+
+    if (adding_new_agent_)
+    {
+      // ═══════════════ NOW ADD THE NEW AGENT DATA ═══════════════
+      
+      // Generate agent name
+      std::string new_name = "agent" + std::to_string(agent_id);
+      std::vector<int> empty_goals;
+      
+      // Add to all lists simultaneously
+      loaded_agent_names_.push_back(new_name);
+      loaded_agent_nodes_.push_back(new_node);
+      loaded_agent_goals_.push_back(empty_goals);
+      
+      // Update current_edit_idx to point to the newly added agent
+      current_edit_idx_ = static_cast<int>(loaded_agent_names_.size()) - 1;
+      
+      // Reset the flag
+      adding_new_agent_ = false;
+      window->close();
+      
+      QMessageBox::information(this,
+        "Agent Added",
+        QString("New agent '%1' (ID: %2) has been added successfully.\n"
+                "You can now edit it or add goals to it.")
+          .arg(QString::fromStdString(loaded_agent_names_[current_edit_idx_]))
+          .arg(agent_id));
+      
+      // Update the UI to show the new agent
+      publishAgentMarkers();
+      add_agent_button_->setEnabled(true);
+      assign_goals_btn_->setEnabled(!loaded_global_goals_.empty());
+
+      return;
+    }
+    else
+    {
+      // ═══════════════ REGULAR EDIT/CREATE MODE ═══════════════
       loaded_agent_nodes_[current_edit_idx_] = new_node;
     }
-    else
+    
+    // ────────────────────── NORMAL NAVIGATION ────────────────────────
+    if (panel_mode_ == EDIT_MODE && current_edit_idx_ + 1 < num_agents)
     {
-      // In CREATE_MODE, append to actors_info then move on:
-      loaded_agent_nodes_.push_back(new_node);
+      // Move to next agent in edit mode
+      current_edit_idx_++;
+      window->close();
+      addAgent();
+      return;
     }
-
-    // If we are in CREATE_MODE, bump agent_count → possibly spawn next popup:
-    if (panel_mode_ == CREATE_MODE)
+    else if (panel_mode_ == CREATE_MODE && agent_count < num_agents)
     {
+      // Move to next agent in create mode
       agent_count++;
-      if (agent_count <= num_agents)
-      {
-        // Close current popup and show next
-        window->close();
-        addAgent();
-        return;
-      }
+      window->close();
+      addAgent();
+      return;
     }
-    else
-    {
-      // EDIT_MODE: advance current_edit_idx_
-      if (current_edit_idx_ + 1 < num_agents)
-      {
-        current_edit_idx_++;
-        window->close();
-        addAgent();
-        return;
-      }
-    }
+    // if (panel_mode_ == EDIT_MODE)
+    // {  
+    //   // Overwrite the existing node:
+    //   loaded_agent_nodes_[current_edit_idx_] = new_node;
+    // }
+    // else
+    // {
+    //   // Regular CREATE_MODE - append new agent
+    //   loaded_agent_nodes_.push_back(new_node);
+    // }
+
+    // // If we are in CREATE_MODE, bump agent_count → possibly spawn next popup:
+    // if (panel_mode_ == CREATE_MODE)
+    // {
+    //   agent_count++;
+    //   if (agent_count <= num_agents)
+    //   {
+    //     window->close();
+    //     addAgent();
+    //     return;
+    //   }
+    // }
+    // else if (panel_mode_ == EDIT_MODE)
+    // {
+    //   if (current_edit_idx_ + 1 < num_agents)
+    //   {
+    //     current_edit_idx_++;
+    //     window->close();
+    //     addAgent();
+    //     return;
+    //   }
+    // }
 
     // ─────────────────────── ALL AGENTS DONE ────────────────────────────────
     window->close();
     actor_button_->setDown(false);
+    if (panel_mode_ == EDIT_MODE)
+    {
+      assign_goals_btn_->setEnabled(!loaded_global_goals_.empty());
+    }
     QMessageBox::information(this,
                              "All agents ready",
                              QString(
@@ -1098,13 +1211,70 @@ namespace hunav_rviz2_panel
                                .arg((panel_mode_ == EDIT_MODE) ? "edit/add" : "pick/assign")
                                .arg((panel_mode_ == EDIT_MODE) ? edit_goals_button_->text() : enter_goal_mode_btn_->text())); });
 
-    // ────────────────────────────────────────────────────────────────────────────
 
-    // (8) Prefill fields if in EDIT_MODE:
-    if (panel_mode_ == EDIT_MODE &&
-        current_edit_idx_ >= 0 &&
-        current_edit_idx_ < static_cast<int>(loaded_agent_nodes_.size()))
+    // ──────────────────────── Cancel button ──────────────────────────
+    auto *cancel_button = new QPushButton("Cancel", window);
+    topic_layout->addWidget(cancel_button);
+
+    connect(cancel_button, &QPushButton::clicked, [this]()
     {
+      if (adding_new_agent_)
+      {
+        // Just reset the flag - no data was added to clean up
+        adding_new_agent_ = false;
+        
+        // Reset counts to original values
+        num_agents = static_cast<int>(loaded_agent_names_.size());
+        if (num_agents > 0)
+        {
+          current_edit_idx_ = num_agents - 1;
+        }
+        else
+        {
+          current_edit_idx_ = 0;
+        }
+        
+        // Resize marker IDs array back
+        loaded_initial_marker_ids_.resize(num_agents, -1);
+      }
+      
+      window->close();
+      actor_button_->setDown(false);
+      add_agent_button_->setEnabled(true);
+    });
+
+    // ────────────────────── POPULATE FORM FIELDS ─────────────────────────────────
+
+    if (adding_new_agent_)
+    {
+      // ═══════════════════ NEW AGENT - USE DEFAULTS ═══════════════════
+      agent_desired_vel->setText("1.5");
+      behavior_type_combobox->setCurrentText("Regular");
+      behavior_conf_combobox->setCurrentText("Default");
+      beh_gff->setText("2.0");
+      beh_off->setText("10.0");
+      beh_sff->setText("5.0");
+      beh_otherff->setText("20.0");
+      beh_dist->setText("3.0");
+      beh_duration->setText("5.0");
+      beh_once->setText("false");
+      beh_vel->setText("1.0");
+
+      cyclic_goals_checkbox->setChecked(true);
+      
+      if (simulator_combo_->currentText() == "Gazebo")
+      {
+        skin_combobox->setCurrentIndex(0);
+      }
+      
+      initial_pose_set = false;
+      save_button_->setEnabled(false);
+    }
+    else if (panel_mode_ == EDIT_MODE &&
+            current_edit_idx_ >= 0 &&
+            current_edit_idx_ < static_cast<int>(loaded_agent_nodes_.size()))
+    {
+      // ═══════════════════ EXISTING AGENT - READ FROM YAML ═══════════════════
       const YAML::Node &agentYAML = loaded_agent_nodes_[current_edit_idx_];
 
       // — Desired velocity —
@@ -1174,6 +1344,17 @@ namespace hunav_rviz2_panel
         initial_pose_set = false;
         save_button_->setEnabled(false);
       }
+
+      // — Cyclic goals —
+      if (agentYAML["cyclic_goals"])
+      {
+        bool is_cyclic = agentYAML["cyclic_goals"].as<bool>();
+        cyclic_goals_checkbox->setChecked(is_cyclic);
+      }
+      else
+      {
+        cyclic_goals_checkbox->setChecked(true); // Default to true if not specified
+      }
     }
     else
     {
@@ -1186,18 +1367,24 @@ namespace hunav_rviz2_panel
 
       skin_label_->setVisible(false);
       skin_combobox->setVisible(false);
+
+      cyclic_goals_checkbox->setChecked(true);
     }
 
-    bool last = false;
-    if (panel_mode_ == CREATE_MODE)
+    if (adding_new_agent_)
     {
-      last = (agent_count >= num_agents);
+      save_button_->setText(tr("Add agent"));
     }
-    else
+    else if (panel_mode_ == CREATE_MODE)
     {
-      last = (current_edit_idx_ + 1 >= num_agents);
+      bool last = (agent_count >= num_agents);
+      save_button_->setText(last ? tr("Finish") : tr("Next agent"));
     }
-    save_button_->setText(last ? tr("Finish") : tr("Next agent"));
+    else // EDIT_MODE
+    {
+      bool last = (current_edit_idx_ + 1 >= num_agents);
+      save_button_->setText(last ? tr("Finish") : tr("Next agent"));
+    }
 
     window->raise();
     window->adjustSize();
@@ -1242,17 +1429,25 @@ namespace hunav_rviz2_panel
   {
 
     // figure out which agent this is
-    int idx = (panel_mode_ == EDIT_MODE)
-                  ? current_edit_idx_
-                  : (agent_count - 1);
+    int idx;
+    if (panel_mode_ == EDIT_MODE || adding_new_agent_)
+    {
+      idx = current_edit_idx_;
+    }
+    else // CREATE_MODE
+    {
+      idx = agent_count - 1;
+    }
+
     if (idx < 0 || idx >= (int)loaded_initial_marker_ids_.size())
     {
       RCLCPP_ERROR(get_logger(),
-                   "onInitialPose(): bogus agent index %d", idx);
+                  "onInitialPose(): bogus agent index %d", idx);
       return;
     }
+
     // 1) If in EDIT_MODE, delete both the old mesh and its label for this agent:
-    if (panel_mode_ == EDIT_MODE)
+    if (panel_mode_ == EDIT_MODE && !adding_new_agent_)
     {
       auto del = std::make_unique<visualization_msgs::msg::MarkerArray>();
 
@@ -1304,7 +1499,16 @@ namespace hunav_rviz2_panel
     label.ns = "agent_id_text";
     label.id = id;
     label.pose.position.z = z_offset + 1.5; // float above the agent
-    label.text = std::to_string(idx + 1);
+    if (adding_new_agent_)
+    {
+      // For new agents, show the ID that will be assigned (current list size + 1)
+      label.text = std::to_string(static_cast<int>(loaded_agent_names_.size()) + 1);
+    }
+    else
+    {
+      // For existing agents, show their actual 1-based index
+      label.text = std::to_string(idx + 1);
+    }
     label.color = agent_col;
 
     // 6) Publish them together
@@ -1662,7 +1866,6 @@ namespace hunav_rviz2_panel
                         "<html>"
                         "<b>Click on the map to set navigation goals</b>.<br>"
                         "If you want to <b>modify</b> an already set goal, just <b>click on its marker</b>.<br><br>"
-                        "<b>Please note</b>: Be sure to keep goals \"visible\" to each other (no obstacles in between) to avoid navigation issues.<br><br>"
                         "When you’re done, click <b><i>%1</i></b> and then <b><i>%2</i></b>."
                         "</html>")
                         .arg(enter_goal_mode_btn_->text())
@@ -1674,17 +1877,33 @@ namespace hunav_rviz2_panel
           msg);
     }
 
-    // ── Automatically switch RViz into the PublishPoint tool ──
+    // ── Tool management - switch tools based on mode ──
     if (auto *tm = getDisplayContext()->getToolManager())
     {
-      const int count = tm->numTools();
-      for (int i = 0; i < count; ++i)
+      if (goal_picking_mode_)
       {
-        rviz_common::Tool *tool = tm->getTool(i);
-        if (QString(tool->getClassId()) == "rviz_default_plugins/PublishPoint")
+        // Entering goal picking mode - switch to PublishPoint tool
+        for (int i = 0; i < tm->numTools(); ++i)
         {
-          tm->setCurrentTool(tool);
-          break;
+          rviz_common::Tool *tool = tm->getTool(i);
+          if (QString(tool->getClassId()) == "rviz_default_plugins/PublishPoint")
+          {
+            tm->setCurrentTool(tool);
+            break;
+          }
+        }
+      }
+      else
+      {
+        // exiting goal picking mode - switch to Interact tool
+        for (int i = 0; i < tm->numTools(); ++i)
+        {
+          rviz_common::Tool *tool = tm->getTool(i);
+          if (QString(tool->getClassId()) == "rviz_default_plugins/Interact")
+          {
+            tm->setCurrentTool(tool);
+            break;
+          }
         }
       }
     }
@@ -1703,6 +1922,20 @@ namespace hunav_rviz2_panel
   void ActorPanel::onAssignGoalsClicked()
   {
     // 1) Build and position a tool-style dialog
+    QString msg = QString(
+        "<html>"
+        "You are about to <b>assign goals</b> to agents.<br>"
+        "You can <b>select an agent</b> from the dropdown, then <b>pick goals</b> from the left list and <b>assign them</b> "
+        "to the agent by clicking the ▶ button (or remove them with ◀).<br>"
+        "Then, click on <b><i>Lock Selection</i></b> to confirm the assignment for each agent.<br><br>"
+        "Click <b><i>Finish</i></b> once you are done assigning goals.<br><br>"
+        "<b>Please note</b>: For each agent navigation route, be sure to keep <b>\"visible\" goal connections</b> (no obstacles in between) to avoid navigation issues.<br><br>"
+        "</html>");
+
+    QMessageBox::information(
+        this,
+        tr("Goal Assignment"),
+        msg);
     QDialog dlg(this);
     dlg.setWindowFlags(dlg.windowFlags() | Qt::Tool);
     QPoint top_left = this->mapToGlobal(QPoint(-30, 0));
@@ -1765,6 +1998,12 @@ namespace hunav_rviz2_panel
     lock_btn->setEnabled(false);
     main_layout->addWidget(lock_btn);
 
+    // — Show/Hide Arrows checkbox
+    auto *show_arrows_checkbox = new QCheckBox("Show navigation arrows");
+    show_arrows_checkbox->setChecked(true); // Default to showing arrows
+    show_arrows_checkbox->setToolTip("Toggle visibility of agent navigation arrows on the map");
+    main_layout->addWidget(show_arrows_checkbox);
+
     // — Summary area for locked agents
     auto *summary_area = new QVBoxLayout;
     main_layout->addLayout(summary_area);
@@ -1787,6 +2026,142 @@ namespace hunav_rviz2_panel
             {
       resetGoalMarkerColors();
       goal_markers_pub_->publish(goal_markers_); });
+
+    // — Show/Hide arrows checkbox handler
+    bool arrows_visible = true; // Track arrow visibility state
+
+    // Function to create/update arrows for a specific agent
+    auto updateAgentArrows = [&](int agent_idx)
+    {
+      if (agent_idx < 0 || agent_idx >= (int)loaded_agent_nodes_.size())
+        return;
+
+      // Clear existing arrows and goal cubes for this agent
+      auto delete_arrows = std::make_unique<visualization_msgs::msg::MarkerArray>();
+      visualization_msgs::msg::Marker delete_marker;
+      delete_marker.header.frame_id = "/map";
+      delete_marker.header.stamp = rclcpp::Clock().now();
+      delete_marker.ns = "agent_arrow";
+      delete_marker.action = visualization_msgs::msg::Marker::DELETEALL;
+      delete_arrows->markers.push_back(delete_marker);
+
+      // Also delete goal cubes
+      visualization_msgs::msg::Marker delete_cubes;
+      delete_cubes.header.frame_id = "/map";
+      delete_cubes.header.stamp = rclcpp::Clock().now();
+      delete_cubes.ns = "agent_goal";
+      delete_cubes.action = visualization_msgs::msg::Marker::DELETEALL;
+      delete_arrows->markers.push_back(delete_cubes);
+
+      initial_pose_publisher->publish(std::move(delete_arrows));
+
+      if (!arrows_visible || agent_goals_[agent_idx].empty())
+        return;
+
+      // Get agent's initial position
+      const YAML::Node &agentYAML = loaded_agent_nodes_[agent_idx];
+      if (!agentYAML["init_pose"])
+        return;
+
+      double init_x = agentYAML["init_pose"]["x"].as<double>();
+      double init_y = agentYAML["init_pose"]["y"].as<double>();
+
+      // Check if this agent has cyclic navigation enabled
+      bool is_cyclic = true; 
+      if (agentYAML["cyclic_goals"])
+      {
+        is_cyclic = agentYAML["cyclic_goals"].as<bool>();
+      }
+
+      // Get agent color
+      QColor agent_color = agent_colors_[agent_idx];
+
+      auto markers = std::make_unique<visualization_msgs::msg::MarkerArray>();
+      int marker_id = next_marker_id_ + 1000 + agent_idx * 100; // Unique ID range for arrows and cubes
+
+      geometry_msgs::msg::Point prev_pt;
+      prev_pt.x = init_x;
+      prev_pt.y = init_y;
+      prev_pt.z = 0.0;
+
+      // Create arrows and cubes between consecutive goals
+      for (size_t i = 0; i < agent_goals_[agent_idx].size(); ++i)
+      {
+        int gid = agent_goals_[agent_idx][i];
+        auto it = loaded_global_goals_.find(gid);
+        if (it == loaded_global_goals_.end())
+          continue;
+
+        geometry_msgs::msg::Point goal_pt = it->second;
+
+        // Create small colored cube at goal_pt
+        visualization_msgs::msg::Marker goal_cube = createMarker(
+            goal_pt.x, goal_pt.y, marker_id++, "cube", "parser");
+        goal_cube.ns = "agent_goal";
+        goal_cube.color.r = agent_color.redF();
+        goal_cube.color.g = agent_color.greenF();
+        goal_cube.color.b = agent_color.blueF();
+        goal_cube.color.a = 1.0f;
+        markers->markers.push_back(goal_cube);
+
+        // Create arrow from prev_pt to goal_pt
+        visualization_msgs::msg::Marker arrow = createArrowMarker(
+            prev_pt.x, prev_pt.y, goal_pt.x, goal_pt.y, marker_id++);
+        arrow.ns = "agent_arrow";
+        arrow.color.r = agent_color.redF();
+        arrow.color.g = agent_color.greenF();
+        arrow.color.b = agent_color.blueF();
+        arrow.color.a = 1.0f;
+        markers->markers.push_back(arrow);
+
+        prev_pt = goal_pt;
+      }
+
+      // Create closing arrow from last goal back to first goal (if more than 1 goal and cyclic_goals == true)
+      if (agent_goals_[agent_idx].size() > 1 && is_cyclic)
+      {
+        int first_gid = agent_goals_[agent_idx][0];
+        auto it_first = loaded_global_goals_.find(first_gid);
+        if (it_first != loaded_global_goals_.end())
+        {
+          const auto &first_pt = it_first->second;
+          visualization_msgs::msg::Marker closing_arrow = createArrowMarker(
+              prev_pt.x, prev_pt.y, first_pt.x, first_pt.y, marker_id++);
+          closing_arrow.ns = "agent_arrow";
+          closing_arrow.color.r = agent_color.redF();
+          closing_arrow.color.g = agent_color.greenF();
+          closing_arrow.color.b = agent_color.blueF();
+          closing_arrow.color.a = 1.0f;
+          markers->markers.push_back(closing_arrow);
+        }
+      }
+
+      if (!markers->markers.empty())
+      {
+        initial_pose_publisher->publish(std::move(markers));
+      }
+    };
+
+    connect(show_arrows_checkbox, &QCheckBox::toggled, this, [&](bool show_arrows)
+            {
+              arrows_visible = show_arrows;
+              
+              if (!show_arrows) {
+                // Delete all arrows
+                auto delete_arrows = std::make_unique<visualization_msgs::msg::MarkerArray>();
+                visualization_msgs::msg::Marker delete_marker;
+                delete_marker.header.frame_id = "/map";
+                delete_marker.header.stamp = rclcpp::Clock().now();
+                delete_marker.ns = "agent_arrow";
+                delete_marker.action = visualization_msgs::msg::Marker::DELETEALL;
+                delete_arrows->markers.push_back(delete_marker);
+                initial_pose_publisher->publish(std::move(delete_arrows));
+              } else {
+                // Recreate arrows for all agents
+                for (int i = 0; i < num_actors_; ++i) {
+                  updateAgentArrows(i);
+                }
+              } });
 
     // — Refresh helper
     auto refresh = [&]()
@@ -1839,6 +2214,9 @@ namespace hunav_rviz2_panel
 
             // 3) push the recolored markers out
             goal_markers_pub_->publish(goal_markers_);
+            
+            // 4) Update arrows for the selected agent
+            updateAgentArrows(new_agent_idx);
 
             // 4) repaint the combo text in that agent’s color
             QPalette pal = agent_sel->palette();
@@ -1875,6 +2253,9 @@ namespace hunav_rviz2_panel
             }
             }
             goal_markers_pub_->publish(goal_markers_);
+            
+            // Update arrows for the current agent
+            updateAgentArrows(a);
             refresh(); });
 
     // — Remove goal from agent
@@ -1909,6 +2290,9 @@ namespace hunav_rviz2_panel
 
     // push the color changes out to RViz
     goal_markers_pub_->publish(goal_markers_);
+    
+    // Update arrows for the current agent
+    updateAgentArrows(a);
 
     // then rebuild the two lists
     refresh(); });
@@ -1963,6 +2347,10 @@ namespace hunav_rviz2_panel
             }
             }
             goal_markers_pub_->publish(goal_markers_); 
+            
+            // Update arrows for the locked agent
+            updateAgentArrows(a);
+            
             bool allLocked = std::all_of(
               lockedFlags.begin(), lockedFlags.end(),
               [](bool v){ return v; });
@@ -2009,6 +2397,9 @@ namespace hunav_rviz2_panel
         }
       }
       goal_markers_pub_->publish(goal_markers_);
+
+      // Update arrows for the initial agent
+      updateAgentArrows(a);
     }
 
     // Initial populate & execute
@@ -2040,13 +2431,16 @@ namespace hunav_rviz2_panel
       }
 
       loaded_agent_goals_ = agent_goals_;
+      assign_goals_btn_->setDown(false);
       save_bt_btn_->setEnabled(true);
       checkbox->setEnabled(true);
+      resetGoalMarkerColors();
+      goal_markers_pub_->publish(goal_markers_);
       QMessageBox::information(
           this,
           tr("Goals picked and assigned"),
           tr("\n"
-             "<html>Now click <i><b>%1</b></i> to write out the agents YAML & BTs.</html>")
+             "<html>Now click <i><b>%1</b></i> to write out the agents YAML & corresponding BTs.</html>")
               .arg(save_bt_btn_->text()));
     }
     else
@@ -2076,6 +2470,13 @@ namespace hunav_rviz2_panel
     {
       vec.clear();
     }
+      if (!agent_goals_.empty())
+    {
+      for (auto &vec : agent_goals_)
+      {
+        vec.clear();    
+      }
+    }
 
     // 2) Delete all RViz markers under “goal_points” and “goal_numbers”
     visualization_msgs::msg::Marker delete_all;
@@ -2096,13 +2497,27 @@ namespace hunav_rviz2_panel
       goal_markers_pub_->publish(std::move(arr));
     }
 
+    {
+      auto arr = std::make_unique<visualization_msgs::msg::MarkerArray>();
+      delete_all.ns = "agent_arrow";
+      arr->markers.push_back(delete_all);
+      initial_pose_publisher->publish(std::move(arr));
+    }
+    {
+      auto arr = std::make_unique<visualization_msgs::msg::MarkerArray>();
+      delete_all.ns = "agent_goal";
+      arr->markers.push_back(delete_all);
+      initial_pose_publisher->publish(std::move(arr));
+    }
+
     // Also clear our local copy of “goal_markers_” so future onGoalPicked() starts clean:
     goal_markers_.markers.clear();
 
     // 3) Clear the QListWidget
     goal_list_widget_->clear();
 
-    // 4) Disable “Assign goals”
+    // 4) Disable “Assign goals” and reset goal id tracking
+    moving_goal_id_ = -1; // Reset goal ID tracking
     assign_goals_btn_->setEnabled(false);
 
     QMessageBox::information(this,
@@ -2113,28 +2528,47 @@ namespace hunav_rviz2_panel
 
   void ActorPanel::onCreateOrEditAgents()
   {
+    if (adding_new_agent_)
+    {
+      return;
+    }
+
     actor_button_->setDown(true);
+    
     if (panel_mode_ == CREATE_MODE)
     {
-      // 1) figure out how many agents
+      // Regular CREATE_MODE workflow
       num_actors_ = actors->text().toInt();
-      // 2) initialize colors, goal‐lists, and per‐agent ID slots
       initAgentColors(num_actors_);
       agent_goals_.assign(num_actors_, {});
       loaded_initial_marker_ids_.assign(num_actors_, -1);
       next_marker_id_ = 0;
+      
+      // Clear the loaded lists for fresh creation
+      loaded_agent_names_.clear();
+      loaded_agent_nodes_.clear();
+      loaded_agent_goals_.clear();
+      
       addAgent();
       return;
     }
-    // initial_pose_publisher->publish(std::move(marker_array_));
-
-    clearNonAgentMarkers();
-    publishAgentMarkers();
-
-    current_edit_idx_ = 0;
-    panel_mode_ = EDIT_MODE;
-
-    addAgent();
+    else if (panel_mode_ == EDIT_MODE)
+    {
+      // Regular EDIT_MODE workflow - validate data first
+      if (loaded_agent_names_.empty())
+      {
+        QMessageBox::warning(this, "No Agents", "No agents loaded to edit.");
+        actor_button_->setDown(false);
+        return;
+      }
+      
+      clearNonAgentMarkers();
+      publishAgentMarkers();
+      current_edit_idx_ = 0;
+      assign_goals_btn_->setEnabled(!loaded_global_goals_.empty());
+      addAgent();
+      return;
+    }
   }
 
   /**
@@ -2571,7 +3005,7 @@ namespace hunav_rviz2_panel
 
         marker_array->markers.push_back(text_marker);
 
-        // (2) arrow from prev_pt → goal_pt (same color)
+        // arrow from prev_pt → goal_pt (same color)
         visualization_msgs::msg::Marker arrow_marker =
             createArrowMarker(prev_pt.x, prev_pt.y, goal_pt.x, goal_pt.y, id_counter++);
         arrow_marker.ns = "agent_arrow";
@@ -2584,25 +3018,35 @@ namespace hunav_rviz2_panel
         prev_pt = goal_pt;
       }
 
-      // 9e) Finally, draw an arrow from the last goal back to the first goal
+      // 9e) Finally, draw an arrow from the last goal back to the first goal (only if cyclic)
       if (!assigned_goals.empty())
       {
-        // get the first goal’s coordinates
-        int first_gid = assigned_goals.front();
-        auto it_first = loaded_global_goals_.find(first_gid);
-        if (it_first != loaded_global_goals_.end())
+        // Check if this agent has cyclic navigation
+        bool is_cyclic = true; 
+        if (agent_node["cyclic_goals"])
         {
-          const auto &first_pt = it_first->second;
-          visualization_msgs::msg::Marker closing_arrow =
-              createArrowMarker(prev_pt.x, prev_pt.y,
-                                first_pt.x, first_pt.y,
-                                id_counter++);
-          closing_arrow.ns = "agent_arrow";
-          closing_arrow.color.r = qcol.redF();
-          closing_arrow.color.g = qcol.greenF();
-          closing_arrow.color.b = qcol.blueF();
-          closing_arrow.color.a = 1.0f;
-          marker_array->markers.push_back(closing_arrow);
+          is_cyclic = agent_node["cyclic_goals"].as<bool>();
+        }
+        
+        if (is_cyclic)
+        {
+          // get the first goal's coordinates
+          int first_gid = assigned_goals.front();
+          auto it_first = loaded_global_goals_.find(first_gid);
+          if (it_first != loaded_global_goals_.end())
+          {
+            const auto &first_pt = it_first->second;
+            visualization_msgs::msg::Marker closing_arrow =
+                createArrowMarker(prev_pt.x, prev_pt.y,
+                                  first_pt.x, first_pt.y,
+                                  id_counter++);
+            closing_arrow.ns = "agent_arrow";
+            closing_arrow.color.r = qcol.redF();
+            closing_arrow.color.g = qcol.greenF();
+            closing_arrow.color.b = qcol.blueF();
+            closing_arrow.color.a = 1.0f;
+            marker_array->markers.push_back(closing_arrow);
+          }
         }
       }
 
@@ -2623,17 +3067,34 @@ namespace hunav_rviz2_panel
       actor_button_->setText("Edit agents");
       actor_button_->setEnabled(true);
       edit_goals_button_->setVisible(true);
+      edit_goals_button_->setDown(false);
+      add_agent_button_->setVisible(true);
+      add_agent_button_->show(); 
+      add_agent_button_->setEnabled(true);
+      
       n_agents_label_->hide();
-      // save_bt_btn_->setVisible(true);
       map_group->setTitle("Edit agents or navigation goal:");
       map_group->setEnabled(false);
       map_group->setVisible(false);
       goal_group_->setTitle("");
+      goal_group_->setEnabled(true);
+      goal_group_->show();
+      goal_group_->update();
       map_select_btn_->hide();
       current_map_label_->hide();
       map_select_btn_->setVisible(false);
-      reset_goals_button_->show();
+      
+      // *** ENABLE GOAL MANAGEMENT UI ELEMENTS ***
       reset_goals_button_->setEnabled(true);
+      reset_goals_button_->setVisible(true);
+      reset_goals_button_->show();
+      reset_goals_button_->raise();
+      goal_list_widget_->setEnabled(true); 
+      goal_list_widget_->setVisible(true);
+      goal_list_widget_->show();
+      goal_list_widget_->raise();
+
+      
       enter_goal_mode_btn_->hide();
     }
     QMessageBox::information(
@@ -2645,6 +3106,32 @@ namespace hunav_rviz2_panel
            "</html>")
             .arg(loaded_agent_names_.size())
             .arg(orig_yaml_base_name_));
+  }
+
+  void ActorPanel::onAddAgent()
+  {    
+    // Set the flag to indicate we're adding a new agent
+    adding_new_agent_ = true;
+    
+    // Calculate what the new agent's index will be (after current agents)
+    current_edit_idx_ = static_cast<int>(loaded_agent_names_.size());
+    
+    // Update num_agents to include the slot for the new agent
+    num_agents = current_edit_idx_ + 1;
+    
+    // Ensure marker IDs array is large enough for the new agent
+    loaded_initial_marker_ids_.resize(num_agents, -1);
+    
+    // Update agent colors for the new total count
+    initAgentColors(num_agents);
+    
+    // Initialize pose tracking
+    initial_pose_set = false;
+
+    assign_goals_btn_->setEnabled(false);
+    
+    // Pop up the agent configuration dialog
+    addAgent();
   }
 
   /**
@@ -2680,8 +3167,7 @@ namespace hunav_rviz2_panel
       QTimer::singleShot(0, this, [this, le]()
                          {
                            le->deselect();                              
-                           le->setCursorPosition(defaultName_.length()); 
-                         });
+                           le->setCursorPosition(defaultName_.length()); });
     }
 
     // Exec it
@@ -2828,7 +3314,7 @@ namespace hunav_rviz2_panel
     ofs.close();
 
     RCLCPP_INFO(this->get_logger(),
-                "Wrote updated agents.yaml to %s",
+                "Wrote agents yaml file to %s",
                 fullpath.toStdString().c_str());
 
     // 4) Now regenerate each agent’s BT:
@@ -3280,9 +3766,17 @@ namespace hunav_rviz2_panel
       beh_duration->setEnabled(false);
       beh_once->setText(QString("true"));
       beh_once->setEnabled(false);
-      beh_gff->setText(QString::number(2.0));
+      if (simulator_combo_->currentText() == "Isaac Sim")
+      {
+        beh_gff->setText(QString::number(10.0));
+        beh_off->setText(QString::number(2.0));
+      }
+      else
+      {
+        beh_gff->setText(QString::number(2.0));
+        beh_off->setText(QString::number(10.0));
+      }
       beh_gff->setEnabled(false);
-      beh_off->setText(QString::number(10.0));
       beh_off->setEnabled(false);
       beh_sff->setText(QString::number(5.0));
       beh_sff->setEnabled(false);
@@ -3337,7 +3831,14 @@ namespace hunav_rviz2_panel
 
       beh_gff->setEnabled(true);
       beh_gff->setText("");
-      beh_gff->setPlaceholderText("[2.0 - 5.0]");
+      if (simulator_combo_->currentText() == "Isaac Sim")
+      {
+        beh_gff->setPlaceholderText("[5.0 - 10.0]");
+      }
+      else
+      {
+        beh_gff->setPlaceholderText("[2.0 - 5.0]");
+      }
       beh_gff->setStyleSheet(R"(
                         QLineEdit::placeholder {
                           font-style: italic;
@@ -3347,7 +3848,14 @@ namespace hunav_rviz2_panel
 
       beh_off->setEnabled(true);
       beh_off->setText("");
-      beh_off->setPlaceholderText("[2.0 - 50.0]");
+      if (simulator_combo_->currentText() == "Isaac Sim")
+      {
+        beh_off->setPlaceholderText("[0.5 - 5.0]");
+      }
+      else
+      {
+        beh_off->setPlaceholderText("[2.0 - 50.0]");
+      }
       beh_off->setStyleSheet(R"(
                         QLineEdit::placeholder {
                           font-style: italic;
@@ -3401,16 +3909,35 @@ namespace hunav_rviz2_panel
       // Generate random values (normal distribution)
       std::random_device rd;
       std::mt19937 gen(rd());
-      std::normal_distribution<> dis_gff{2.0, 1.5};
-      double facGoal = dis_gff(gen);
-      facGoal = (facGoal < 0.5) ? 0.5 : facGoal;
-      beh_gff->setText(QString::number(facGoal));
-      beh_gff->setEnabled(false);
-      std::normal_distribution<> dis_off{10.0, 4.0};
-      double facObstacle = dis_off(gen);
-      facObstacle = (facObstacle < 0.5) ? 0.5 : facObstacle;
-      beh_off->setText(QString::number(facObstacle));
-      beh_off->setEnabled(false);
+      if (simulator_combo_->currentText() == "Isaac Sim")
+      {
+        std::normal_distribution<> dis_gff{5.0, 1.5};
+        double facGoal = dis_gff(gen);
+        facGoal = (facGoal < 5.0) ? 5.0 : facGoal;
+        beh_gff->setText(QString::number(facGoal));
+        beh_gff->setEnabled(false);
+
+        std::normal_distribution<> dis_off{2.0, 4.0};
+        double facObstacle = dis_off(gen);
+        facObstacle = (facObstacle < 0.5) ? 0.5 : facObstacle;
+        beh_off->setText(QString::number(facObstacle));
+        beh_off->setEnabled(false);
+      }
+      else
+      {
+        // Gazebo or Webots
+        std::normal_distribution<> dis_gff{2.0, 1.5};
+        double facGoal = dis_gff(gen);
+        facGoal = (facGoal < 2.0) ? 2.0 : facGoal;
+        beh_gff->setText(QString::number(facGoal));
+        beh_gff->setEnabled(false);
+
+        std::normal_distribution<> dis_off{10.0, 4.0};
+        double facObstacle = dis_off(gen);
+        facObstacle = (facObstacle < 2.0) ? 2.0 : facObstacle;
+        beh_off->setText(QString::number(facObstacle));
+        beh_off->setEnabled(false);
+      }
       std::normal_distribution<> dis_sff{4.0, 3.5};
       double facSocial = dis_sff(gen);
       facSocial = (facSocial < 3.0) ? 3.0 : facSocial;
@@ -3976,7 +4503,9 @@ namespace hunav_rviz2_panel
 
     // 1a) Create/Load buttons
     create_button_->setChecked(false);
+    create_button_->setDown(false);
     open_button_->setChecked(false);
+    open_button_->setDown(false);
 
     // 2) Clear loaded data
     loaded_agent_nodes_.clear();
@@ -3988,35 +4517,97 @@ namespace hunav_rviz2_panel
     goal_ids_.clear();
     agent_goals_.clear();
     actors_info_.clear();
+    agent_colors_.clear(); 
     next_marker_id_ = 0;
+
+    // 2a) Clear file paths and names
+    map_file_.clear();
+    pkg_shared_tree_dir_.clear();
+    orig_yaml_base_name_.clear();
+    yaml_base_name_.clear();
+    defaultName_.clear();
+
+    // Reset dialog/window states 
+    adding_new_agent_ = false;
+    goal_picking_mode_ = false;
+    initial_pose_set = false;
+    moving_goal_id_ = -1;
+
+    // Reset information flags 
+    first_goal_picking_info_shown_ = false;
+    initial_pose_tip_shown_ = false;
+    show_file_selector_once = false;
 
     // 3) Reset mode & indices
     panel_mode_ = CREATE_MODE;
     current_edit_idx_ = 0;
     iterate_actors_ = 1;
     agent_count = 1;
+    num_agents = 0;      
+    num_actors_ = 0;  
 
     // 4) Reset UI back to “fresh” state
     map_group->setEnabled(false);
-    actors->clear();
-    actors->show();
-    actor_button_->setText(tr("Generate agents"));
-    actor_button_->setEnabled(false);
-    n_agents_label_->setEnabled(false);
-
-    edit_goals_button_->hide();
-    save_bt_btn_->hide();
-    reset_goals_button_->hide();
-
-    yaml_file_label_->hide();
+    map_group->setVisible(true);  
+    map_group->setTitle("Select simulator and map:");  
     simulator_combo_->setCurrentIndex(-1);
     map_select_btn_->show();
     map_select_btn_->setVisible(true);
     map_select_btn_->setEnabled(false);
     current_map_label_->clear();
-    goal_group_->setTitle("Define agents goals");
-    goal_group_->setEnabled(false);
+    current_map_label_->show();  
+
+    // Reset agent creation fields 
+    actors->clear();
+    actors->show();
+    actors->setEnabled(false);
+    n_agents_label_->show();
+    n_agents_label_->setEnabled(false);
+
+    // Actor button to constructor state 
+    actor_button_->setText(tr("Generate agents"));
+    actor_button_->setEnabled(false);
+    actor_button_->setDown(false);
+
+    // Edit mode buttons to hidden state 
+    edit_goals_button_->hide();
+    edit_goals_button_->setDown(false);
+    add_agent_button_->hide();
+    add_agent_button_->setEnabled(false);
+
+    // YAML file label 
+    yaml_file_label_->hide();
+    yaml_file_label_->clear();
+
+    // Goal management section
+    goal_group_->setTitle("Define agents goals");  
+    goal_group_->setEnabled(false); 
+
+    // Goal picking button
+    enter_goal_mode_btn_->show();  
+    enter_goal_mode_btn_->setDown(false);
+    enter_goal_mode_btn_->setText("Enter Goal-Picking Mode");  
+    enter_goal_mode_btn_->setEnabled(true);  
+
+    // Reset: Goal management UI to disabled state
+    goal_list_widget_->clear();
+    goal_list_widget_->setEnabled(false);  
+    reset_goals_button_->hide();
+    reset_goals_button_->setEnabled(false);
+    assign_goals_btn_->setEnabled(false);
+    assign_goals_btn_->setDown(false);
+
+    // Reset: Save and other buttons
+    save_bt_btn_->setEnabled(false);
+    save_bt_btn_->setText("Save agents YAML/Generate BTs");  
+
     checkbox->setEnabled(false);
+    checkbox->setChecked(true);  
+
+    // Reset: Behavior tree group
+    bt_group_->setEnabled(true);  
+    edit_bt_btn_->setEnabled(true); 
+
 
     QMessageBox::information(this, tr("Reset"),
                              tr("All settings cleared.\nPanel is back to its initial state."));
