@@ -2,8 +2,7 @@
 
 A ROS2 python package to compute different human-aware navigation metrics about the simulations performed with the HuNav Simulator.
 
-**Tested in ROS2 Humble** 
-
+## Tested in ROS2 Humble
 
 ## Dependencies
 
@@ -11,41 +10,43 @@ A ROS2 python package to compute different human-aware navigation metrics about 
 * hunav_msgs
 * hunav_agent_manager
 
-At the moment of this update (March 2023), there is a [problem](https://docs.ros.org/en/humble/Releases/Release-Humble-Hawksbill.html#known-issues) which is breaking some parts of ament_package and builds with colcon. 
-To solve this problem now, you will need to install setuptools version 58.2.0:
-```sh
-pip install setuptools==58.2.0
-```
-
 ## Description
 
 This package subscribes to a set of topic published by the Hunav Agent Manager:
 
 * ```/human_states``` this topic publishes messages of type *hunav_msgs/msg/Agents* with the status of the human agents for each time step.
 * ```/robot_states``` this topic publishes messages of type *hunav_msgs/msg/Agent* with the status of the robot for each time step.
-    
-This information is stored and then is employed to compute a set of metrics related to the social robot navigation. 
 
-The recording process is semi-automatic. 
+This information is stored and then is employed to compute a set of metrics related to the social robot navigation.
 
-It starts when the first message in the subscribed topics is received (/human_states or /robot_states); or alternatively, when a robot navigation goal is received (see parameter ```use_navgoal_to_start``` below).
-The recording stops when a certain time passes without receiving data through the topics.
+In order to compute the metrics, the user must specify a set of parameters in a yaml file. The evaluator will read this file and will compute the metrics indicated in it. The results will be stored in a csv file in the path indicated in the parameters.
 
-Once the recording has stopped, the computation of the metrics is performed and a set of output txt files is generated.
+To run the evaluator, the user must execute the following command:
 
+```bash
+ros2 launch hunav_evaluator hunav_evaluator.launch.py
+```
+
+This will start the evaluator node, which will subscribe to the topics and compute the metrics according to the parameters specified in the yaml file.
+
+The evaluator recording can be started/stopped by using a ROS2 service. The service is called ```/hunav_start_recording``` and it takes a ```hunav_msgs/srv/StartEvaluation``` request with the following parameters:
+
+* ```experiment_tag``` A string that will be used to tag the experiment. This tag will be used to generate the output files with the results of the metrics.
+* ```robot_goal```  A ```geometry_msgs/msg/PoseStamped``` message with the goal position of the robot. This is used to compute some metrics related to the goal position.
+* ```run_id``` An integer that will be used to identify the run of the experiment. This is useful to distinguish between different runs of the same experiment.
+
+The evaluator will start recording the data and will compute the metrics according to the parameters specified in the yaml file. The recording can be stopped by calling the service ```/hunav_stop_recording```. This service is an empty service that will stop the recording and will compute the final metrics.
 
 ## Configuration and Parameters
 
 The user must specify the set of metrics to be computed and some parameters about the metrics generation.
-This values must be indicated in the yaml file **metrics.yaml**, placed in the *config* directory. After compilation this file is moved to the install directory of the ROS workspace. 
+This values must be indicated in the yaml file **metrics.yaml**, placed in the *config* directory. After compilation this file is moved to the install directory of the ROS workspace.
 
 ### Global parameters
 
 * ```frequency```. Indicate the frequency of capturing the data (it must be slower than data publishing). If the value is set to zero, the data is captured at the same frequency than it is published.
-* ```experiment_tag```. A string that can be used to identify different scenarios or experiments. This tag will be stored in the output results file. 
-* ```result_file```. Full path and name of the output text file. If a new experiment is performed and the file already exists, the evaluator wil open the file and will add the computed metrics in a new row at the end of the file. This allows to repeat experiments and to store the results as rows in the same file for easier post-processing.
-* ```use_navgoal_to_start```. Boolean to indicate whether the data recording must wait to receive a goal message (geometry_msgs/msg/PoseStamped) in the topic */goal_pose* to start or not. This way, the recording can be coordinated with the start of the robot navigation.
-* ```metrics```. List with the names of the metrics to be computed. The user can just comment/uncomment the desired metrics.   
+* ```result_file```. Full path and name of the output text file. If a new experiment is performed and the file already exists, the evaluator will open the file and add the computed metrics in a new row at the end of the file. This allows to repeat experiments and to store the results as rows in the same file for easier post-processing. The parameter can be changed during the experiment resetting this parameter.
+* ```metrics```. List with the names of the metrics to be computed. The user can just comment/uncomment the desired metrics.
 
 ### Metrics configuration
 
@@ -53,9 +54,9 @@ Currently, the metrics implemented are those employed in our previous work [1] a
 
 The user can configure the metrics to be computed in two different ways:
 
-- By editing the metrics yaml file, and changing the boolean parameters of the metrics (true to compute the metric, false to ignore it).
-- By using a RViz2 panel to select/unselect the metrics and to store them. See the [hunav_rviz2_panel](https://github.com/robotics-upo/hunav_sim/tree/humble/hunav_rviz2_panel) for more information on how to use the panel.  
- 
+* By editing the metrics yaml file, and changing the boolean parameters of the metrics (true to compute the metric, false to ignore it).
+* By using a RViz2 panel to select/unselect the metrics and to store them. See the [hunav_rviz2_panel](https://github.com/robotics-upo/hunav_sim/tree/humble/hunav_rviz2_panel) for more information on how to use the panel.
+
 Example snippet of the metrics configuration file:
 
 ```yaml
@@ -115,22 +116,22 @@ Currently, the metrics implemented are:
 
 Metrics from our previous work [1]:
 
-- *Time to reach the goal* $(T_p)$. Time $(seconds)$ since the robot start the
+* *Time to reach the goal* $(T_p)$. Time $(seconds)$ since the robot start the
 navigation until the goal is correctly reached.
 
 $$ T_p = (T_{goal} - T_{ini}) $$
 
-- *Path length* $(L_p)$. The length of the path $(meters)$ followed by the robot from the initial point to the goal position.
+* *Path length* $(L_p)$. The length of the path $(meters)$ followed by the robot from the initial point to the goal position.
 
 $$ L_p = \sum_{i=1}^{N-1}||x_r^i - x_r^{i+1}||_2$$
 
-- *Cumulative heading changes*, $(CHC)$. It counts the cumulative heading changes $(radians)$ of in the robot trajectory measured by angles between successive waypoints. It gives a simple way to check on smoothness of path and energy so a low value is desirable.
+* *Cumulative heading changes*, $(CHC)$. It counts the cumulative heading changes $(radians)$ of in the robot trajectory measured by angles between successive waypoints. It gives a simple way to check on smoothness of path and energy so a low value is desirable.
 
 $$ CHC = \sum_{i=1}^{N-1}(h_r^i - h_r^{i+1})$$
 
 &ensp;&ensp;&ensp;&ensp;&ensp;&ensp;where $h_r^i$ indicates the heading of the robot in the position i. The angles and their difference are normalized between $-\pi$ and $\pi$ .
 
-- *Average distance to closest person* $(CP_{avg})$. A measure
+* *Average distance to closest person* $(CP_{avg})$. A measure
 of the mean distance $(meters)$ from the robot to the closest person
 along the trajectory, taking into account the robot radius and approximated human radius.
 
@@ -138,147 +139,134 @@ $$ CP_{avg} = \frac{1}{N} \sum_{i=1}^{N}(||x_r^i - x_{cp}^i||_2 - \gamma\_{r}^i 
 
 &ensp;&ensp;&ensp;&ensp;&ensp;&ensp;where $x_{cp}^i$ indicates the position of the closest person to the robot at step i. $\gamma\_{r}$ is the robot radius and $\gamma\_{cp}$ is the closest person approximated radius ($meters$).
 
-- *Minimum and maximum distance to people* ( $CP_{min}$ and $CP_{max}$ respectively). The values of the minimum and the maximum distances $(meters)$ from the robot to the people along the trajectory taking into account the radius of the robot and the human agent (with a lower bound of $0$).
+* *Minimum and maximum distance to people* ( $CP_{min}$ and $CP_{max}$ respectively). The values of the minimum and the maximum distances $(meters)$ from the robot to the people along the trajectory taking into account the radius of the robot and the human agent (with a lower bound of $0$).
 
 $$ CP_{min} = min \{||x_r^i-x_{cp}^i||_2 - \gamma\_{r}^i - \gamma\_{cp}^i  \forall i \in N \} $$
 
 $$ CP_{max} = max \{||x_r^i-x_{cp}^i||_2 - \gamma\_{r}^i - \gamma\_{cp}^i  \forall i \in N \} $$
 
-- *Intimate/Personal/Social space intrusions* $(CP_{prox})$. This metric is based on the Proxemics theory which define personal spaces around people for interaction. These areas are defined as:
+* *Intimate/Personal/Social space intrusions* $(CP_{prox})$. This metric is based on the Proxemics theory which define personal spaces around people for interaction. These areas are defined as:
 
-    - Intimate. Distance shorter than 0.45m.
-    - Personal. Distance between 0.45 and 1.2m.
-    - Social. Distance between 1.2 and 3.6m.
-    - Public. Distance longer than 3.6m.
+  * Intimate. Distance shorter than 0.45m.
+  * Personal. Distance between 0.45 and 1.2m.
+  * Social. Distance between 1.2 and 3.6m.
+  * Public. Distance longer than 3.6m.
 
 &ensp;&ensp;&ensp;&ensp;&ensp;&ensp;Thus, the metric classifies the distance between the robot and the closest person (taking into account their approximated radius) at each time step in one of the Proxemics spaces and obtain a percentage of the time spent in each space for the whole trajectory:
 
 $$ CP_{prox}^k = (\frac{1}{N} \sum_{j=1}^{N} F(||x_r^j - x_{cp}^j||_2 - \gamma\_{r}^j - \gamma\_{cp}^j \lt \delta^k)) * 100$$
 
-&ensp;&ensp;&ensp;&ensp;&ensp;&ensp; where N is the total number of time steps in the trajectory, $\delta$ defines the distance range for 
-classification defined by k = {Intimate, Personal, Social + Public}, and F(·) is the indicator function.
+&ensp;&ensp;&ensp;&ensp;&ensp;&ensp; where N is the total number of time steps in the trajectory, $\delta$ defines the distance range for classification defined by $k = \{Intimate, Personal, Social + Public\} $, and $F(·)$ is the indicator function.
 
-- *Interaction space intrusions* $(IS_{prox})$. This metric is inspired by the work of Okal and Arras [6] in formalizing social normative robot behavior, and it is related to groups of interacting persons. It measures the percentage of time spent by the robot in the three Proxemics spaces considered with respect to an interaction area formed by a group of people that are interacting with each other. The detection of the interaction area of the group is based on the detection of F-formations. A F-formation arises whenever two or more people sustain a spatial and orientational relationship in which the space between them is
+* *Interaction space intrusions* $(IS_{prox})$. This metric is inspired by the work of Okal and Arras [6] in formalizing social normative robot behavior, and it is related to groups of interacting persons. It measures the percentage of time spent by the robot in the three Proxemics spaces considered with respect to an interaction area formed by a group of people that are interacting with each other. The detection of the interaction area of the group is based on the detection of F-formations. A F-formation arises whenever two or more people sustain a spatial and orientational relationship in which the space between them is
 one to which they have equal, direct, and exclusive access
 
 $$ IS_{prox}^k = (\frac{1}{N} \sum_{j=1}^{N} F(||x_r^j - x_f^j||_2 - \gamma\_{r}^j - \gamma\_{cp}^j \lt \delta^k)) * 100 $$
 
 &ensp;&ensp;&ensp;&ensp;&ensp;&ensp;where $x_f^j$ determines the center of the closest formation or group of people $f$ to the robot at step $j$.
 
-
 Metrics from the SEAN simulator [2]:
 
-- *Completed* $C$. true when the robot's final pose is within a specified threshold distance of the goal (by default $\gamma_g$ = 0.20 m).
+* *Completed* $C$. true when the robot's final pose is within a specified threshold distance of the goal (by default $\gamma_g$ = 0.20 m).
   
 $$ C = F(({||x_r^N - x_{g}||}_{2}  - \gamma_g ) \lt 0.0) $$
 
 &ensp;&ensp;&ensp;&ensp;&ensp;&ensp; where $x_r^N$ is the robot pose in the last time step of the trajectory, $x_{g}$ is the goal position and  $\gamma\_{g}$ is the goal radius. $F(·)$ is the indicator function.
 
-- *Total Path Length*. This metric is equivalent *Path Length* metric of [1].
+* *Total Path Length*. This metric is equivalent *Path Length* metric of [1].
 
-- *Minimum Distance to Target*, $TD_{min}$ $(meters)$. The minimum distance to the target position reached by the robot along its path.
+* *Minimum Distance to Target*, $TD_{min}$ $(meters)$. The minimum distance to the target position reached by the robot along its path.
 
 $$ TD_{min} = min \{||x_r^i-x_{g}||_2 \forall i \in N \} $$
 
 &ensp;&ensp;&ensp;&ensp;&ensp;&ensp; where $x_r^i$ is the robot pose in the time step $i$ of the trajectory, and $x_{g}$ is the target position.
 
-- *Final Distance to Target* $(meters)$. Distance between the last robot position and the target position.
+* *Final Distance to Target* $(meters)$. Distance between the last robot position and the target position.
 
 $$ TD_{final} = ||x_r^N -x_{g}||_2 $$
 
 &ensp;&ensp;&ensp;&ensp;&ensp;&ensp; where $x_r^N$ is the robot pose in the last time step of the trajectory.
 
-- *Time Not Moving*. Seconds that the robot was not moving. We consider that the robot is not moving when the linear velocity is lower than $0.01$ $m/s$ and the angular velocity lower than $0.02$ $rad/s$.
+* *Time Not Moving*. Seconds that the robot was not moving. We consider that the robot is not moving when the linear velocity is lower than $0.01$ $m/s$ and the angular velocity lower than $0.02$ $rad/s$.
 
-
-- *Robot on Person Collision*, $RPC$, and *Person on Robot Collision*, $PRC$. Number of times robot collides with a person and vice versa. The SEAN simulator employs the Unity colliding tools to detect the collisions. However, we want our metrics to be independent of any simulator. Therefore, this metric has been implemented by using the positions, the orientations and the velocities of the robot and agents to determine who is running into the other. The collisions are primarily computed as:
+* *Robot on Person Collision*, $RPC$, and *Person on Robot Collision*, $PRC$. Number of times robot collides with a person and vice versa. The SEAN simulator employs the Unity colliding tools to detect the collisions. However, we want our metrics to be independent of any simulator. Therefore, this metric has been implemented by using the positions, the orientations and the velocities of the robot and agents to determine who is running into the other. The collisions are primarily computed as:
 
 $$ Collisions = \sum_{i=1}^{N} F(({||x_r^i - x_{cp}^i||}_{2}  - \gamma\_{r}^i - \gamma\_{cp}^i) \lt 0.01) $$
 
 &ensp;&ensp;&ensp;&ensp;&ensp;&ensp; where $x_r^i$ is the robot pose in the time step $i$ of the trajectory, $x_{cp}^i$ is the pose of the closest person to the robot at time step $i$. $\gamma\_{r}$ is the radius of the robot and $\gamma\_{cp}$ is the radius of the closest person. Then, we check the relative orientations between the agent and the robot and their velocities to determine who is running into the other.  
 
-
 Metrics from the SocNavBench [3]:
 
-- *average robot linear speed*. robot linear velocity ($m/s$) on average considering that the robot is not moving backwards.
+* *average robot linear speed*. robot linear velocity ($m/s$) on average considering that the robot is not moving backwards.
 
-- *average robot angular speed*. robot angular velocity ($rad/s$) on average considering the absolute values of angular velocity.
+* *average robot angular speed*. robot angular velocity ($rad/s$) on average considering the absolute values of angular velocity.
   
-- *average acceleration*. robot linear acceleration $(m/s^2)$ on average considering the absolute values of acceleration and decceleration.
+* *average acceleration*. robot linear acceleration $(m/s^2)$ on average considering the absolute values of acceleration and decceleration.
   
-- *average overacceleration or jerk* $(m/s^3)$ considering the absolute values of linear acceleration and decceleration. 
+* *average overacceleration or jerk* $(m/s^3)$ considering the absolute values of linear acceleration and decceleration.
   
 Metrics from [7]:
 
-- *average pedestrians velocity*. Linear velocity $(m/s)$ of all pedestrian on average. 
+* *average pedestrians velocity*. Linear velocity $(m/s)$ of all pedestrian on average.
   
-- *average closest pedestrian velocity*. Linear velocity $(m/s)$ of the closest pedestrian on average.
+* *average closest pedestrian velocity*. Linear velocity $(m/s)$ of the closest pedestrian on average.
 
+Metrics based on Social Force Model [8,9,10]. The mathematical equations of the computation of the forces can be consulted [on the lightsfm repo](https://github.com/robotics-upo/lightsfm):
 
-Metrics based on Social Force Model [8,9,10]. The mathematical equations of the computation of the forces can be consulted [here](https://github.com/robotics-upo/lightsfm):
+* *Social Force on Agents*. Summatory of the modulus of the social force provoked by the robot in the agents  
 
-- *Social Force on Agents*. Summatory of the modulus of the social force provoked by the robot in the agents  
-
-- *SocialForce on Robot*. Summatory of the modulus of the social force provoked by the human agents in the robot.
+* *SocialForce on Robot*. Summatory of the modulus of the social force provoked by the human agents in the robot.
   
-- *Social Work*. It is based on the concept of the "**social work**" performed by the robot ($W_{r}$), and the social work provoked by the robot in the surrounding pedestrians ($W_{p}$)
+* *Social Work*. It is based on the concept of the "**social work**" performed by the robot ($W_{r}$), and the social work provoked by the robot in the surrounding pedestrians ($W_{p}$)
 
 $$ W_{social} = W_{r} + \sum W_{p_{i}} $$
 
 &ensp;&ensp;&ensp;&ensp;&ensp;&ensp; With $W_{r}$  The summatory of the modulus of the robot social force and the robot obstacle force along the trajectory. According to the SFM. And $W_{p}$  The summatory of the modulus of the social forces provoked by the robot for each close pedestrian along the trajectory. According to the SFM. The social work function is employed in this [local planner](https://github.com/robotics-upo/social_force_window_planner)
 
-- *Obstacle Force on Agents*. Summatory of the modulus of the obstacle force provoked by the obstacles in the agents (no other agents or robot are considered). 
+* *Obstacle Force on Agents*. Summatory of the modulus of the obstacle force provoked by the obstacles in the agents (no other agents or robot are considered).
   
-- *Obstacle Force on Robot*. Summatory of the modulus of the obstacle force provoked by the obstacles in the robot (the human agents are not considered).
- 
-
+* *Obstacle Force on Robot*. Summatory of the modulus of the obstacle force provoked by the obstacles in the robot (the human agents are not considered).
 <!-- - *Static Obstacle Collision*: number of times the robot collides with a static obstacle. -->
 
-- *Robot on Person Personal Distance Violation*, *Person on Robot Personal Distance Violation*, *Intimate Distance Violation* and *Person on Robot Intimate Distance Violation*. These metrics are not used. We are employing the similar *Intimate/Personal/Social space instrusions* [1] instead. Instead of giving the number of times the robot approaches a person within the personal distance, a percentage of the total time is given.
+* *Robot on Person Personal Distance Violation*, *Person on Robot Personal Distance Violation*, *Intimate Distance Violation* and *Person on Robot Intimate Distance Violation*. These metrics are not used. We are employing the similar *Intimate/Personal/Social space instrusions* [1] instead. Instead of giving the number of times the robot approaches a person within the personal distance, a percentage of the total time is given.
 
-- *Path Irregularity* $(radians)$ [NOT IMPLEMENTED]. Total rotations in the robot's traveled path greater than the total rotations in the search-based path from the starting pose. We have not implemented this metric for the moment. We do not use the path of the global planner as input of the metric functions, as well as not all the navigation systems are using an unique global path without replanning. Anyway, we are considering to add the global path information into the metric function inputs.
+* *Path Irregularity* $(radians)$ [NOT IMPLEMENTED]. Total rotations in the robot's traveled path greater than the total rotations in the search-based path from the starting pose. We have not implemented this metric for the moment. We do not use the path of the global planner as input of the metric functions, as well as not all the navigation systems are using an unique global path without replanning. Anyway, we are considering to add the global path information into the metric function inputs.
 
-- *Path Efficiency* $(meters)$ [NOT IMPLEMENTED]. Ratio between robot's traveled path and geodesic distance of the search-based path from the starting pose. We have not implemented this metric for the moment. We do not use the path of the global planner as input of the metric functions, as well as not all the navigation systems are using an unique global path without replanning. Anyway, we are considering to add the global path information into the metric function inputs.
-
+* *Path Efficiency* $(meters)$ [NOT IMPLEMENTED]. Ratio between robot's traveled path and geodesic distance of the search-based path from the starting pose. We have not implemented this metric for the moment. We do not use the path of the global planner as input of the metric functions, as well as not all the navigation systems are using an unique global path without replanning. Anyway, we are considering to add the global path information into the metric function inputs.
 
 ## Generated metrics files
 
-As output, the evaluator will generate a set of txt files ordered in rows and columns separated by tabulars. The files will be stored in the path indicated in the parameter ```result_file``` by using the base name also indicated in ```result_file``` and the tag name indicated in the parameter ```experiment_tag```.
+As output, the evaluator will generate a set of csv files ordered in rows and columns separated by tabulars. The files will be stored in the path indicated in the parameter ```result_file``` by using the base name also indicated in ```result_file``` and the tag name indicated in ```experiment_tag```.
 
-- ```[result_file].txt```. This file contains a header with the name of all the final metrics computed. In the second row, the computed values of these metrics is presented. Repeated experiments will be appended as a new row in the same file. 
-- ```[result_file]_steps_[experiment_tag].txt```. This result file presents the metrics that can be computed for each time step. So, it contains a header with the name of these metrics. Below that, a row with the metric values for each time stamp is written (the time stamp is also written). This can be useful to plot the data along a experiment. 
+* ```[result_file].csv```. This file contains a header with the name of all the final metrics computed. In the second row, the computed values of these metrics is presented. Repeated experiments will be appended as a new row in the same file.
+* ```[result_file]_steps_[experiment_tag]_[run_id].csv```. This result file presents the metrics that can be computed for each time step. So, it contains a header with the name of these metrics. Below that, a row with the metric values for each time stamp is written (the time stamp is also written). This can be useful to plot the data along a experiment.
 
-The previous results are computed regarding all the human agents in the environment. Besides that, we also compute the metrics regarding only the agents with a particular behavior (there are [6 behaviors](https://github.com/robotics-upo/hunav_sim) available). Therefore, we generate the same files than before but only considering the groups of humans with a particular behavior (if they are present in the scenario). 
+The previous results are computed regarding all the human agents in the environment. Besides that, we also compute the metrics regarding only the agents with a particular behavior (there are [6 behaviors](https://github.com/robotics-upo/hunav_sim) available). Therefore, we generate the same files than before but only considering the groups of humans with a particular behavior (if they are present in the scenario).
 
-- ```[result_file]_beh_[1/6].txt```. Final metrics considering only groups of humans with the same behavior.  
-- ```[result_file]_beh_[1/6]_steps_[experiment_tag].txt```. Metrics computed for each time step. This file also includes a column for the time stamp and a column with a boolean that indicates if the particular human reaction to the presence of the robot is active.       
-
+* ```[result_file]_beh_[1/6].txt```. Final metrics considering only groups of humans with the same behavior.  
+* ```[result_file]_beh_[1/6]_steps_[experiment_tag]_[run_id].txt```. Metrics computed for each time step. This file also includes a column for the time stamp and a column with a boolean that indicates if the particular human reaction to the presence of the robot is active.
 
 ## Adding new metrics
 
 The user can easily extend the current set of available metrics.
 
-To do so, a new metric function must be implemented in the ```hunav_metrics.py``` Python file. 
+To do so, a new metric function must be implemented in the ```hunav_metrics.py``` Python file.
 Every metric function must take the following input parameters:
 
 * ```robot``` a list of messages *hunav_msgs/msg/Agent* where all information recorded at each time step about the social robot is stored.
 * ```agents``` a list of messages *hunav_msgs/msg/Agents* where all information recorded about the human agents are stored.
 
-See the [hunav_msgs](https://github.com/robotics-upo/hunav_sim/tree/humble/hunav_msgs) package to obtain more information about the data stored for each agent. 
+See the [hunav_msgs](https://github.com/robotics-upo/hunav_sim/tree/humble/hunav_msgs) package to obtain more information about the data stored for each agent.
 
-After programming the new metric function, you must associate a name to it in the *metrics* list at the end of the ```hunav_metrics.py``` file. 
+After programming the new metric function, you must associate a name to it in the *metrics* list at the end of the ```hunav_metrics.py``` file.
 
 After compiling, the user can add the new function name to the ```metrics.yaml``` file.
 
+## TODO
 
+* [ ] Complete the set of metrics
 
-## TODO:
-
-- [ ] Program a set of ROS2 services to start/stop the data recording.
-- [X] Include some related to the forces of the SFM.
-- [ ] Complete the set of metrics
-
-## References:
+## References
 
 [1] N. Perez-Higueras, F. Caballero, and L. Merino, "Teaching Robot Navigation Behaviors to Optimal RRT Planners," International Journal of Social Robotics, vol. 10, no. 2, pp. 235–249, 2018.
 
@@ -286,7 +274,7 @@ After compiling, the user can add the new function name to the ```metrics.yaml``
 
 [3] A. Biswas, A. Wang, G. Silvera, A. Steinfeld, and H. Admoni,"Socnavbench: A grounded simulation testing framework for evaluating social navigation," ACM Transactions on Human-Robot Interaction, jul 2022. [Online](https://doi.org/10.1145/3476413).
 
-[4] F. Grzeskowiak, D. Gonon, D. Dugas, D. Paez-Granados, J. J. Chung, J. Nieto, R. Siegwart, A. Billard, M. Babel, and J. Pettré, "Crowd against the machine: A simulation-based benchmark tool to evaluate and compare robot capabilities to navigate a human crowd," in 2021 IEEE International Conference on Robotics and Automation (ICRA), 2021, pp. 3879–3885. 
+[4] F. Grzeskowiak, D. Gonon, D. Dugas, D. Paez-Granados, J. J. Chung, J. Nieto, R. Siegwart, A. Billard, M. Babel, and J. Pettré, "Crowd against the machine: A simulation-based benchmark tool to evaluate and compare robot capabilities to navigate a human crowd," in 2021 IEEE International Conference on Robotics and Automation (ICRA), 2021, pp. 3879–3885.
 
 [5] Y. Gao and C.-M. Huang, "Evaluation of socially-aware robot navigation," Frontiers in Robotics and AI, vol. 8, 2022.[Online](https://www.frontiersin.org/articles/10.3389/frobt.2021.721317)
 
@@ -294,7 +282,7 @@ After compiling, the user can add the new function name to the ```metrics.yaml``
 
 [7] K. Katyal, Y. Gao, J. Markowitz, S. Pohland, C. Rivera, I. Wang, C. Huang, "Learning a Group-Aware Policy for Robot Navigation," in 2022 IEEE International Conference on Intelligent Robots and Systems (IROS), 2022.
 
-[8] Helbing, Dirk & Molnar, Peter. (1998). "Social Force Model for Pedestrian Dynamics". Physical Review E. 51. 10.1103/PhysRevE.51.4282. 
+[8] Helbing, Dirk & Molnar, Peter. (1998). "Social Force Model for Pedestrian Dynamics". Physical Review E. 51. 10.1103/PhysRevE.51.4282.
 
 [9] Moussaid M, Helbing D, Garnier S, Johansson A, Combe M, et al. (2009) "Experimental study of the behavioural mechanisms underlying self-organization in human crowds". Proceedings of the Royal Society B: Biological Sciences 276: 2755–2762.
 
