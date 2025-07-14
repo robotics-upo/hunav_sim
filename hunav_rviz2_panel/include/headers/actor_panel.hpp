@@ -211,6 +211,11 @@ namespace hunav_rviz2_panel
      */
     void checkParserSkin(int skin);
 
+    /**
+     * @brief Update buttons layout based on panel mode
+     */
+    void switchButtonLayout(PanelMode mode);
+
     // ================================ FILE OPERATIONS ================================
     /**
      * @brief Parse YAML configuration file
@@ -328,6 +333,7 @@ namespace hunav_rviz2_panel
     QWidget *window2 = nullptr;           ///< Tertiary window
     QDialog *agent_dialog_ = nullptr;     ///< Agent configuration dialog
     QDialog *initial_pose_dlg_ = nullptr;               ///< General dialog for initial pose
+    QWidget *edit_mode_widget_;           ///< Widget for edit mode
     
     // Combo boxes
     QComboBox *skin_combobox;             ///< Combo box for agent skin selection
@@ -389,6 +395,8 @@ namespace hunav_rviz2_panel
     QVBoxLayout *goals_layout;            ///< Goals layout
     QVBoxLayout *topic_layout = nullptr;  ///< Topic layout
     QVBoxLayout *summary_area_{nullptr};  ///< Summary area layout
+    QVBoxLayout *create_mode_layout_;     ///< Create mode layout
+    QHBoxLayout *edit_mode_layout_;       ///< Edit mode layout
     
     // Group boxes
     QGroupBox *map_group;                 ///< Map selection group

@@ -5,6 +5,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <map>
 
 //#include "nav2_msgs/action/navigate_to_pose.hpp"
 //#include "nav2_msgs/action/follow_waypoints.hpp"
@@ -51,6 +52,14 @@ protected Q_SLOTS:
   void metricsSelectionWindow();
   // void updateMetricsVector();
   void saveMetricsYaml();
+  void onSearchTextChanged();
+  void selectAllMetrics();
+  void deselectAllMetrics();
+  void toggleCategory(const QString& categoryName);
+  QString categorizeMetric(const QString& metricName);
+  QString formatMetricName(const QString& metricName);
+  QString getMetricTooltip(const QString& metricName);
+  void updateStatusLabel();
   // void removeMetrics(QLayout *layout);
   // std::string fix_typo(std::string metric);
 
@@ -68,6 +77,14 @@ public:
   // QVBoxLayout *load_metrics_layout;
   // QList<QLabel *> labels;
   QPushButton *save_metrics;
+  
+  // New UI components
+  QLineEdit *search_box;
+  QPushButton *select_all_btn;
+  QPushButton *deselect_all_btn;
+  QLabel *status_label;
+  QScrollArea *scroll_area;
+  QWidget *scroll_widget;
 
   // Logic
   std::unordered_map<std::string, bool> metrics_;
@@ -76,6 +93,8 @@ public:
   // std::multimap<std::string, std::string> metrics_parsed;
   // std::multimap<std::string, std::string> metrics_selected_array;
   std::vector<QCheckBox *> checkboxes;
+  std::map<QString, QGroupBox*> category_groups;
+  std::map<QString, std::vector<QCheckBox*>> category_checkboxes;
   // std::string current_paper;
   // bool initial = true;
   // std::multimap<std::string, std::string> metrics_bool;

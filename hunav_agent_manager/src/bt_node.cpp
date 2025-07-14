@@ -51,38 +51,29 @@ namespace hunav
 
     // Set the base directory for behavior trees
     {
-      struct stat buffer;
+      std::string package_name;
+
       if (simulator_name_ == "Gazebo") {
-        // 1) Try the ROS2 package
-        try {
-          bt_dir_base_ = ament_index_cpp::get_package_share_directory("hunav_gazebo_wrapper")
-                        + "/behavior_trees";
-        } catch (const ament_index_cpp::PackageNotFoundError &e) {
-          // 2) Fallback to home/docker
-          std::string home_path   = std::string(getenv("HOME")) + "/hunav_gazebo_wrapper/behavior_trees";
-          std::string docker_path = "/workspace/hunav_isaac_ws/src/hunav_gazebo_wrapper/behavior_trees";
-          bt_dir_base_ = (stat(docker_path.c_str(), &buffer) == 0)
-                          ? docker_path
-                          : home_path;
-        }
+        package_name = "hunav_gazebo_wrapper";
       }
       else if (simulator_name_ == "Isaac Sim") {
-        std::string home_path   = std::string(getenv("HOME")) + "/Hunav_isaac_wrapper/behavior_trees";
-        std::string docker_path = "/workspace/hunav_isaac_ws/src/Hunav_isaac_wrapper/behavior_trees";
-        bt_dir_base_ = (stat(docker_path.c_str(), &buffer) == 0)
-                        ? docker_path
-                        : home_path;
+        package_name = "hunav_isaac_wrapper";
       }
-      else {
-        std::string home_path   = std::string(getenv("HOME")) + "/hunav_webots_wrapper/behavior_trees";
-        std::string docker_path = "/workspace/hunav_isaac_ws/src/hunav_webots_wrapper/behavior_trees";
-        bt_dir_base_ = (stat(docker_path.c_str(), &buffer) == 0)
-                        ? docker_path
-                        : home_path;
+      else { // Webots
+        package_name = "hunav_webots_wrapper";
       }
-      RCLCPP_INFO(this->get_logger(),
-                  "Behavior trees will be loaded from: %s",
-                  bt_dir_base_.c_str());
+      
+      try {
+        bt_dir_base_ = ament_index_cpp::get_package_share_directory(package_name) + "/behavior_trees";
+        RCLCPP_INFO(this->get_logger(),
+                    "Found ROS2 package '%s', behavior trees will be loaded from: %s",
+                    package_name.c_str(), bt_dir_base_.c_str());
+      }
+      catch (const ament_index_cpp::PackageNotFoundError &e) {
+        RCLCPP_WARN(this->get_logger(),
+                    "ROS2 package '%s' not found,",
+                    package_name.c_str());
+      }
     }
 
     prev_time_ = this->get_clock()->now();
