@@ -1476,7 +1476,7 @@ namespace hunav_rviz2_panel
         infoMessage = QString(
             "<html>All generated BehaviorTree XML files are located in:<br><br>"
             "%1<br><br>"
-            "<b>Groot2 will launch in the behavior trees directory.</b></html>")
+            "<b>Groot2 will now launch.</b></html>")
             .arg(btDir);
     }
 
@@ -1486,8 +1486,8 @@ namespace hunav_rviz2_panel
     // — 3) Launch Groot2 —
 
     QStringList grootCandidates = {
-        // Docker environment paths
-        "/opt/Groot2/bin/groot2",
+        // Docker environment path
+        "/opt/Groot2/squashfs/AppRun",
 
         // Native environment paths
         QDir::home().filePath("Groot2/bin/groot2"),
