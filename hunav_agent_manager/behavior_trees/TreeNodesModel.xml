@@ -32,8 +32,7 @@
     </Condition>
     <Condition ID="IsAtPosition">
       <input_port name="agent_id" type="int">1</input_port>
-      <input_port name="target_x" type="double" default="1.0"/>
-      <input_port name="target_y" type="double" default="1.0"/>
+      <input_port name="goal_id" type="int"/>
       <input_port name="tolerance" type="double" default="0.1"/>
     </Condition>
     <Condition ID="IsAgentClose">

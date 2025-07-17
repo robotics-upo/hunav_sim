@@ -125,8 +125,9 @@ namespace hunav_rviz2_panel
     QGroupBox *mode_group = new QGroupBox("Configuration Mode");
     mode_group->setStyleSheet(
         "QGroupBox {"
+        "  font-size: 16px;"
         "  font-weight: bold;"
-        "  color: #2c3e50;"
+        "  color:rgb(0, 0, 0);"
         "  margin-top: 8px;"
         "  padding-top: 4px;"
         "  border: 2px solid #bdc3c7;"
@@ -159,7 +160,7 @@ namespace hunav_rviz2_panel
         "  border: 2px solid #3498db;"
         "  border-radius: 6px;"
         "  background-color: #ecf0f1;"
-        "  color: #2c3e50;"
+        // "  color: #2c3e50;"
         "  font-weight: bold;"
         "  text-align: center;"
         "}"
@@ -207,8 +208,9 @@ namespace hunav_rviz2_panel
     map_group = new QGroupBox("Simulation Environment", this);
     map_group->setStyleSheet(
         "QGroupBox {"
+        "  font-size: 16px;"
         "  font-weight: bold;"
-        "  color: #2c3e50;"
+        "  color:rgb(0, 0, 0);"
         "  margin-top: 8px;"
         "  padding-top: 4px;"
         "  border: 2px solid #e74c3c;"
@@ -312,7 +314,8 @@ namespace hunav_rviz2_panel
     agent_config_group->setStyleSheet(
         "QGroupBox {"
         "  font-weight: bold;"
-        "  color: #2c3e50;"
+        "  font-size: 16px;"
+        "  color:rgb(0, 0, 0);"
         "  margin-top: 8px;"
         "  padding-top: 4px;"
         "  border: 2px solid #8e44ad;"
@@ -635,12 +638,14 @@ namespace hunav_rviz2_panel
     goal_group_ = new QGroupBox("Navigation Goals");
     goal_group_->setStyleSheet(
         "QGroupBox {"
+        "  font-size: 16px;"
         "  font-weight: bold;"
-        "  color: #2c3e50;"
+        "  color:rgb(0, 0, 0);"
         "  margin-top: 8px;"
         "  padding-top: 4px;"
         "  border: 2px solid #e67e22;"
         "  border-radius: 8px;"
+        "  background-color: #fdf2e6;"
         "}"
         "QGroupBox::title {"
         "  subcontrol-origin: margin;"
@@ -772,11 +777,12 @@ namespace hunav_rviz2_panel
     goal_group_->setLayout(goal_layout);
     main_layout->addWidget(goal_group_);
 
-    QGroupBox *output_group = new QGroupBox("Output & Export");
+    QGroupBox *output_group = new QGroupBox("Save/Export");
     output_group->setStyleSheet(
         "QGroupBox {"
+        "  font-size: 16px;"
         "  font-weight: bold;"
-        // "  color: #2c3e50;"
+        "  color:rgb(0, 0, 0);"
         "  margin-top: 8px;"
         "  padding-top: 4px;"
         "  border: 2px solid #16a085;"
@@ -822,7 +828,7 @@ namespace hunav_rviz2_panel
     output_layout->addWidget(checkbox);
 
     // Save button with enhanced styling
-    save_bt_btn_ = new QPushButton("💾 Save Configuration - Generate BT Files");
+    save_bt_btn_ = new QPushButton("Save Configuration - Generate BT Files");
     save_bt_btn_->setEnabled(false);
     save_bt_btn_->setStyleSheet(
         "QPushButton {"
@@ -832,7 +838,7 @@ namespace hunav_rviz2_panel
         "  background-color: #d5f4e6;"
         // "  color: #1e8449;"
         "  font-weight: bold;"
-        "  font-size: 16px;"
+        "  font-size: 15px;"
         "}"
         "QPushButton:hover:enabled {"
         "  background-color: #a9dfbf;"
@@ -860,8 +866,9 @@ namespace hunav_rviz2_panel
     bt_group_ = new QGroupBox("Behavior Tree Editor");
     bt_group_->setStyleSheet(
         "QGroupBox {"
+        "  font-size: 16px;"
         "  font-weight: bold;"
-        // "  color: #2c3e50;"
+        "  color:rgb(0, 0, 0);"
         "  margin-top: 8px;"
         "  padding-top: 4px;"
         "  border: 2px solid #9b59b6;"
@@ -1695,27 +1702,26 @@ namespace hunav_rviz2_panel
         window = new QWidget;
         window->setWindowFlag(Qt::WindowStaysOnTopHint);
         window->setStyleSheet(
-            "QWidget {"
-            // "  background-color: #f8f9fa;"
-            "}"
             "QGroupBox {"
             "  font-weight: bold;"
-            "  font-size: 15px;"
-            // "  color: #2c3e50;"
+            "  font-size: 16px;"
+            "  color:rgb(0, 0, 0);"
             "  margin-top: 8px;"
             "  padding-top: 4px;"
             "  border: 2px solid #3498db;"
             "  border-radius: 6px;"
+            "  background-color: rgb(229, 236, 247);"
             "}"
             "QGroupBox::title {"
+            "  font-size: 16px;"
             "  subcontrol-origin: margin;"
             "  subcontrol-position: top left;"
             "  padding: 0 4px;"
             "  border: 1px solid #3498db;"
+            "  background-color: rgb(150, 198, 253);"
             "  border-radius: 4px;"
             "}"
             "QLabel {"
-            // "  color: #2c3e50;"
             "  font-weight: bold;"
             "}"
             "QLineEdit {"
@@ -1724,7 +1730,6 @@ namespace hunav_rviz2_panel
             "  border-radius: 4px;"
             "}"
             "QComboBox {"
-            // "  color: #2c3e50;"
             "  padding: 3px 5px;"
             "}"
             "QLineEdit:focus, QComboBox:focus {"
@@ -1735,7 +1740,6 @@ namespace hunav_rviz2_panel
             "  border: 2px solid #27ae60;"
             "  border-radius: 6px;"
             "  background-color: #d5f4e6;"
-            // "  color: #1e8449;"
             "  font-weight: bold;"
             "}"
             "QPushButton:hover {"
@@ -1792,10 +1796,10 @@ namespace hunav_rviz2_panel
           "  font-size: 18px;"
           "  font-weight: bold;"
           // "  color: #2c3e50;"
-          "  background-color:rgb(213, 228, 247);"
+          "  background-color:rgb(120, 179, 247);"
           "  padding: 4px;"
           "  border-radius: 6px;"
-          "  border: 2px solid #3498db;"
+          "  border: 4px #3498db;"
           "}");
       header->setAlignment(Qt::AlignCenter);
       topic_layout->addWidget(header);
@@ -1805,8 +1809,8 @@ namespace hunav_rviz2_panel
       {
         QHBoxLayout *nav_layout = new QHBoxLayout;
 
-        QPushButton *prev_btn = new QPushButton("⬅️ Previous", window);
-        QPushButton *next_btn = new QPushButton("➡️ Next", window);
+        QPushButton *prev_btn = new QPushButton("Previous", window);
+        QPushButton *next_btn = new QPushButton("Next", window);
 
         prev_btn->setEnabled(current_edit_idx_ > 0);
         next_btn->setEnabled(current_edit_idx_ + 1 < num_agents);
