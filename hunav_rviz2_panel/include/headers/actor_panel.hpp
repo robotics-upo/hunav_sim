@@ -387,7 +387,11 @@ namespace hunav_rviz2_panel
     QLineEdit *beh_sff;                   ///< Social force factor input
     QLabel *other;                        ///< Other force factor label
     QLineEdit *beh_otherff;               ///< Other force factor input
-    
+    QLabel *stop;                         ///< Stop distance label
+    QLineEdit *beh_stop_dist;             ///< Stop distance input
+    QLabel *front;                        ///< Front distance label
+    QLineEdit *beh_front_dist;            ///< Front distance input
+
     // Layouts
     QHBoxLayout *main_layout_;            ///< Main horizontal layout
     QVBoxLayout *topic_button_layout_;    ///< Topic button layout

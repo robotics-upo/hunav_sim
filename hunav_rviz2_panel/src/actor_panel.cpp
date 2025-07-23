@@ -359,6 +359,13 @@ namespace hunav_rviz2_panel
         "  background-color: #f8f9fa;"
         "  color: #aeb6bf;"
         "}");
+
+    actors->setToolTip(
+        "<html><b>Number of Agents</b><br>"
+        "Total number of human agents to create for this scenario.<br>"
+        "<b>Range:</b> 1 - 50 agents<br>"
+        "<b>Note:</b> More agents increase computational load.<br>"
+        "<b>Recommended:</b> Start with 3-10 agents for testing</html>");
     agent_config_layout->addWidget(actors);
 
     // Action buttons
@@ -374,6 +381,7 @@ namespace hunav_rviz2_panel
 
     add_agent_button_ = new QPushButton("Add New Agent", this);
     add_agent_button_->setEnabled(false);
+    add_agent_button_->setCheckable(true);
     add_agent_button_->hide();
 
     edit_goals_button_ = new QPushButton("Edit Goals", this);
@@ -423,6 +431,12 @@ namespace hunav_rviz2_panel
         "  background-color:rgb(100, 48, 122);"
         "  color: white;"
         "}"
+        "QPushButton:checked {"
+        "  background-color: #8e44ad;"
+        "  color: white;"
+        "  font-weight: bold;"
+        "  font-size: 13px;"
+        "}"
         "QPushButton:disabled {"
         "  background-color: #f8f9fa;"
         "  color: #aeb6bf;"
@@ -459,10 +473,20 @@ namespace hunav_rviz2_panel
     agent_config_group->setLayout(agent_config_layout);
     main_layout->addWidget(agent_config_group);
 
-    connect(add_agent_button_, &QPushButton::clicked, this, &ActorPanel::onAddAgent);
+    connect(add_agent_button_, &QPushButton::clicked, this, [this](bool checked)
+    {
+        // Toggle the button state
+        add_agent_button_->setDown(checked);
+        
+        // Call the existing onAddAgent method
+        onAddAgent();
+    });
 
-    connect(edit_goals_button_, &QPushButton::clicked, this, [this]()
-            {
+    connect(edit_goals_button_, &QPushButton::clicked, this, [this](bool checked)
+    {
+        // Toggle the button state
+        edit_goals_button_->setDown(checked);
+
         // toggle pick‐mode flag
         goal_picking_mode_ = !goal_picking_mode_;
 
@@ -513,7 +537,7 @@ namespace hunav_rviz2_panel
                   break;
                 }
               }
-              edit_goals_button_->setDown(true);
+              // edit_goals_button_->setDown(true);
             } 
             else 
             {
@@ -525,7 +549,7 @@ namespace hunav_rviz2_panel
                   break;
                 }
               }
-              edit_goals_button_->setDown(false);
+              // edit_goals_button_->setDown(false);
               save_bt_btn_->setEnabled(true);
             }
           } });
@@ -601,8 +625,14 @@ namespace hunav_rviz2_panel
             });
 
     // When “Create agents” / “Edit agents” is clicked, delegate to onCreateOrEditAgents():
-    connect(actor_button_, &QPushButton::clicked,
-            this, &ActorPanel::onCreateOrEditAgents);
+    connect(actor_button_, &QPushButton::clicked, this, [this](bool checked)
+    {
+      // Toggle the button state
+      actor_button_->setDown(checked);
+
+      onCreateOrEditAgents();
+
+    });
 
     connect(open_button_, &QPushButton::clicked, this, [this]()
             {
@@ -767,8 +797,11 @@ namespace hunav_rviz2_panel
         "}");
     goal_layout->addWidget(assign_goals_btn_);
 
-    connect(assign_goals_btn_, &QPushButton::clicked,
-            this, &ActorPanel::onAssignGoalsClicked);
+    connect(assign_goals_btn_, &QPushButton::clicked, this, [this](bool checked) {
+      // Toggle the button state
+      assign_goals_btn_->setDown(checked);
+      onAssignGoalsClicked();
+    });
 
     // Summary area for assigned goals
     summary_area_ = new QVBoxLayout;
@@ -856,8 +889,12 @@ namespace hunav_rviz2_panel
         "}");
     output_layout->addWidget(save_bt_btn_);
 
-    connect(save_bt_btn_, &QPushButton::clicked,
-            this, &ActorPanel::saveAndGenerateAll);
+    connect(save_bt_btn_, &QPushButton::clicked, this, [this](bool checked)
+    {
+        // Toggle the button state
+        save_bt_btn_->setDown(checked);
+        saveAndGenerateAll();
+    });
 
     output_group->setLayout(output_layout);
     main_layout->addWidget(output_group);
@@ -922,8 +959,12 @@ namespace hunav_rviz2_panel
         "}");
     bt_layout->addWidget(edit_bt_btn_);
 
-    connect(edit_bt_btn_, &QPushButton::clicked,
-            this, &ActorPanel::onEditAllInGroot);
+    connect(edit_bt_btn_, &QPushButton::clicked, this, [this](bool checked)
+    {
+        // Toggle the button state
+        edit_bt_btn_->setDown(checked);
+        onEditAllInGroot();
+    });
 
     bt_group_->setLayout(bt_layout);
     main_layout->addWidget(bt_group_);
@@ -1039,7 +1080,11 @@ namespace hunav_rviz2_panel
 
       // Hide edit mode buttons
       add_agent_button_->hide();
+      add_agent_button_->setDown(false);
+      add_agent_button_->setChecked(false);
       edit_goals_button_->hide();
+      edit_goals_button_->setDown(false);
+      edit_goals_button_->setChecked(false);
 
       // Update button text and style
       actor_button_->setText("Generate Agents");
@@ -1056,7 +1101,13 @@ namespace hunav_rviz2_panel
 
       // Show edit mode buttons
       add_agent_button_->show();
+      add_agent_button_->setEnabled(true);
+      add_agent_button_->setDown(false);
+      add_agent_button_->setChecked(false);
       edit_goals_button_->show();
+      edit_goals_button_->setVisible(true);
+      edit_goals_button_->setDown(false);
+      edit_goals_button_->setChecked(false);
 
       // Update button text and style
       actor_button_->setText("Edit Agents");
@@ -1752,8 +1803,13 @@ namespace hunav_rviz2_panel
             "  border-color: #d5dbdb;"
             "}");
 
-        QPoint center_left = this->mapToGlobal(QPoint(60, 0));
-        window->move(center_left);
+        QTimer::singleShot(0, this, [this]() {
+          window->adjustSize();
+          QPoint panelTL = this->mapToGlobal(QPoint(0,0));
+          int x = panelTL.x() + (this->width() - window->width()) / 2;
+
+          window->move(x, panelTL.y());
+        });
       }
 
       // Enhanced window title
@@ -1880,35 +1936,93 @@ namespace hunav_rviz2_panel
       behavior_conf_combobox->addItems({"Default", "Custom", "Random-normal distribution", "Random-uniform distribution"});
       behavior_layout->addWidget(behavior_conf_combobox);
 
-      dur = new QLabel("Behavior duration:", window);
+      dur = new QLabel("Duration:", window);
       dur->setVisible(false);
       beh_duration = new QLineEdit(window);
       beh_duration->setVisible(false);
-      once = new QLabel("Behavior only once:", window);
+      once = new QLabel("Only once:", window);
       once->setVisible(false);
       beh_once = new QLineEdit(window);
       beh_once->setVisible(false);
-      dist = new QLabel("Behavior visibility dist:", window);
+      dist = new QLabel("Visibility distance:", window);
       dist->setVisible(false);
       beh_dist = new QLineEdit(window);
       beh_dist->setVisible(false);
-      vel = new QLabel("Behavior agent vel:", window);
+      vel = new QLabel("Behavior velocity:", window);
       vel->setVisible(false);
       beh_vel = new QLineEdit(window);
       beh_vel->setVisible(false);
-      other = new QLabel("Front dist (Threat):", window);
+      other = new QLabel("Repulsive force factor:", window);
       other->setVisible(false);
       beh_otherff = new QLineEdit(window);
       beh_otherff->setVisible(false);
+      front = new QLabel("Front distance:", window);
+      front->setVisible(false);
+      beh_front_dist = new QLineEdit(window);
+      beh_front_dist->setVisible(false);
+      stop = new QLabel("Stop distance:", window);
+      stop->setVisible(false);
+      beh_stop_dist = new QLineEdit(window);
+      beh_stop_dist->setVisible(false);
+
+      // Agent desired velocity tooltip
+      agent_desired_vel->setToolTip(
+          "<html><b>Maximum Velocity</b><br>"
+          "Sets the agent's maximum walking speed in meters per second.<br>"
+          "<b>Range:</b> 0.1 - 1.5 m/s</html>");
+
+      // Behavior duration tooltip
+      beh_duration->setToolTip(
+          "<html><b>Duration</b><br>"
+          "How long the special behavior lasts (in seconds) when triggered.<br>"
+          "<b>Note:</b> After this time, agent returns to regular navigation.</html>");
+
+      // Behavior velocity tooltip
+      beh_vel->setToolTip(
+          "<html><b>Behavior Velocity</b><br>"
+          "Agent's velocity during the special behavior state.<br>"
+          "<b>Note:</b> Usually different from normal walking speed.</html>");
+
+      // Behavior once tooltip
+      beh_once->setToolTip(
+          "<html><b>Only Once</b><br>"
+          "Whether the behavior triggers only once per simulation.<br>"
+          "<b>Values:</b><br>"
+          "• <b>true:</b> Behavior happens only the first time<br>"
+          "• <b>false:</b> Behavior can happen multiple times</html>");
+
+      // Visibility distance tooltip
+      beh_dist->setToolTip(
+          "<html><b>Visibility Distance</b><br>"
+          "Maximum distance at which the agent can detect the robot.<br>"
+          "<b>Range:</b> 1.0 - 15.0 meters<br>"
+          "<b>Note:</b> Larger values make agents more reactive to distant robots.</html>");
+
+      // Stop distance tooltip (for Curious behavior)
+      beh_stop_dist->setToolTip(
+          "<html><b>Stop Distance</b><br>"
+          "Distance from robot where curious agent stops approaching.<br>"
+          "<b>Range:</b> 0.5 - 3.0 meters<br>"
+          "<b>Note:</b> Agent maintains this distance when observing robot.</html>");
+
+      // Front distance tooltip (for Threatening behavior)
+      beh_front_dist->setToolTip(
+          "<html><b>Front Distance</b><br>"
+          "How far in front of the robot the agent positions itself.<br>"
+          "<b>Range:</b> 0.5 - 2.0 meters<br>"
+          "<b>Note:</b> Used for blocking or confrontational behavior.</html>");
+
 
       behavior_layout->addWidget(dur);
       behavior_layout->addWidget(beh_duration);
+      behavior_layout->addWidget(vel);
+      behavior_layout->addWidget(beh_vel);
       behavior_layout->addWidget(once);
       behavior_layout->addWidget(beh_once);
       behavior_layout->addWidget(dist);
       behavior_layout->addWidget(beh_dist);
-      behavior_layout->addWidget(vel);
-      behavior_layout->addWidget(beh_vel);
+      behavior_layout->addWidget(stop);
+      behavior_layout->addWidget(beh_stop_dist);
       behavior_layout->addWidget(other);
       behavior_layout->addWidget(beh_otherff);
 
@@ -1922,6 +2036,9 @@ namespace hunav_rviz2_panel
       // Skin selection (simulator-specific)
       skin_label_ = new QLabel("Agent appearance:", window);
       skin_combobox = new QComboBox(window);
+      skin_combobox->setToolTip(
+        "<html><b>Agent Appearance</b><br>"
+        "Visual representation of the agent in simulation.</html>");
 
       // Populate combobox based on current simulator
       QString currentSim = simulator_combo_->currentText();
@@ -2074,21 +2191,25 @@ namespace hunav_rviz2_panel
       QVBoxLayout *advanced_layout = new QVBoxLayout;
 
       // (8) Hidden “GFF / OFF / SFF / …” fields:
-      vel = new QLabel("Behavior agent vel:", window);
-      vel->setVisible(false);
-      behavior_layout->addWidget(vel);
+      // vel = new QLabel("Behavior agent vel:", window);
+      // vel->setVisible(false);
+      // behavior_layout->addWidget(vel);
 
-      beh_vel = new QLineEdit(window);
-      beh_vel->setText("1.0");
-      beh_vel->setVisible(false);
-      beh_vel->setEnabled(false);
-      advanced_layout->addWidget(beh_vel);
+      // beh_vel = new QLineEdit(window);
+      // beh_vel->setText("1.0");
+      // beh_vel->setVisible(false);
+      // beh_vel->setEnabled(false);
+      // advanced_layout->addWidget(beh_vel);
 
       gff = new QLabel("Beh Goal Force Factor:", window);
       advanced_layout->addWidget(gff);
       beh_gff = new QLineEdit(window);
       beh_gff->setText(QString::number(2.0, 'f', 1));
       beh_gff->setEnabled(false);
+      beh_gff->setToolTip(
+          "<html><b>Goal Force Factor</b><br>"
+          "Strength of attraction towards navigation goals.<br>"
+          "<b>Higher values:</b> More direct path to goals</html>");
       advanced_layout->addWidget(beh_gff);
 
       off = new QLabel("Beh Obstacle Force Factor:", window);
@@ -2096,6 +2217,10 @@ namespace hunav_rviz2_panel
       beh_off = new QLineEdit(window);
       beh_off->setText(QString::number(10.0, 'f', 1));
       beh_off->setEnabled(false);
+      beh_off->setToolTip(
+          "<html><b>Obstacle Force Factor</b><br>"
+          "Strength of repulsion from obstacles and walls.<br>"
+          "<b>Higher values:</b> Better obstacle avoidance</html>");
       advanced_layout->addWidget(beh_off);
 
       sff = new QLabel("Beh Social Force Factor:", window);
@@ -2103,6 +2228,10 @@ namespace hunav_rviz2_panel
       beh_sff = new QLineEdit(window);
       beh_sff->setText(QString::number(5.0, 'f', 1));
       beh_sff->setEnabled(false);
+      beh_sff->setToolTip(
+          "<html><b>Social Force Factor</b><br>"
+          "Strength of repulsion from other people.<br>"
+          "<b>Higher values:</b> Agents keep more distance from each other</html>");
       advanced_layout->addWidget(beh_sff);
 
       other = new QLabel("Beh Robot Repulsive Force Factor:", window);
@@ -2112,6 +2241,10 @@ namespace hunav_rviz2_panel
       beh_otherff->setText(QString::number(20.0, 'f', 1));
       beh_otherff->setEnabled(false);
       beh_otherff->setVisible(false);
+      beh_otherff->setToolTip(
+          "<html><b>Robot Repulsive Force Factor</b><br>"
+          "Strength of repulsion specifically from robots.<br>"
+          "<b>Scared behavior:</b> Higher values make agents flee faster</html>");
       advanced_layout->addWidget(beh_otherff);
 
       connect(behavior_conf_combobox,
@@ -2251,6 +2384,7 @@ namespace hunav_rviz2_panel
         new_node["behavior"]["duration"]              = QString::number(beh_duration->text().toDouble(), 'f', 1).toStdString();
         new_node["behavior"]["once"]             = (beh_once->text().toLower() == "true");
         new_node["behavior"]["vel"]           = QString::number(beh_vel->text().toDouble(), 'f', 3).toStdString();
+        new_node["behavior"]["other_force_factor"] = QString::number(beh_otherff->text().toDouble(), 'f', 1).toStdString();
         break;
 
       case hunav_msgs::msg::AgentBehavior::BEH_CURIOUS:
@@ -2258,14 +2392,14 @@ namespace hunav_rviz2_panel
         new_node["behavior"]["duration"]              = QString::number(beh_duration->text().toDouble(), 'f', 1).toStdString();
         new_node["behavior"]["once"]             = (beh_once->text().toLower() == "true");
         new_node["behavior"]["vel"]             = QString::number(beh_vel->text().toDouble(), 'f', 2).toStdString();
-        new_node["behavior"]["dist"]         = QString::number(beh_dist->text().toDouble(), 'f', 2).toStdString();
+        new_node["behavior"]["stop_dist"]         = QString::number(beh_stop_dist->text().toDouble(), 'f', 2).toStdString();
         break;
 
       case hunav_msgs::msg::AgentBehavior::BEH_THREATENING:
         new_node["behavior"]["dist"]   = QString::number(beh_dist->text().toDouble(), 'f', 2).toStdString();
         new_node["behavior"]["duration"]              = QString::number(beh_duration->text().toDouble(), 'f', 2).toStdString();
         new_node["behavior"]["once"]             = (beh_once->text().toLower() == "true");
-        new_node["behavior"]["other_force_factor"]            = QString::number(beh_otherff->text().toDouble(), 'f', 1).toStdString();
+        new_node["behavior"]["front_dist"]   = QString::number(beh_otherff->text().toDouble(), 'f', 2).toStdString();
         break;
     }
     QString txt = behavior_conf_combobox->currentText();
@@ -2347,6 +2481,7 @@ namespace hunav_rviz2_panel
                      current_edit_idx_, loaded_agent_nodes_.size());
         window->close();
         actor_button_->setDown(false);
+        actor_button_->setChecked(false);
         QMessageBox::critical(this, "Error", 
                               "Internal error: Agent index out of bounds. Please restart the panel.");
         return;
@@ -2394,6 +2529,7 @@ namespace hunav_rviz2_panel
     }
     window->close();
     actor_button_->setDown(false);
+    actor_button_->setChecked(false);
     if (panel_mode_ == EDIT_MODE)
     {
       assign_goals_btn_->setEnabled(!loaded_global_goals_.empty());
@@ -2430,35 +2566,39 @@ namespace hunav_rviz2_panel
 
       connect(dialog_cancel_button, &QPushButton::clicked, [this]()
               {
-      if (adding_new_agent_)
-      {
-        // Just reset the flag - no data was added to clean up
-        adding_new_agent_ = false;
-        
-        // Reset counts to original values
-        num_agents = static_cast<int>(loaded_agent_names_.size());
-        if (num_agents > 0)
-        {
-          current_edit_idx_ = num_agents - 1;
-        }
-        else
-        {
-          current_edit_idx_ = 0;
-        }
-        
-        // Resize marker IDs array back
-        loaded_initial_marker_ids_.resize(num_agents, -1);
-      }
+                if (adding_new_agent_)
+                {
+                  // Just reset the flag - no data was added to clean up
+                  adding_new_agent_ = false;
+                  
+                  // Reset counts to original values
+                  num_agents = static_cast<int>(loaded_agent_names_.size());
+                  if (num_agents > 0)
+                  {
+                    current_edit_idx_ = num_agents - 1;
+                  }
+                  else
+                  {
+                    current_edit_idx_ = 0;
+                  }
+                  
+                  // Resize marker IDs array back
+                  loaded_initial_marker_ids_.resize(num_agents, -1);
+                }
 
-      static QMetaObject::Connection simulator_connection;
-      if (simulator_connection) {
-          disconnect(simulator_connection);
-          simulator_connection = QMetaObject::Connection();
-      }
-      
-      window->close();
-      actor_button_->setDown(false);
-      add_agent_button_->setEnabled(true); });
+                static QMetaObject::Connection simulator_connection;
+                if (simulator_connection) {
+                    disconnect(simulator_connection);
+                    simulator_connection = QMetaObject::Connection();
+                }
+                
+                window->close();
+                actor_button_->setDown(false);
+                actor_button_->setChecked(false);
+                add_agent_button_->setEnabled(true);
+                add_agent_button_->setDown(false);
+                add_agent_button_->setChecked(false);
+              });
 
       // ────────────────────── POPULATE FORM FIELDS ─────────────────────────────────
 
@@ -2476,6 +2616,8 @@ namespace hunav_rviz2_panel
         beh_duration->setText("5.0");
         beh_once->setText("false");
         beh_vel->setText("1.0");
+        beh_stop_dist->setText("1.5");
+        beh_front_dist->setText("1.0");
 
         cyclic_goals_checkbox->setChecked(true);
 
@@ -3243,12 +3385,13 @@ namespace hunav_rviz2_panel
 
       // Create the main dialog with enhanced styling
       QDialog dlg(this);
+      int panelWidth = this->width(); 
+      dlg.setFixedWidth(panelWidth); 
       dlg.setWindowFlags(dlg.windowFlags() | Qt::Tool);
       dlg.setWindowTitle("Assign Goals to Agents");
-      dlg.setMinimumSize(500, 400);
       dlg.setStyleSheet(
           "QDialog {"
-          "  background-color: #f8f9fa;"
+          // "  background-color: #f8f9fa;"
           "  border: 2px solid #3498db;"
           "  border-radius: 8px;"
           "}"
@@ -3261,24 +3404,28 @@ namespace hunav_rviz2_panel
           "  padding: 6px 10px;"
           "  border: 2px solid #bdc3c7;"
           "  border-radius: 6px;"
-          "  background-color: white;"
-          "  font-size: 13px;"
-          "  min-height: 20px;"
+          // "  background-color: white;"
+          "  font-size: 14px;"
+          "  font-weight: bold;"
+          // "  min-height: 20px;"
           "}"
           "QComboBox:focus {"
           "  border-color: #3498db;"
           "}"
-          "QComboBox::drop-down {"
-          "  border: none;"
-          "  width: 20px;"
-          "}"
-          "QComboBox::down-arrow {"
-          "  image: none;"
-          "  border-left: 5px solid transparent;"
-          "  border-right: 5px solid transparent;"
-          "  border-top: 5px solid #7f8c8d;"
-          "  margin-right: 5px;"
-          "}"
+          // "QComboBox::drop-down {"
+          // // "  width: 20px;"
+          // "  border-left: 2px solid #bdc3c7;"
+          // "  border-radius: 0 6px 6px 0;"
+          // "  background-color: #ecf0f1;"
+          // "  color:rgb(0, 0, 0);"
+          // "}"
+          // "QComboBox::down-arrow {"
+          // "  image: url(:/icons/down-arrow.svg);"
+          // "  border-left: 5px solid transparent;"
+          // "  border-right: 5px solid transparent;"
+          // "  border-top: 5px solid #7f8c8d;"
+          // "  margin-right: 5px;"
+          // "}"
           "QListWidget {"
           "  border: 2px solid #bdc3c7;"
           "  border-radius: 6px;"
@@ -3292,6 +3439,7 @@ namespace hunav_rviz2_panel
           "  border-bottom: 1px solid #ecf0f1;"
           "  border-radius: 4px;"
           "  margin: 1px;"
+          "  color: #2c3e50;"
           "}"
           "QListWidget::item:hover {"
           "  background-color: #ebf3fd;"
@@ -3309,7 +3457,7 @@ namespace hunav_rviz2_panel
           // "  color: #1e8449;"
           "  font-weight: bold;"
           "  font-size: 13px;"
-          "  min-width: 80px;"
+          // "  min-width: 80px;"
           "}"
           "QPushButton:hover:enabled {"
           "  background-color: #a9dfbf;"
@@ -3330,7 +3478,7 @@ namespace hunav_rviz2_panel
           "  font-size: 13px;"
           "}"
           "QCheckBox::indicator {"
-          "  width: 18px;"
+          // "  width: 18px;"
           "  height: 18px;"
           "  border: 2px solid #bdc3c7;"
           "  border-radius: 4px;"
@@ -3347,7 +3495,7 @@ namespace hunav_rviz2_panel
           "}"
           "QGroupBox {"
           "  font-weight: bold;"
-          // "  color: #2c3e50;"
+          "  color:rgb(0, 0, 0);"
           "  margin-top: 8px;"
           "  padding-top: 4px;"
           "  border: 2px solid #3498db;"
@@ -3363,9 +3511,12 @@ namespace hunav_rviz2_panel
           "  border-radius: 4px;"
           "}");
 
-      QPoint top_left = this->mapToGlobal(QPoint(-30, 0));
-      dlg.move(top_left);
-      assign_goals_btn_->setDown(true);
+      if (auto *lay = dlg.layout()) {
+        lay->setSizeConstraint(QLayout::SetMinimumSize);
+      }
+
+
+      // assign_goals_btn_->setDown(true);
 
       if (!loaded_agent_goals_.empty())
       {
@@ -3382,8 +3533,10 @@ namespace hunav_rviz2_panel
 
       // 2) Main layout with enhanced spacing
       auto *main_layout = new QVBoxLayout(&dlg);
-      main_layout->setSpacing(12);
-      main_layout->setContentsMargins(16, 16, 16, 16);
+      // main_layout->setSpacing(4);
+      // main_layout->setContentsMargins(8, 8, 8, 8);
+      dlg.setLayout(main_layout);
+      main_layout->setSizeConstraint(QLayout::SetMinimumSize);
 
       // Header section with styled title
       QLabel *header_label = new QLabel("Goal Assignment Manager");
@@ -3391,7 +3544,7 @@ namespace hunav_rviz2_panel
           "QLabel {"
           "  font-size: 16px;"
           "  font-weight: bold;"
-          // "  color: #2c3e50;"
+          "  color:rgb(0, 0, 0);"
           "  background-color: #ebf3fd;"
           "  padding: 8px;"
           "  border-radius: 6px;"
@@ -3406,8 +3559,7 @@ namespace hunav_rviz2_panel
 
       QLabel *agent_label = new QLabel("Select agent to configure:");
       auto *agent_sel = new QComboBox;
-      agent_sel->setStyleSheet(agent_sel->styleSheet() +
-                               "QComboBox { font-size: 14px; font-weight: bold; }");
+      // agent_sel->setStyleSheet("QComboBox { font-size: 14px; font-weight: bold; }");
 
       for (int i = 0; i < int(agent_goals_.size()); ++i)
       {
@@ -3496,7 +3648,7 @@ namespace hunav_rviz2_panel
           "  border-color: #ffc107;"
           // "  color: #856404;"
           "  font-size: 14px;"
-          "  padding: 10px 16px;"
+          "  padding: 8px 16px;"
           "}"
           "QPushButton:hover:enabled {"
           "  background-color: #ffeaa7;"
@@ -3504,7 +3656,7 @@ namespace hunav_rviz2_panel
           "}");
 
       // — Show/Hide Arrows checkbox with enhanced styling
-      auto *show_arrows_checkbox = new QCheckBox("🗲 Show navigation arrows on map");
+      auto *show_arrows_checkbox = new QCheckBox("Show navigation arrows on map");
       show_arrows_checkbox->setChecked(true);
       show_arrows_checkbox->setToolTip("Toggle visibility of agent navigation arrows and route preview");
       show_arrows_checkbox->setStyleSheet(
@@ -3522,7 +3674,7 @@ namespace hunav_rviz2_panel
       QGroupBox *summary_group = new QGroupBox("Assignment Summary");
       summary_group->setStyleSheet(
           "QGroupBox {"
-          "  background-color:rgb(218, 236, 230);"
+          "  background-color:rgb(229, 236, 234);"
           "  border-color:rgb(39, 174, 122);"
           "}");
       auto *summary_area = new QVBoxLayout;
@@ -3536,7 +3688,7 @@ namespace hunav_rviz2_panel
       QDialogButtonBox *button_box = new QDialogButtonBox(&dlg);
       button_box->setStyleSheet(
           "QDialogButtonBox QPushButton {"
-          "  min-width: 100px;"
+          // "  min-width: 100px;"
           "  padding: 10px 20px;"
           "  font-size: 14px;"
           "  font-weight: bold;"
@@ -3843,83 +3995,91 @@ namespace hunav_rviz2_panel
     // then rebuild the two lists
     refresh(); });
 
-      // — Lock and summarize
-      connect(lock_btn, &QPushButton::clicked, this, [&]()
-              {
-            int a = agent_sel->currentIndex();
-
-            // ─── wipe out any previous summary row for this agent ───
-            if (auto oldItem = summary_area->takeAt(a))
+    // — Lock and summarize
+    connect(lock_btn, &QPushButton::clicked, this, [&]()
             {
-              if (auto oldLayout = oldItem->layout())
+          int a = agent_sel->currentIndex();
+
+          // ─── wipe out any previous summary row for this agent ───
+          if (auto oldItem = summary_area->takeAt(a))
+          {
+            if (auto oldLayout = oldItem->layout())
+            {
+              // this will delete all widgets in that row
+              QLayoutItem *child;
+              while ((child = oldLayout->takeAt(0)) != nullptr)
               {
-                // this will delete all widgets in that row
-                QLayoutItem *child;
-                while ((child = oldLayout->takeAt(0)) != nullptr)
-                {
-                  delete child->widget();
-                  delete child;
-                }
-                delete oldLayout;
+                delete child->widget();
+                delete child;
               }
+              delete oldLayout;
             }
+          }
 
-            lockedFlags[a] = true; 
-            lock_btn->setEnabled(false);
-            
-            // Enhanced summary row with better styling
-            QStringList goal_strs;
-            for (int gi : agent_goals_[a]) goal_strs << QString::number(gi);
-            QString joined = goal_strs.join(", ");
-            auto *row = new QHBoxLayout;
-            auto *sq  = new QLabel;
-            auto *lbl = new QLabel(QString("Agent %1 → Goals: [%2]").arg(a+1).arg(joined));
-            
-            lbl->setStyleSheet(
-              "QLabel {"
-              "  padding: 6px 8px;"
-              "  background-color: #d5f4e6;"
-              "  border: 1px solid #27ae60;"
-              "  border-radius: 4px;"
-              "  font-weight: bold;"
-              // "  color: #1e8449;"
-              "}");
-            
-            QPixmap pix(16,16); 
-            pix.fill(agent_colors_[a]);
-            sq->setPixmap(pix); 
-            sq->setFixedSize(16,16);
-            sq->setStyleSheet("border: 1px solid #bdc3c7; border-radius: 2px;");
-            
-            row->addWidget(sq); 
-            row->addWidget(lbl); 
-            row->addStretch();
-            summary_area->insertLayout(a, row);
-            
-            // recolor all that agent's goals
-            for (auto &m : goal_markers_.markers) {
-            int gi = m.id / 2;
-            if (std::find(agent_goals_[a].begin(),
-                            agent_goals_[a].end(), gi)
-                != agent_goals_[a].end()
-                && (m.ns=="goal_numbers"))
-            {
-                QColor c = agent_colors_[a];
-                m.color.r = c.redF();
-                m.color.g = c.greenF();
-                m.color.b = c.blueF();
-                m.color.a = 1.0f;
-            }
-            }
-            goal_markers_pub_->publish(goal_markers_); 
-            
-            // Update arrows for the locked agent
-            updateAgentArrows(a);
-            
-            bool allLocked = std::all_of(
-              lockedFlags.begin(), lockedFlags.end(),
-              [](bool v){ return v; });
-            finishBtn_->setEnabled(panel_mode_ == EDIT_MODE || allLocked); });
+          lockedFlags[a] = true; 
+          lock_btn->setEnabled(false);
+          
+          // Enhanced summary row with better styling
+          QStringList goal_strs;
+          for (int gi : agent_goals_[a]) goal_strs << QString::number(gi);
+          QString joined = goal_strs.join(", ");
+          auto *row = new QHBoxLayout;
+          auto *sq  = new QLabel;
+          auto *lbl = new QLabel(QString("Agent %1 → Goals: [%2]").arg(a+1).arg(joined));
+          
+          lbl->setStyleSheet(
+            "QLabel {"
+            "  padding: 6px 8px;"
+            "  background-color: #d5f4e6;"
+            "  border: 1px solid #27ae60;"
+            "  border-radius: 4px;"
+            "  font-weight: bold;"
+            // "  color: #1e8449;"
+            "}");
+          
+          QPixmap pix(8,8); 
+          pix.fill(agent_colors_[a]);
+          sq->setPixmap(pix); 
+          sq->setFixedSize(8,8);
+          sq->setStyleSheet("border: 1px solid #bdc3c7; border-radius: 2px;");
+          
+          row->addWidget(sq); 
+          row->addWidget(lbl); 
+          // row->addStretch();
+          summary_area->insertLayout(a, row);
+          
+          // recolor all that agent's goals
+          for (auto &m : goal_markers_.markers) {
+          int gi = m.id / 2;
+          if (std::find(agent_goals_[a].begin(),
+                          agent_goals_[a].end(), gi)
+              != agent_goals_[a].end()
+              && (m.ns=="goal_numbers"))
+          {
+              QColor c = agent_colors_[a];
+              m.color.r = c.redF();
+              m.color.g = c.greenF();
+              m.color.b = c.blueF();
+              m.color.a = 1.0f;
+          }
+          }
+          goal_markers_pub_->publish(goal_markers_); 
+          
+          // Update arrows for the locked agent
+          updateAgentArrows(a);
+
+          // Update window geometry and resize
+          QTimer::singleShot(0, this, [this, &dlg]()
+          {
+              dlg.adjustSize();
+              dlg.updateGeometry(); 
+          });
+
+          bool allLocked = std::all_of(
+            lockedFlags.begin(), lockedFlags.end(),
+            [](bool v){ return v; });
+          finishBtn_->setEnabled(panel_mode_ == EDIT_MODE || allLocked); 
+        });
 
       // — Dialog buttons
       connect(button_box, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
@@ -3965,6 +4125,12 @@ namespace hunav_rviz2_panel
         updateAgentArrows(a);
       }
 
+      dlg.adjustSize();
+
+      QPoint panelTL = this->mapToGlobal(QPoint(0,0));
+      int x = panelTL.x() + (this->width()  - dlg.width())/2;
+      dlg.move(x, panelTL.y());
+
       // Initial populate & execute
       refresh();
       dlg.exec();
@@ -3972,7 +4138,8 @@ namespace hunav_rviz2_panel
       if (dlg.result() != QDialog::Accepted)
         return;
 
-      assign_goals_btn_->setDown(false);
+        
+      // assign_goals_btn_->setDown(false);
 
       if (panel_mode_ == CREATE_MODE)
       {
@@ -3994,7 +4161,7 @@ namespace hunav_rviz2_panel
         }
 
         loaded_agent_goals_ = agent_goals_;
-        assign_goals_btn_->setDown(false);
+        // assign_goals_btn_->setDown(false);
         save_bt_btn_->setEnabled(true);
         checkbox->setEnabled(true);
         resetGoalMarkerColors();
@@ -4029,6 +4196,7 @@ namespace hunav_rviz2_panel
             "  padding: 4px;"
             "}");
         success_box.exec();
+        
       }
       else
       {
@@ -4067,6 +4235,9 @@ namespace hunav_rviz2_panel
             "}");
         update_box.exec();
       }
+
+      assign_goals_btn_->setDown(false);
+      assign_goals_btn_->setChecked(false);
     }
 
     void ActorPanel::onResetLoadedGoals()
@@ -4143,6 +4314,7 @@ namespace hunav_rviz2_panel
       }
 
       actor_button_->setDown(true);
+      actor_button_->setChecked(true);
 
       if (panel_mode_ == CREATE_MODE)
       {
@@ -4168,6 +4340,7 @@ namespace hunav_rviz2_panel
         {
           QMessageBox::warning(this, "No Agents", "No agents loaded to edit.");
           actor_button_->setDown(false);
+          actor_button_->setChecked(false);
           return;
         }
 
@@ -5061,11 +5234,11 @@ namespace hunav_rviz2_panel
         {
         case hunav_msgs::msg::AgentBehavior::BEH_SCARED:
         {
-          double dist = loaded_agent_nodes_[i]["behavior"]["visibility_distance"].as<double>();
+          double dist = loaded_agent_nodes_[i]["behavior"]["dist"].as<double>();
           double duration = loaded_agent_nodes_[i]["behavior"]["duration"].as<double>();
-          bool once = loaded_agent_nodes_[i]["behavior"]["only_once"].as<bool>();
+          bool once = loaded_agent_nodes_[i]["behavior"]["once"].as<bool>();
           double maxvel = loaded_agent_nodes_[i]["max_vel"].as<double>();
-          double force = loaded_agent_nodes_[i]["behavior"]["scary_force_factor"].as<double>();
+          double force = loaded_agent_nodes_[i]["behavior"]["other_force_factor"].as<double>();
 
           btBlock_ = QString(R"(
 %1
@@ -5103,9 +5276,9 @@ namespace hunav_rviz2_panel
 
         case hunav_msgs::msg::AgentBehavior::BEH_SURPRISED:
         {
-          double dist = loaded_agent_nodes_[i]["behavior"]["visibility_distance"].as<double>();
+          double dist = loaded_agent_nodes_[i]["behavior"]["dist"].as<double>();
           double duration = loaded_agent_nodes_[i]["behavior"]["duration"].as<double>();
-          bool once = loaded_agent_nodes_[i]["behavior"]["only_once"].as<bool>();
+          bool once = loaded_agent_nodes_[i]["behavior"]["once"].as<bool>();
 
           btBlock_ = QString(R"(
 %1
@@ -5140,11 +5313,11 @@ namespace hunav_rviz2_panel
 
         case hunav_msgs::msg::AgentBehavior::BEH_CURIOUS:
         {
-          double dist = loaded_agent_nodes_[i]["behavior"]["visibility_distance"].as<double>();
+          double dist = loaded_agent_nodes_[i]["behavior"]["dist"].as<double>();
           double duration = loaded_agent_nodes_[i]["behavior"]["duration"].as<double>();
-          bool once = loaded_agent_nodes_[i]["behavior"]["only_once"].as<bool>();
-          double stopdist = loaded_agent_nodes_[i]["behavior"]["stop_distance"].as<double>();
-          double maxvel = loaded_agent_nodes_[i]["max_vel"].as<double>();
+          bool once = loaded_agent_nodes_[i]["behavior"]["once"].as<bool>();
+          double stopdist = loaded_agent_nodes_[i]["behavior"]["stop_dist"].as<double>();
+          double maxvel = loaded_agent_nodes_[i]["behavior"]["vel"].as<double>();
 
           btBlock_ = QString(R"(
 %1
@@ -5181,9 +5354,9 @@ namespace hunav_rviz2_panel
 
         case hunav_msgs::msg::AgentBehavior::BEH_THREATENING:
         {
-          double dist = loaded_agent_nodes_[i]["behavior"]["visibility_distance"].as<double>();
+          double dist = loaded_agent_nodes_[i]["behavior"]["dist"].as<double>();
           double duration = loaded_agent_nodes_[i]["behavior"]["duration"].as<double>();
-          bool once = loaded_agent_nodes_[i]["behavior"]["only_once"].as<bool>();
+          bool once = loaded_agent_nodes_[i]["behavior"]["once"].as<bool>();
           double frontdist = loaded_agent_nodes_[i]["behavior"]["front_dist"].as<double>();
 
           btBlock_ = QString(R"(
@@ -5477,6 +5650,9 @@ namespace hunav_rviz2_panel
         beh_sff->setVisible(true);
         other->setVisible(false);
         beh_otherff->setVisible(false);
+        stop->setVisible(true);
+        beh_stop_dist->setVisible(true);
+
 
         if (window && window->isVisible())
         {
@@ -5506,6 +5682,8 @@ namespace hunav_rviz2_panel
         beh_sff->setVisible(true);
         other->setVisible(false);
         beh_otherff->setVisible(false);
+        front->setVisible(true);
+        beh_front_dist->setVisible(true);
 
         if (window && window->isVisible())
         {
@@ -5564,7 +5742,8 @@ namespace hunav_rviz2_panel
         else if (beh == hunav_msgs::msg::AgentBehavior::BEH_CURIOUS) // curious
         {
           beh_vel->setText(QString::number(1.0));
-          beh_dist->setText(QString::number(1.5));
+          beh_dist->setText(QString::number(10.0));
+          beh_stop_dist->setText(QString::number(1.5));
         }
         else
         { // threatening
@@ -5722,9 +5901,13 @@ namespace hunav_rviz2_panel
           vel = (vel < 0.4) ? 0.4 : vel;
           beh_vel->setText(QString::number(vel));
           beh_vel->setEnabled(false);
-          std::normal_distribution<> dis_dist(1.5, 0.3); // distance to get close to the robot
-          beh_dist->setText(QString::number(dis_dist(gen)));
+          double detection_distance = dis_detect_dist(gen);
+          detection_distance = (detection_distance < 1.5) ? 1.5 : detection_distance;
+          beh_dist->setText(QString::number(detection_distance));
           beh_dist->setEnabled(false);
+          std::normal_distribution<> dis_stop_dist(1.5, 0.3);
+          beh_stop_dist->setText(QString::number(dis_stop_dist(gen)));
+          beh_stop_dist->setEnabled(false);
         }
         else if (beh == hunav_msgs::msg::AgentBehavior::BEH_SURPRISED) // surprised
         {
@@ -5763,6 +5946,9 @@ namespace hunav_rviz2_panel
           double dist = dis_goal_dist(gen);
           beh_dist->setText(QString::number(dist));
           beh_dist->setEnabled(false);
+          std::normal_distribution<> dis_front(0.8, 0.3); // distance in front of the robot
+          front->setText(QString::number(dis_front(gen)));
+          front->setEnabled(false);
         }
       }
       else
@@ -5800,9 +5986,13 @@ namespace hunav_rviz2_panel
           vel = (vel < 0.4) ? 0.4 : vel;
           beh_vel->setText(QString::number(vel));
           beh_vel->setEnabled(false);
-          std::uniform_real_distribution<> dis_dist(1.0, 2.5); // distance to get close to the robot
-          beh_dist->setText(QString::number(dis_dist(gen)));
+          double detection_distance = dis_detect_dist(gen);
+          detection_distance = (detection_distance < 1.5) ? 1.5 : detection_distance;
+          beh_dist->setText(QString::number(detection_distance));
           beh_dist->setEnabled(false);
+          std::uniform_real_distribution<> dis_stop_dist(1.0, 2.5);
+          beh_stop_dist->setText(QString::number(dis_stop_dist(gen)));
+          beh_stop_dist->setEnabled(false);
         }
         else if (beh == hunav_msgs::msg::AgentBehavior::BEH_SURPRISED)
         {
@@ -5837,6 +6027,9 @@ namespace hunav_rviz2_panel
           std::uniform_real_distribution<> dis_goal_dist(0.8, 1.9);
           beh_dist->setText(QString::number(dis_goal_dist(gen)));
           beh_dist->setEnabled(false);
+          std::uniform_real_distribution<> dis_front(0.5, 1.2); // distance in front of the robot
+          front->setText(QString::number(dis_front(gen)));
+          front->setEnabled(false);
         }
       }
       if (window && window->isVisible())
@@ -6363,12 +6556,16 @@ namespace hunav_rviz2_panel
       actor_button_->setText(tr("Generate Agents"));
       actor_button_->setEnabled(false);
       actor_button_->setDown(false);
+      actor_button_->setChecked(false);
 
       // Edit mode buttons to hidden state
       edit_goals_button_->hide();
       edit_goals_button_->setDown(false);
+      edit_goals_button_->setChecked(false);
       add_agent_button_->hide();
       add_agent_button_->setEnabled(false);
+      add_agent_button_->setDown(false);
+      add_agent_button_->setChecked(false);
 
       // YAML file label
       yaml_file_label_->hide();

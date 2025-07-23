@@ -100,6 +100,8 @@ The panel is organized into functional groups:
 
 **Step 1: Environment Setup**
 
+The *Simulator & Map* section allows selection of the simulation backend—Gazebo (Classic/Fortress), Isaac Sim, or Webots—and loads any standard 2D occupancy map supported by nav2_map_server. Once loaded, the map is visualized directly in RViz2 as the interactive workspace.
+
 ![Simulator Selection](https://github.com/robotics-upo/hunav_sim/blob/BT_manual_generation/hunav_rviz2_panel/images/environment_configuration.gif)
 
 1. **Select Simulator**: Choose target simulation environment
@@ -111,9 +113,9 @@ The panel is organized into functional groups:
 
 **Step 2: Sequential Agent Configuration and Position Setting**
 
-![Agent Configuration and Position Setting](https://github.com/robotics-upo/hunav_sim/blob/BT_manual_generation/hunav_rviz2_panel/images/agent_creation.gif)
+Agents are configured sequentially via a dedicated dialog window. Each dialog integrates parameter configuration, appearance selection, and interactive placement. After confirming each agent, the system automatically advances to the next until the full population is complete.
 
-The system opens individual configuration dialogs for each agent in sequence. Each dialog includes parameter configuration and interactive position setting.
+![Agent Configuration and Position Setting](https://github.com/robotics-upo/hunav_sim/blob/BT_manual_generation/hunav_rviz2_panel/images/agent_creation.gif)
 
 **Basic Parameters:**
 
@@ -138,6 +140,7 @@ The system opens individual configuration dialogs for each agent in sequence. Ea
 * **Visibility Distance**: Detection range for robot presence
 * **Agent Velocity**: Behavior-specific movement speed (for Scared, Curious)
 * **Front Distance**: Goal placement distance in front of robot (for Threatening)
+* **Stop Distance**: Distance at which agent stops when robot is detected (for Curious)
 
 **Customizable Force Model Parameters** (when Custom is selected):
 
@@ -146,9 +149,9 @@ The system opens individual configuration dialogs for each agent in sequence. Ea
 * **Social Force Factor**: Human-human interaction forces
 * **Other force factor**: Extra repulsive force (specific to the Scared behavior)
 
-**Visual Appearance** (Gazebo only):
+**Visual Appearance** (simulator-specific):
 
-* Select from 9 skin options: elegant man/woman, casual, worker, colored t-shirts
+* A selection of agent avatars is available based on the chosen simulator. Options vary by platform and include diverse character types.
 
 **Interactive Position Setting:**
 
@@ -159,7 +162,9 @@ The system opens individual configuration dialogs for each agent in sequence. Ea
 
 **Step 3: Goal-Picking Mode (after all agents configured)**
 
-![Goal Picking Interface](https://github.com/robotics-upo/hunav_sim/blob/BT_manual_generation/hunav_rviz2_panel/images/goal_picking_mode.png)
+![Goal Picking Interface](https://github.com/robotics-upo/hunav_sim/blob/BT_manual_generation/hunav_rviz2_panel/images/goal_picking_mode.gif)
+
+Once all agents are placed, Goal-Picking Mode is activated. Clicking on the map places a goal (visualized as a marker). Each goal is added to a list and can be reassigned or repositioned at any time. Goals are not locked until they are assigned to an agent.
 
 1. Click **"Enter Goal-Picking Mode"** to activate interactive goal placement
 2. **RViz Tool Integration**: Panel automatically switches to "PublishPoint" tool
@@ -169,13 +174,16 @@ The system opens individual configuration dialogs for each agent in sequence. Ea
 
 **Step 4: Goal Assignment Dialog**
 
-![Goal Assignment Dialog](https://github.com/robotics-upo/hunav_sim/blob/BT_manual_generation/hunav_rviz2_panel/images/goal_assignment.png)
+The dialog presents a dual-list interface. Goals can be freely moved between "available" and "assigned" lists. When a goal is locked for an agent, its corresponding path is visualized immediately in RViz2 for feedback.
+
+![Goal Assignment Dialog](https://github.com/robotics-upo/hunav_sim/blob/BT_manual_generation/hunav_rviz2_panel/images/goal_assignment.gif)
 
 1. Once finished picking goals, click **"Assign goals to agents"** to open assignment dialog
 2. **Agent Selection**: Use dropdown to select which agent to configure
 3. **Available/Assigned Lists**: Two-panel interface showing available goals and assigned goals
 4. **Arrow Buttons**: Use ▶ and ◀ buttons to move goals between lists  
 5. **Lock Selection**: Click "Lock Selection" to confirm goals for current agent
+6. **Assignment summary**: Assigned goals are displayed at the bottom of the dialog
 
 **Step 5: Final File Generation**
 
@@ -186,18 +194,22 @@ The system opens individual configuration dialogs for each agent in sequence. Ea
 3. **Reset Panel**: "Reset" button available to clear all data and return to initial state
 4. **Groot2 Integration**: Direct launch of behavior tree editor for visualization
 
-**Generated Files:**
+Saving the scenario performs two operations:
 
-* `[map]_agents_*.yaml` - Complete agent configuration
-* `[yaml basename]__agent_[agent ID]_bt.xml` - Individual behavior trees per agent
+* A **scenario YAML** file is saved as:
+`[map]_agents_*.yaml` under the `/scenarios/` folder of the selected simulator wrapper.
+* An individual **BT XML** is generated **per agent** as:
+`[yaml basename]__agent_[id]_bt.xml` under `/behavior_trees/`.
+
+A shortcut button is available to launch **Groot2**, allowing immediate **graphical inspection or manual refinement of each agent's behavior tree**.
 
 ##
 
 #### Editing Existing Configurations
 
-![Loaded Configuration](https://github.com/robotics-upo/hunav_sim/blob/BT_manual_generation/hunav_rviz2_panel/images/rviz_agents.png)
+Opening an existing YAML will restore all agents and goals and reinstate any previous assignments and goal paths. All elements can be freely modified with immediate visual feedback, making it easy to perform ablation studies, scenario tweaks, or behavior testing without starting from scratch.
 
-The edit mode provides tools for modifying existing agent configurations with immediate visual feedback.
+![Loaded Configuration](https://github.com/robotics-upo/hunav_sim/blob/BT_manual_generation/hunav_rviz2_panel/images/rviz_load_agents.png)
 
 **Loading and Visualization:**
 
