@@ -65,6 +65,7 @@ protected Q_SLOTS:
   void checkParserSkin(int skin);
   void parseYaml();
   void randomRGB();
+  std::string share_to_src_path(const std::string& share_path);
   visualization_msgs::msg::Marker createMarker(double point1_x, double point1_y, double ids, std::string marker_shape,
                                                std::string create_or_parser);
   visualization_msgs::msg::Marker createArrowMarker(double point1_x, double point1_y, double point2_x, double point2_y,
@@ -83,6 +84,7 @@ public:
   QLineEdit* coordinates1;
   QLineEdit* coordinates2;
   QLineEdit* num_goals_set;
+  QLineEdit* file_name;
   // The current name of the output topic.
   QString output_topic_;
 
@@ -124,7 +126,7 @@ public:
   QVBoxLayout* topic_layout;
   QVBoxLayout* topic_layout_init_pose;
   QVBoxLayout* goals_layout;
-  QCheckBox* checkbox;
+  //QCheckBox* checkbox;
   QLabel* goals_remaining;
 
   std::vector<YAML::Node> actors_info;
@@ -141,6 +143,10 @@ public:
   int marker_id = 0;
   int agent_count = 1;
   std::vector<QString> goals;
+
+  // wrapper package name 
+  std::string hunav_wrapper_pkg_name;
+  std::string hunav_map_base_name;
 
   // Positions for markers
   geometry_msgs::msg::PoseStamped initial_pose;

@@ -21,6 +21,11 @@
 #include <utility>
 #include "random"
 
+#include <string>
+#include <vector>
+#include <sstream>
+#include <stdexcept>
+
 #include "yaml-cpp/yaml.h"
 
 #include <memory>
@@ -56,22 +61,28 @@ ActorPanel::ActorPanel(QWidget* parent) : rviz_common::Panel(parent), rclcpp::No
   QPushButton* open_button = new QPushButton("Open");
   actors = new QLineEdit;
   QPushButton* actor_button = new QPushButton("Create agents");
-  checkbox = new QCheckBox("Use default directory", this);
+  //checkbox = new QCheckBox("Use default directory", this);
   QHBoxLayout* layout = new QHBoxLayout;
 
-  topic_button->addWidget(new QLabel("Open yaml file (agents.yaml)"));
+  topic_button->addWidget(new QLabel("Open an existing scenario (yaml)"));
   topic_button->addWidget(open_button);
   topic_button->addWidget(new QLabel("Set number of agents to generate: "));
   topic_button->addWidget(actors);
   topic_button->addWidget(actor_button);
-  checkbox->setChecked(true);
-  topic_button->addWidget(checkbox);
+  //checkbox->setChecked(true);
+  //topic_button->addWidget(checkbox);
 
   connect(actor_button, SIGNAL(clicked()), this, SLOT(addAgent()));
   connect(open_button, SIGNAL(clicked()), this, SLOT(parseYaml()));
 
   layout->addLayout(topic_button);
   setLayout(layout);
+
+  hunav_wrapper_pkg_name = this->declare_parameter<std::string>("wrapper_pkg_name", "hunav_wrapper");
+  printf("\n\n\nWrapper pkg name: %s\n\n\n", hunav_wrapper_pkg_name.c_str());
+
+  hunav_map_base_name = this->declare_parameter<std::string>("map_basename", "map.yaml");
+  printf("\n\n\nMap base name: %s\n\n\n", hunav_map_base_name.c_str());
 
   // Create publisher for agents'
   // Agents' intial pose are published in /hunav_agent topic.
@@ -94,6 +105,41 @@ ActorPanel::~ActorPanel()
              SLOT(onNewGoal(double, double, double, QString)));
 }
 
+
+std::string ActorPanel::share_to_src_path(const std::string& share_path) 
+{
+  // Example:
+  // input: /home/hunav_gz_classic_ws/install/hunav_gazebo_wrapper/share/hunav_gazebo_wrapper
+  // output: /home/hunav_gz_classic_ws/src/hunav_gazebo_wrapper
+
+  // Divide el path en partes usando '/' como separador
+  std::vector<std::string> parts;
+  std::stringstream ss(share_path);
+  std::string item;
+  while (std::getline(ss, item, '/')) {
+      if (!item.empty()) parts.push_back(item);
+  }
+
+  // Busca el índice de 'install'
+  auto it = std::find(parts.begin(), parts.end(), "install");
+  if (it == parts.end() || (it + 1) == parts.end()) {
+      throw std::runtime_error("The path does not have the expected structure  ../install/share/package_name");
+  }
+  size_t install_idx = std::distance(parts.begin(), it);
+  std::string pkg_name = parts[install_idx + 1];
+
+  // Construye el nuevo path: .../src/package_name/
+  std::ostringstream src_path;
+  for (size_t i = 0; i < install_idx; ++i) {
+      src_path << "/" << parts[i];
+  }
+  src_path << "/src/" << pkg_name;
+  RCLCPP_INFO(this->get_logger(), "Path to store the scenario file: %s!!!",
+                 src_path.str().c_str());
+  return src_path.str();
+}
+
+
 // Shows the agent creation window.
 void ActorPanel::addAgent()
 {
@@ -101,7 +147,7 @@ void ActorPanel::addAgent()
 
   topic_layout = new QVBoxLayout(window);
   QHBoxLayout* layout = new QHBoxLayout;
-  QPushButton* directory;
+  //QPushButton* directory;
   // Combobox for behavior selection.
   behavior_combobox = new QComboBox();
   // Combobox for behavior configuration.
@@ -112,6 +158,7 @@ void ActorPanel::addAgent()
   reset_goals = new QPushButton("Reset goals");
   QLabel* num_goals_set_label = new QLabel("Set number of goals");
   num_goals_set = new QLineEdit();
+  file_name = new QLineEdit();
 
   // Only removes markers when the "Create agents" button is clicked (If agent_count > 1 means that agents are being
   // created, so markers need to stay in place)
@@ -120,13 +167,12 @@ void ActorPanel::addAgent()
     removeCurrentMarkers();
   }
 
-  if (!checkbox->isChecked() && show_file_selector_once == true)
-  {
-    directory = new QPushButton("Choose directory");
-
-    topic_layout->addWidget(new QLabel("Select the directory where the file is going to be saved:"));
-    topic_layout->addWidget(directory);
-  }
+  topic_layout->addWidget(new QLabel("Name of the scenario to be saved:"));
+  // build the tentative name with the agents_[map_name].yaml
+  //std::string map_name = hunav_map_base_name.substr(0, hunav_map_base_name.find_last_of('.'));
+  std::string sc_name = "agents_" + hunav_map_base_name;
+  file_name->setText(sc_name.c_str());
+  topic_layout->addWidget(file_name);
 
   // If user does not provide the number of agents, by default creates 1 agent.
   if (actors->text().isEmpty())
@@ -264,12 +310,12 @@ void ActorPanel::addAgent()
   connect(behavior_combobox, SIGNAL(currentIndexChanged(QString)), this, SLOT(checkComboBox()));
   connect(behavior_conf_combobox, SIGNAL(currentIndexChanged(QString)), this, SLOT(checkComboBoxConf()));
 
-  if (!checkbox->isChecked() && show_file_selector_once)
-  {
-    connect(directory, &QPushButton::clicked, this, [=]() { openFileExplorer(false); });
-    // connect(directory, SIGNAL(clicked()), this, SLOT(openFileExplorer()));
-    show_file_selector_once = false;
-  }
+  // if (/*!checkbox->isChecked() &&*/ show_file_selector_once)
+  // {
+  //   connect(directory, &QPushButton::clicked, this, [=]() { openFileExplorer(false); });
+  //   // connect(directory, SIGNAL(clicked()), this, SLOT(openFileExplorer()));
+  //   show_file_selector_once = false;
+  // }
 }
 
 // Window that allow user to start using the HuNavGoal tool to select the agent's initial pose.
@@ -505,30 +551,34 @@ void ActorPanel::onNewGoal(double x, double y, double theta, QString frame)
 // Saves all information about agents in yaml file
 void ActorPanel::saveAgents()
 {
+  std::string sc = file_name->text().toStdString();
+  if(sc.empty())
+  {
+    sc = "agents.yaml";
+  }
+
+  // get the package share directory and transform it to the src path
+  std::string dir;
+  try
+  {
+    dir = ament_index_cpp::get_package_share_directory(hunav_wrapper_pkg_name);
+    dir = share_to_src_path(dir);
+  }
+  catch (const char* msg)
+  {
+    RCLCPP_ERROR(this->get_logger(), "Package hunav_agent_manager not found in dir: %s!!!",
+                 pkg_shared_tree_dir_.c_str());
+    return;
+  }
+
   window->close();
   std::ofstream file;
 
-  // If checkbox is not checked, it means that the user wants to store file in another directory.
-  if (!checkbox->isChecked())
-  {
-    pkg_shared_tree_dir_ = dir + "/agents.yaml";
-  }
-  else
-  {
-    try
-    {
-      pkg_shared_tree_dir_ = ament_index_cpp::get_package_share_directory("hunav_agent_manager");
-    }
-    catch (const char* msg)
-    {
-      RCLCPP_ERROR(this->get_logger(), "Package hunav_agent_manager not found in dir: %s!!!",
-                   pkg_shared_tree_dir_.c_str());
-    }
-    pkg_shared_tree_dir_ = pkg_shared_tree_dir_ + "/config/agents.yaml";
-  }
+  // add the name to the path
+  std::string file_path = dir + "/scenarios/" + sc;
 
   // Open file to save agents
-  file.open(pkg_shared_tree_dir_, std::ofstream::trunc);
+  file.open(file_path, std::ofstream::trunc);
 
   // Check if number of agents isn't empty
   if (actors->text().isEmpty())
@@ -627,6 +677,7 @@ void ActorPanel::saveAgents()
 
     // ros__parameters needs two underscores
     hunav_loader["hunav_loader"]["ros__parameters"]["map"] = "cafe";
+    //hunav_loader["hunav_loader"]["ros__parameters"]["wrapper_pkg"] = hunav_wrapper_pkg_name;
     hunav_loader["hunav_loader"]["ros__parameters"]["publish_people"] = true;
 
     for (auto i = names.begin(); i != names.end(); ++i)
@@ -640,7 +691,7 @@ void ActorPanel::saveAgents()
       names_counter++;
     }
 
-    RCLCPP_INFO(this->get_logger(), "Generating agents.yaml");
+    RCLCPP_INFO(this->get_logger(), "Generating scenario file: %s", file_path.c_str());
 
     // Writes hunav_loader node to file
     file << hunav_loader;
@@ -648,7 +699,7 @@ void ActorPanel::saveAgents()
     // Close file
     file.close();
 
-    RCLCPP_INFO(this->get_logger(), "Agents.yaml generated");
+    RCLCPP_INFO(this->get_logger(), "Scenario generated sucessfully!!!");
 
     // Clean variables in order to create new Agent.yaml if neccesary
     actors_info.clear();
@@ -682,35 +733,27 @@ void ActorPanel::saveAgents()
   }
 }
 
+
 // Open a generated yaml file
 void ActorPanel::parseYaml()
 {
   removeCurrentMarkers();
-
-  // Check if user wants to store file in another directory.
-  if (!checkbox->isChecked())
-  {
-    // openFileExplorer(true);
-    pkg_shared_tree_dir_ = openFileExplorer(true);  // dir;
-    RCLCPP_INFO(this->get_logger(), "DIR: %s", pkg_shared_tree_dir_.c_str());
-  }
-  else
-  {
-    try
+  std::string conf_file = "";
+  try
     {
-      pkg_shared_tree_dir_ = ament_index_cpp::get_package_share_directory("hunav_agent_manager");
+      conf_file = openFileExplorer(true);
+      RCLCPP_INFO(this->get_logger(), "File selected: %s", conf_file.c_str());
     }
     catch (const char* msg)
     {
-      RCLCPP_ERROR(this->get_logger(), "Package hunav_agent_manager not found in dir: %s!!!",
-                   pkg_shared_tree_dir_.c_str());
+      RCLCPP_ERROR(this->get_logger(), "Error opening directory: %s!!!",
+                   conf_file.c_str());
+      return;
     }
-    pkg_shared_tree_dir_ = pkg_shared_tree_dir_ + "/config/agents.yaml";
-  }
 
   auto marker_array = std::make_unique<visualization_msgs::msg::MarkerArray>();
 
-  YAML::Node yaml_file = YAML::LoadFile(pkg_shared_tree_dir_);
+  YAML::Node yaml_file = YAML::LoadFile(conf_file);
   std::vector<std::string> agents_vector;
   std::vector<std::string> current_goals_vector;
   int ids = 0;
@@ -828,6 +871,7 @@ void ActorPanel::parseYaml()
 
   initial_pose_publisher->publish(std::move(marker_array));
 }
+
 
 int ActorPanel::checkComboBox()
 {
@@ -1432,22 +1476,24 @@ void ActorPanel::resetGoal()
 
 std::string ActorPanel::openFileExplorer(bool file)
 {
+
+  std::string scenarios_dir = ament_index_cpp::get_package_share_directory(hunav_wrapper_pkg_name.c_str()) + "/scenarios";
+
   QString fileName;
 
   if (file)
   {
-    fileName = QFileDialog::getOpenFileName(this, tr("Open file"), "/home", tr("YAML Files (*.yaml)"));
+    fileName = QFileDialog::getOpenFileName(this, tr("Open file"), scenarios_dir.c_str(), tr("YAML Files (*.yaml)"));
     show_file_selector_once = true;
-    checkbox->setChecked(true);
+    //checkbox->setChecked(true);
   }
   else
   {
-    fileName = QFileDialog::getExistingDirectory(this, tr("Open folder"), "/home", QFileDialog::ShowDirsOnly);
+    fileName = QFileDialog::getExistingDirectory(this, tr("Open folder"), scenarios_dir.c_str(), QFileDialog::ShowDirsOnly);
     window->activateWindow();
   }
 
-  dir = fileName.toStdString();
-  return dir;
+  return fileName.toStdString();
 }
 
 void ActorPanel::save(rviz_common::Config config) const
