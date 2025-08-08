@@ -1,6 +1,6 @@
-# Human Navigation behavior Simulator (HuNavSim)
+# Human Navigation behavior Simulator (HuNavSim v1.0)
 
-A controller of human navigation behaviors for Robotics based on ROS2.
+HuNavSim is a ROS 2-based simulator for human navigation. It is a tool that can be used along with well-known Robotics simulators like Gazebo or Webots. The tool can control the navigation behavior of the human agents spawned in the base robotics simulator.  
 
 **This is a work in progress version**
 
@@ -34,8 +34,8 @@ A pre-print version of the accepted paper is available [here](https://arxiv.org/
 
 ## Container system
 
-It is strongly recommended to use the system through containers what ease the deployment of HuNavSim.
-If you want to try HuNavSim through Docker containers, please go to the following repo and follow the instruccions indicated there for installation: https://github.com/robotics-upo/hunavsim_containers
+**It is strongly recommended to use the system through containers what ease the deployment of HuNavSim.**
+If you want to try HuNavSim through Docker containers, please go to the following repo and follow the instruccions indicated there: https://github.com/robotics-upo/hunavsim_containers
 
 
 ## Dependencies
@@ -66,9 +66,9 @@ If you want to try HuNavSim through Docker containers, please go to the followin
 
   - A wrapper for Gazebo Fortress is provided here: https://github.com/robotics-upo/hunav_gazebo_fortress_wrapper
 
-  - A wrapper for Isaac Sim is provided here: https://github.com/robotics-upo/Hunav_isaac_wrapper
+  - A wrapper for Webots is provided here: https://github.com/robotics-upo/hunav_webots_wrapper 
 
-* The simulator core is programmed under the new ROS2 framework (tested in Humble distro).
+* The simulator core is programmed under the ROS2 framework (tested in Humble distro).
 
 * A GUI based on a RViz2 panel is employed to easily configure the human agents. For instructions, please check the [hunav_rviz2_panel](https://github.com/robotics-upo/hunav_sim/tree/humble/hunav_rviz2_panel) 
 
