@@ -1,8 +1,8 @@
-# Human Navigation behavior Simulator (HuNavSim)
+# Human Navigation behavior Simulator (HuNavSim v2.0)
 
 A controller of human navigation behaviors for Robotics based on ROS2.
 
-**This is a work in progress version**
+**This v2.0 is a work in progress**
 
 **Tested in ROS2 Humble**
 
@@ -27,24 +27,42 @@ Bibtex:
   issn={2377-3766},
   doi={10.1109/LRA.2023.3316072}}
 ```
-
-
 A pre-print version of the accepted paper is available [here](https://arxiv.org/abs/2305.01303). 
+
+and 
+
+Escudero-Jiménez, M., Pérez-Higueras, N., Martínez-Silva, A., Caballero, F., & Merino, L. (2025). HuNavSim 2.0: An Enhanced Human Navigation Simulator for Human-Aware Robot Navigation. arXiv preprint [arXiv:2507.17317](https://arxiv.org/abs/2507.17317).
+
+Bibtex:
+```
+@misc{escuderojiménez2025hunavsim20enhancedhuman,
+      title={HuNavSim 2.0: An Enhanced Human Navigation Simulator for Human-Aware Robot Navigation}, 
+      author={Miguel Escudero-Jiménez and Noé Pérez-Higueras and Andrés Martínez-Silva and Fernando Caballero and Luis Merino},
+      year={2025},
+      eprint={2507.17317},
+      archivePrefix={arXiv},
+      primaryClass={cs.RO},
+      url={https://arxiv.org/abs/2507.17317}, 
+}
+```
+
+
 
 
 ## Container system
 
-It is recommended to use the system through containers what ease the deployment of HuNavSim.
-If you want to try HuNavSim through Docker containers, please go to the following repo and follow the instruccions indicated there for installation: https://github.com/robotics-upo/hunavsim_containers
+**It strongly is recommended to use the system through containers what ease the deployment of HuNavSim.**
+If you want to try HuNavSim through Docker containers, please go to the following repo and follow the instruccions indicated there for installation: https://github.com/robotics-upo/hunavsim_containers/tree/v2.0 
 
 
 ## Dependencies
 
 * You must download and install the Social Force Model library. Follow the instructions here: https://github.com/robotics-upo/lightsfm
 * The ros people_msgs are also required. At the moment of this development, people_msgs were not still available to be installed from the apt ros-humble package server. You can get the package from here: https://github.com/wg-perception/people/tree/ros2. Please, copy it and put it in your workspace.
-* The ROS2 packages *nav2-behavior-tree* and *behaviortree_cpp_v3* are also needed.
+* The behavior tree CPP library is also required.
   ```sh
-  sudo apt install ros-humble-nav2-behavior-tree ros-humble-behaviortree-cpp-v3
+  https://github.com/BehaviorTree/BehaviorTree.CPP 
+  https://github.com/BehaviorTree/BehaviorTree.ROS2 
   ```
 
 ## Features
@@ -55,14 +73,14 @@ If you want to try HuNavSim through Docker containers, please go to the followin
 
 * **Multi-simulator support** - HuNavSim can be used with 4 different robotics simulators:
 
-  * **Gazebo Classic** (v11): <https://github.com/robotics-upo/hunav_gazebo_wrapper>
-  * **Gazebo Fortress**: <https://github.com/robotics-upo/hunav_gazebo_fortress_wrapper>
-  * **Isaac Sim**: <https://github.com/robotics-upo/Hunav_isaac_wrapper>
-  * **Webots**: <https://github.com/robotics-upo/hunav_webots_wrapper>
+  * **Gazebo Classic** (v11): <https://github.com/robotics-upo/hunav_gazebo_wrapper/tree/v2.0>
+  * **Gazebo Fortress**: <https://github.com/robotics-upo/hunav_gazebo_fortress_wrapper/tree/v2.0>
+  * **Isaac Sim**: <https://github.com/robotics-upo/Hunav_isaac_wrapper/tree/v2.0>
+  * **Webots**: <https://github.com/robotics-upo/hunav_webots_wrapper/tree/v2.0>
 
 * **Modern ROS2 framework** - The simulator core is programmed under the ROS2 framework (tested in Humble distro) with proper package discovery and standardized interfaces.
 
-* **Enhanced GUI with modern UI/UX** - A professional RViz2 panel is employed to easily configure human agents. For detailed instructions, check the [hunav_rviz2_panel](https://github.com/robotics-upo/hunav_sim/tree/humble/hunav_rviz2_panel)
+* **Enhanced GUI with modern UI/UX** - A professional RViz2 panel is employed to easily configure human agents. For detailed instructions, check the [hunav_rviz2_panel](https://github.com/robotics-upo/hunav_sim/tree/v2.0/hunav_rviz2_panel)
 
 
 * **Diverse human navigation reactions** to the presence of a robot:
@@ -76,7 +94,7 @@ If you want to try HuNavSim through Docker containers, please go to the followin
 
 * **Advanced behavior tree management** - The navigation behavior defined by the user for each human agent is led by a configurable behavior tree. A set of behavior tree nodes have been developed to control the human navigation behaviors. Check the documentation in `hunav_agent_manager/behavior_trees/HuNavSim_BT_Reference.pdf` for detailed information about the available nodes and their usage. 
 
-* **Comprehensive metrics evaluation** - A set of metrics for social navigation evaluation are provided. This set includes the metrics found in the literature plus some other ones. Moreover, the metrics computed can be easily configured and extended by the user. Further information is provided in the [hunav_evaluator](https://github.com/robotics-upo/hunav_sim/tree/humble/hunav_evaluator)
+* **Comprehensive metrics evaluation** - A set of metrics for social navigation evaluation are provided. This set includes the metrics found in the literature plus some other ones. Moreover, the metrics computed can be easily configured and extended by the user. Further information is provided in the [hunav_evaluator](https://github.com/robotics-upo/hunav_sim/tree/v2.0/hunav_evaluator)
 
 
 
@@ -97,15 +115,13 @@ That communication with HuNavSim can be easily done through different ROS2 servi
 Moreover, the initial configuration parameters of the agents can be read from the *"/hunav_loader"* ROS2 node. This node loads the agents data from the yaml file *'agents.yaml'* located in the *config* directory of the package *hunav_agent_manager*. Then, the parameters can be retreived through the ROS2 service */hunav_loader/get_parameters*. 
 
 
-![](https://github.com/robotics-upo/hunav_sim/blob/humble/images/HuNavSim.png)
+![](https://github.com/robotics-upo/hunav_sim/blob/v2.0/images/HuNavSim.png)
 
-
-A Gazebo (v11) wrapper is provided in: https://github.com/robotics-upo/hunav_gazebo_wrapper
  
 
 ## Configuration
 
-The user must define the desired number and properties of hunav agents. This is done through the file `agents_*.yaml`. The user can edit this file directly, or can create it through GUI, check the [hunav_rviz2_panel](https://github.com/robotics-upo/hunav_sim/tree/humble/hunav_rviz2_panel).
+The user must define the desired number and properties of hunav agents. This is done through the file `agents_*.yaml`. The user can edit this file directly, or can create it through GUI, check the [hunav_rviz2_panel](https://github.com/robotics-upo/hunav_sim/tree/v2.0/hunav_rviz2_panel).
 
 An example snippet of a agents.yaml file with two agents can be seen next:
 
@@ -255,24 +271,24 @@ The behavior tree system allows for sophisticated agent behaviors and can be cus
 
 ### Metrics parameters  
 
-The user can also configure the set of metrics to be computed. Check the [hunav_evaluator](https://github.com/robotics-upo/hunav_sim/tree/humble/hunav_evaluator) to know how.
+The user can also configure the set of metrics to be computed. Check the [hunav_evaluator](https://github.com/robotics-upo/hunav_sim/tree/v2.0/hunav_evaluator) to know how.
 
 
 ## Example run
 
 Example launches to run HuNavSim with different simulators can be found in the documentation of the respective wrapper packages:
 
-* **Gazebo Classic**: [hunav_gazebo_wrapper](https://github.com/robotics-upo/hunav_gazebo_wrapper)
-* **Gazebo Fortress**: [hunav_gazebo_fortress_wrapper](https://github.com/robotics-upo/hunav_gazebo_fortress_wrapper)
-* **Isaac Sim**: [Hunav_isaac_wrapper](https://github.com/robotics-upo/Hunav_isaac_wrapper)
-* **Webots**: [hunav_webots_wrapper](https://github.com/robotics-upo/hunav_webots_wrapper)
+* **Gazebo Classic**: [hunav_gazebo_wrapper](https://github.com/robotics-upo/hunav_gazebo_wrapper/tree/v2.0)
+* **Gazebo Fortress**: [hunav_gazebo_fortress_wrapper](https://github.com/robotics-upo/hunav_gazebo_fortress_wrapper/tree/v2.0)
+* **Isaac Sim**: [Hunav_isaac_wrapper](https://github.com/robotics-upo/Hunav_isaac_wrappertree/v2.0)
+* **Webots**: [hunav_webots_wrapper](https://github.com/robotics-upo/hunav_webots_wrapper/tree/v2.0)
 
 Each wrapper provides specific launch files and configuration examples for the respective simulator. 
 
 ## TODOs
 
-* Augmenting the number of navigation reactions of the agents
-* Including configurable small variations of the Social Force Model weights to enrich the variety of the agents navigation
+* Ease the creation of BT for human navigation behavior
+* Add support for multi-robot
 * Completing the set of metrics included  
 
 ## Acknowledgements
@@ -280,6 +296,6 @@ Each wrapper provides specific launch files and configuration examples for the r
 This work is partially supported by Programa Operativo FEDER Andalucia 2014-2020, Consejeria de Economía, Conocimiento y Universidades (DeepBot, PY20\_00817) and the project NHoA (PLEC2021-007868) and NORDIC (TED2021-132476B-I00), funded by MCIN/AEI/10.13039/501100011033 and the European Union NextGenerationEU/PRTR.
 
 <!---![](https://github.com/robotics-upo/hunav_sim/blob/master/images/image.png | width=100) -->
-<img src="https://github.com/robotics-upo/hunav_sim/blob/humble/images/image.png" width="400">
-<img src="https://github.com/robotics-upo/hunav_sim/blob/humble/images/logos2.jpg" width="400">
+<img src="https://github.com/robotics-upo/hunav_sim/blob/v2.0/images/image.png" width="400">
+<img src="https://github.com/robotics-upo/hunav_sim/blob/v2.0/images/logos2.jpg" width="400">
 
