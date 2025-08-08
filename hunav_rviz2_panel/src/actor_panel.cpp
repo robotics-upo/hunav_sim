@@ -361,7 +361,18 @@ void ActorPanel::onInitialPose(double x, double y, double theta, QString frame)
   initial_pose.pose.position.x = x;
   initial_pose.pose.position.y = y;
   pose.pose.position.z = theta;
-  initial_pose.pose.position.z = 1.25;
+  if(hunav_wrapper_pkg_name == "hunav_gazebo_fortress_wrapper")
+  {
+    initial_pose.pose.position.z = 0.03; // For Gazebo Fortress, z is always 0.0
+  }
+  else if (hunav_wrapper_pkg_name == "hunav_gazebo_wrapper")
+  {
+    initial_pose.pose.position.z = 1.25; // For Gazebo Classic, z is always 1.25
+  }else
+  {
+    initial_pose.pose.position.z = 0.0; // Default value for other wrappers
+  }
+  
   theta = 0;
 
   // Random color selector
