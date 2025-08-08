@@ -6,23 +6,11 @@ hunav_evaluator_node:
     # freq than data is published.
     frequency: 1.0
 
-    # optional tag that can be used to identify among 
-    # different scenarios or goal trajectories
-    experiment_tag: '1'
-
     # A .txt file will be created with this name (indicate the full path).
     # If the file already exists, the file will be open
     # and a new line of results will be added at the end
     # of the file. 
-    result_file: 'metrics.txt'
-
-
-    # Boolean to indicate whether the data recording must wait to 
-    # receive a goal message (geometry_msgs/msg/PoseStamped) in the 
-    # topic */goal_pose* to start or not. This way, the recording 
-    # can be coordinated with the start of the robot navigation.
-    use_navgoal_to_start: true
-
+    result_file: 'metrics'
 
     # The list of metrics to be computed.
     metrics:
