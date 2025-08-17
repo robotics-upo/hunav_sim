@@ -2,7 +2,7 @@
 
 A controller of human navigation behaviors for Robotics based on ROS2.
 
-**This v2.0 is a work in progress**
+**V2.0 IS UNDER DEVELOMPMENT AND IMPROVEMENT!!!**
 
 **Tested in ROS2 Humble**
 

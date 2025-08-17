@@ -81,13 +81,14 @@ HunavLoader::HunavLoader() : Node("hunav_loader")
 
     // Behavior 
     // int behavior = this->declare_parameter<int>(name + ".behavior.type", 0);
-    // RCLCPP_INFO(this->get_logger(), "\tbehavior type: %i", behavior);
+    std::string type = this->declare_parameter<std::string>(name + ".behavior.type", "Regular");
+    RCLCPP_INFO(this->get_logger(), "\tbeh type: %s", type.c_str());
     int conf = this->declare_parameter<int>(name + ".behavior.configuration", 0);
     RCLCPP_INFO(this->get_logger(), "\tbeh configuration: %i", conf);
 
     // Configuration mode 'manual' - take the loaded values from the file:
-    // double duration = this->declare_parameter<double>(name + ".behavior.duration", 40.0);
-    // bool run_once = this->declare_parameter<bool>(name + ".behavior.once", true);
+    double duration = this->declare_parameter<double>(name + ".behavior.duration", 40.0);
+    bool run_once = this->declare_parameter<bool>(name + ".behavior.once", true);
     double vel = this->declare_parameter<double>(name + ".behavior.vel", 1.0);
     if (vel > 1.8)
     {
@@ -99,7 +100,7 @@ HunavLoader::HunavLoader() : Node("hunav_loader")
       vel = 0.0;
       this->set_parameter(rclcpp::Parameter(name + ".behavior.vel", vel));
     }
-    // double dist = this->declare_parameter<double>(name + ".behavior.dist", 0.0);
+    double dist = this->declare_parameter<double>(name + ".behavior.dist", 0.0);
 
     double facGoal = this->declare_parameter<double>(name + ".behavior.goal_force_factor", 2.0);
 
@@ -217,10 +218,10 @@ HunavLoader::HunavLoader() : Node("hunav_loader")
     }
 
     // print the behavior parameters
-    // RCLCPP_INFO(this->get_logger(), "\tbeh duration: %.2f", duration);
+    RCLCPP_INFO(this->get_logger(), "\tbeh duration: %.2f", duration);
     RCLCPP_INFO(this->get_logger(), "\tbeh vel: %.2f", vel);
-    // RCLCPP_INFO(this->get_logger(), "\tbeh just_once: %i", (int)run_once);
-    // RCLCPP_INFO(this->get_logger(), "\tbeh dist: %.2f", dist);
+    RCLCPP_INFO(this->get_logger(), "\tbeh just_once: %i", (int)run_once);
+    RCLCPP_INFO(this->get_logger(), "\tbeh dist: %.2f", dist);
     RCLCPP_INFO(this->get_logger(), "\tbeh goalForceFactor: %.2f", facGoal);
     RCLCPP_INFO(this->get_logger(), "\tbeh obstacleForceFactor: %.2f", facObstacle);
     RCLCPP_INFO(this->get_logger(), "\tbeh socialForceFactor: %.2f", facSocial);

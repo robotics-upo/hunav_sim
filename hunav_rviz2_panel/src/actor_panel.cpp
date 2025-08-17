@@ -1115,6 +1115,44 @@ namespace hunav_rviz2_panel
     }
   }
 
+
+
+  std::string ActorPanel::share_to_src_path(const std::string& share_path) 
+  {
+    // Example:
+    // input: /home/hunav_gz_classic_ws/install/hunav_gazebo_wrapper/share/hunav_gazebo_wrapper
+    // output: /home/hunav_gz_classic_ws/src/hunav_gazebo_wrapper
+
+    // Divide el path en partes usando '/' como separador
+    std::vector<std::string> parts;
+    std::stringstream ss(share_path);
+    std::string item;
+    while (std::getline(ss, item, '/')) {
+        if (!item.empty()) parts.push_back(item);
+    }
+
+    // Busca el índice de 'install'
+    auto it = std::find(parts.begin(), parts.end(), "install");
+    if (it == parts.end() || (it + 1) == parts.end()) {
+        throw std::runtime_error("The path does not have the expected structure  ../install/share/package_name");
+    }
+    size_t install_idx = std::distance(parts.begin(), it);
+    std::string pkg_name = parts[install_idx + 1];
+
+    // Construye el nuevo path: .../src/package_name/
+    std::ostringstream src_path;
+    for (size_t i = 0; i < install_idx; ++i) {
+        src_path << "/" << parts[i];
+    }
+    src_path << "/src/" << pkg_name;
+    RCLCPP_INFO(this->get_logger(), "Path to store the scenario file: %s!!!",
+                  src_path.str().c_str());
+    return src_path.str();
+  }
+
+
+
+
   void ActorPanel::onEditAllInGroot()
   {
     // — 1) If we have a loaded YAML, rebuild every marker
@@ -1287,7 +1325,8 @@ namespace hunav_rviz2_panel
     {
       QString shareDir = QString::fromStdString(
           ament_index_cpp::get_package_share_directory(packageName.toStdString()));
-      btDir = shareDir + "/behavior_trees";
+      std::string srcDir = share_to_src_path(shareDir.toStdString());
+      btDir = QString::fromStdString(srcDir + "/behavior_trees");
       RCLCPP_INFO(get_logger(), "Found ROS2 package '%s', behavior trees at: %s",
                   packageName.toStdString().c_str(), btDir.toStdString().c_str());
     }
@@ -2941,7 +2980,8 @@ namespace hunav_rviz2_panel
       {
         QString shareDir = QString::fromStdString(
             ament_index_cpp::get_package_share_directory(packageName.toStdString()));
-        baseDir = shareDir + "/maps";
+        std::string srcDir = share_to_src_path(shareDir.toStdString());
+        baseDir = QString::fromStdString(srcDir + "/maps");
       }
       catch (const std::exception &e)
       {
@@ -4391,8 +4431,9 @@ namespace hunav_rviz2_panel
       {
         QString shareDir = QString::fromStdString(
             ament_index_cpp::get_package_share_directory(packageName.toStdString()));
-        configDir = shareDir + "/scenarios";
-        mapDir = shareDir + "/maps";
+        std::string srcDir = share_to_src_path(shareDir.toStdString());
+        configDir = QString::fromStdString(srcDir + "/scenarios");
+        mapDir = QString::fromStdString(srcDir + "/maps");
       }
       catch (const std::exception &e)
       {
@@ -4485,7 +4526,8 @@ namespace hunav_rviz2_panel
         {
           QString shareDir = QString::fromStdString(
               ament_index_cpp::get_package_share_directory(packageName.toStdString()));
-          mapDir = shareDir + "/maps";
+          std::string srcDir = share_to_src_path(shareDir.toStdString());
+          mapDir = QString::fromStdString(srcDir + "/maps");
           RCLCPP_INFO(get_logger(), "Found ROS2 package '%s', maps at: %s",
                       packageName.toStdString().c_str(), mapDir.toStdString().c_str());
         }
@@ -5123,8 +5165,9 @@ namespace hunav_rviz2_panel
       {
         QString shareDir = QString::fromStdString(
             ament_index_cpp::get_package_share_directory(packageName.toStdString()));
-        configDir = shareDir + "/scenarios";
-        btDir = shareDir + "/behavior_trees";
+        std::string srcDir = share_to_src_path(shareDir.toStdString());
+        configDir = QString::fromStdString(srcDir + "/scenarios");
+        btDir = QString::fromStdString(srcDir + "/behavior_trees");
       }
       catch (const std::exception &e)
       {

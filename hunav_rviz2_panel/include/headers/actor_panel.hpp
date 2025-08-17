@@ -144,6 +144,8 @@ namespace hunav_rviz2_panel
      */
     void resetPanel();
 
+    std::string share_to_src_path(const std::string& share_path); 
+
     // ================================ POSE AND GOAL HANDLING ================================
     /**
      * @brief Handle initial pose setting

@@ -35,7 +35,7 @@ namespace hunav
     // Set default values
     pub_people_     = true;
     map_name_       = "warehouse";
-    simulator_name_ = "Gazebo";
+    simulator_name_ = "Gazebo Classic";
     yaml_base_name_ = "warehouse_agents";
   }
 
@@ -53,8 +53,11 @@ namespace hunav
     {
       std::string package_name;
 
-      if (simulator_name_ == "Gazebo") {
+      if (simulator_name_ == "Gazebo Classic") {
         package_name = "hunav_gazebo_wrapper";
+      }
+      else if(simulator_name_ == "Gazebo Fortress") {
+        package_name = "hunav_gazebo_fortress_wrapper";
       }
       else if (simulator_name_ == "Isaac Sim") {
         package_name = "hunav_isaac_wrapper";
