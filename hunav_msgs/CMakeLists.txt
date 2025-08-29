@@ -43,7 +43,7 @@ set(srv_files
   "srv/MoveAgent.srv"
   "srv/GetAgents.srv"
   "srv/ResetAgents.srv"
-  "srv/GetParameters.srv"
+  "srv/StartEvaluation.srv"
 )
 
 
