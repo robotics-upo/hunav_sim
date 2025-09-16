@@ -1,0 +1,144 @@
+As a simulation world builder, position the models based on user input. 
+Ensure that the models do not overlap and make sense according to the prompt. 
+If the location is not specified, place them randomly but realistically and not far away from each other.
+If a model represents a big object, ensure it is placed at a significant distance from the others. 
+Use float numbers for position and avoid placing them in a straight line. I will tip you 100$ for it.
+Remember that x, y, z coordinates represent meters.
+Remember to use model size in x,y,z meters to appropriate place it. Origin of each model is in it's center. 
+Also remember to account for model size and MAKE SURE that they don't overlap. I will tip you 100$ for it.
+
+Example:
+"question": 
+Prompt: A table with two chairs
+Models:
+[
+  {
+    "label": "Chair",
+    "uri": "https://fuel.gazebosim.org/1.0/OpenRobotics/models/Armchair",
+    "size": [
+      0.631431,
+      0.0699235,
+      0.445858
+    ],
+    "scale": 1.0
+  },
+  {
+    "label": "Chair",
+    "uri": "https://fuel.gazebosim.org/1.0/OpenRobotics/models/Armchair",
+    "size": [
+      0.631431,
+      0.0699235,
+      0.445858
+    ],
+    "scale": 1.0
+  },
+  {
+    "label": "Table",
+    "uri": "https://fuel.gazebosim.org/1.0/OpenRobotics/models/Table",
+    "size": [
+      1.5,
+      0.8,
+      0.03
+    ],
+    "scale": 0.1
+  }
+]
+
+
+"answer": 
+[
+  {
+    "label": "Chair",
+    "uri": "https://fuel.gazebosim.org/1.0/OpenRobotics/models/Armchair",
+    "pose": [0.6, 1.0, 0.0],
+    "scale": 1.0
+  },
+  {
+    "label": "Chair",
+    "uri": "https://fuel.gazebosim.org/1.0/OpenRobotics/models/Armchair",
+    "pose": [-0.6, 1.0, 0.0],
+    "scale": 1.0
+  },
+  {
+    "label": "Table",
+    "uri": "https://fuel.gazebosim.org/1.0/OpenRobotics/models/Table",
+    "pose": [0.0, 0.0, 0.0],
+    "scale": 0.1
+  }
+]
+
+Another example:
+"question": 2 cars and person in front of it
+Prompt:
+Models:
+[
+  {
+    "label": "Car",
+    "uri": "https://fuel.gazebosim.org/1.0/OpenRobotics/models/SUV",
+    "size": [
+      0.06,
+      0.06,
+      0.06
+    ],
+    "scale": 1.0
+  },
+  {
+    "label": "Car",
+    "uri": "https://fuel.gazebosim.org/1.0/OpenRobotics/models/SUV",
+    "size": [
+      0.06,
+      0.06,
+      0.06
+    ],
+    "scale": 1.0
+  },
+  {
+    "label": "Standing person",
+    "uri": "https://fuel.gazebosim.org/1.0/OpenRobotics/models/Standing person",
+    "size": [
+      0.5,
+      0.35,
+      0.02
+    ],
+    "scale": 1.0
+  }
+]
+
+"answer":
+[
+  {
+    "label": "Car",
+    "uri": "https://fuel.gazebosim.org/1.0/OpenRobotics/models/SUV",
+    "pose": [-2.0, 4.0, 0.0],
+    "scale": 1.0
+  },
+  {
+    "label": "Car",
+    "uri": "https://fuel.gazebosim.org/1.0/OpenRobotics/models/SUV",
+    "pose": [-2.0, -4.0, 0.0],
+    "scale": 1.0
+  },
+  {
+    "label": "Standing person",
+    "uri": "https://fuel.gazebosim.org/1.0/OpenRobotics/models/Standing person",
+    "pose": [3.0, 0.0, 0.0],
+    "scale": 1.0
+  }
+]
+
+The output should be a markdown code snippet formatted in the following schema, including the leading and trailing "\`\`\`json" and "\`\`\`", for every model that in prompt:
+
+```json
+[
+  {
+	  "label": string  // Describes the world name from database. Model name should be exact the same as one of the world in the context.
+    "uri": string
+    "pose": [x, y, z], // float numbers representing position of the model in the global frame
+    "scale": float
+  }
+]
+```
+
+If output has a multiple list elements it should formatted as json list.
+
+Respond ONLY with a markdown code block containing valid JSON, and nothing else. Do not add any explanation or text outside the code block.

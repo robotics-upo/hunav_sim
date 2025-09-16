@@ -1,0 +1,50 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<root main_tree_to_execute="CuriousNavTree" BTCPP_format="4">
+
+    <!-- TreeNodesModel defines all necessary Actions and Conditions -->
+    <TreeNodesModel>
+        <Action ID="CuriousNav">
+            <!-- Input ports for the CuriousNav action -->
+            <input_port name="agent_id" type="int">identifier of the agent</input_port>
+            <input_port name="time_step" type="double">time step in seconds to compute movement</input_port>
+            <input_port name="stop_distance" type="double">the agent stops when it gets closer than this distance</input_port>
+            <input_port name="agent_vel" type="double">the agent velocity approaching the robot</input_port>
+        </Action>
+        <Condition ID="IsRobotVisible">
+            <!-- Input port for the IsRobotVisible condition -->
+            <input_port name="agent_id" type="int">identifier of the agent</input_port>
+        </Condition>
+        <Condition ID="TimeExpiredCondition">
+            <!-- Input ports for the TimeExpiredCondition -->
+            <input_port name="seconds" type="double">duration of the timer in seconds</input_port>
+            <input_port name="ts" type="double">time step to be accumulated</input_port>
+            <input_port name="only_once" type="bool">boolean to indicate if the timer must be reset at the end or not</input_port>
+        </Condition>
+    </TreeNodesModel>
+
+    <!-- Include any external trees or files if needed -->
+    <include path="BTRegularNav.xml" />
+
+    <!-- Main BehaviorTree for the curious agent -->
+    <BehaviorTree ID="CuriousNavTree">
+        <Fallback name="CuriousFallback">
+            <!-- Sequence for handling the curious behavior -->
+            <Sequence name="CurNav">
+                <!-- Check if the robot is visible -->
+                <IsRobotVisible agent_id="{id}" />
+                <!-- Check if the timer has expired -->
+                <Inverter>
+                    <TimeExpiredCondition seconds="{duration}" ts="{dt}" only_once="{once}" />
+                </Inverter>
+                <!-- Move towards the robot if conditions are met -->
+                <CuriousNav agent_id="{id}" time_step="{dt}" stop_distance="{stopdist}" agent_vel="{maxvel}" />
+            </Sequence>
+            <!-- Fallback to regular navigation if the robot is not visible or time has expired -->
+            <Sequence name="RegNav">
+                <SetBlackboard output_key="agentid" value="{id}" />
+                <SetBlackboard output_key="timestep" value="{dt}" />
+                <SubTree ID="RegularNavTree" id="{agentid}" dt="{timestep}" />
+            </Sequence>
+        </Fallback>
+    </BehaviorTree>
+</root>
