@@ -49,7 +49,7 @@ hunav_evaluator_node:
       avg_overacceleration: true
       
       # Learning a Group-Aware Policy for Robot Navigation
-      # Kapil Katyal ∗1,2 , Yuxiang Gao ∗2 , Jared Markowitz 1 , Sara Pohland 3 , Corban Rivera 1 , I-Jeng Wang 1 , Chien-Ming Huang 2 
+      # Kapil Katyal, Yuxiang Gao, Jared Markowitz, Sara Pohland, Corban Rivera, I-Jeng Wang, Chien-Ming Huang 
       avg_pedestrian_velocity: true
       avg_closest_pedestrian_velocity: true
 
@@ -62,3 +62,11 @@ hunav_evaluator_node:
       social_work: true
       obstacle_force_on_robot: true
       obstacle_force_on_agents: true
+
+      # P. T. Singamaneni, A. Favier, and R. Alami, “Towards benchmarking
+      # human-aware social robot navigation: A new perspective and metrics,”
+      # in 2023 32nd IEEE International Conference on Robot and Human
+      # Interactive Communication (RO-MAN), 2023, pp. 914–921.
+      # Danger costs: Fear and Panic
+      danger_fear_cost: true
+      danger_panic_cost: true

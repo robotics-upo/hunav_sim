@@ -189,7 +189,7 @@ void MetricsPanel::metricsSelectionWindow() {
   category_checkboxes.clear();
 
   // Create category groups
-  QStringList categories = {"Navigation Performance", "Social Behavior", "Motion Analysis", "Safety & Collisions", "Social Forces"};
+  QStringList categories = {"Navigation Performance", "Social Behavior", "Motion Analysis", "Safety & Collisions", "Social Forces", "Danger Metrics"};
   
   for (const QString &category : categories) {
     QGroupBox *group = new QGroupBox(category);
@@ -430,6 +430,11 @@ QString MetricsPanel::categorizeMetric(const QString& metricName) {
   if (metricName.contains("force") || metricName.contains("social_work")) {
     return "Social Forces";
   }
+
+  // Danger metrics
+  if (metricName.contains("danger")) {
+    return "Danger Metrics";
+  }
   
   return "Navigation Performance"; // default category
 }
@@ -579,6 +584,16 @@ QString MetricsPanel::getMetricTooltip(const QString& metricName) {
            "Physical forces from obstacles acting on people.<br/>"
            "<i>Based on:</i> Social Force Model<br/>"
            "<i>Shows how obstacles affect human movement patterns.</i>";
+  } else if (metricName == "danger_fear_cost") {
+    return "<b>Fear cost</b><br/>"
+           "Perceived feeling of fear of collision with the robot.<br/>"
+           "<i>Based on:</i> Depends on the velocities of humans and the robot<br/>"
+           "<i>Values close to zero indicate no fear</i>";
+  } else if (metricName == "danger_panic_cost") {
+    return "<b>Panic cost</b><br/>"
+           "Perceived feelings of panic.<br/>"
+           "<i>Based on:</i> Depends on the velocities of humans and the robot<br/>"
+           "<i>Values close to zero indicate no panic</i>";
   }
   
   // Default tooltip for unknown metrics

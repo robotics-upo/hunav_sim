@@ -923,6 +923,131 @@ def obstacle_force_on_robot(agents: List[Agents], robot: List[Agent]) -> List[fl
     return [of, of_list]
 
 
+
+# P. T. Singamaneni, A. Favier, and R. Alami, “Towards benchmarking
+# human-aware social robot navigation: A new perspective and metrics,”
+# in 2023 32nd IEEE International Conference on Robot and Human
+# Interactive Communication (RO-MAN), 2023, pp. 914–921.
+# Danger costs: Fear and Panic
+
+def danger_fear_cost(agents: List[Agents], robot: List[Agent]) -> List[int]:
+    fc = 0.0
+    fc_list = []
+    for agts, rb in zip(agents, robot):
+        robot_pos = np.array([rb.position.position.x, rb.position.position.y])
+        #robot_vel = rb.linear_vel * np.array([math.cos(rb.yaw), math.sin(rb.yaw)])
+        robot_vel = np.array([rb.velocity.linear.x, rb.velocity.linear.y])
+        rr=rb.radius
+        for idx, agent in enumerate(agts.agents):
+            human_pos = np.array([agent.position.position.x, agent.position.position.y])
+            human_vel = np.array([agent.velocity.linear.x, agent.velocity.linear.y])
+            f = cost_fear(robot_pos, robot_vel, human_pos, human_vel, rh=agent.radius, rr=rr)
+            fc += f
+            fc_list[idx]+=f
+
+    return [fc, fc_list]
+    
+
+def cost_fear(robot_pos, robot_vel, human_pos, human_vel, rh=0.3, rr=0.3):
+    """
+    Calcula el costo de miedo (Cost_fear) según la ecuación (1) del paper.
+    
+    Parámetros:
+        robot_pos : np.array (2,)
+            Posición [x, y] del robot
+        robot_vel : np.array (2,)
+            Velocidad [vx, vy] del robot
+        human_pos : np.array (2,)
+            Posición [x, y] del humano
+        human_vel : np.array (2,)
+            Velocidad [vx, vy] del humano
+        rh : float
+            Radio circunscrito del humano
+        rr : float
+            Radio circunscrito del robot
+    
+    Retorna:
+        float : valor del costo de miedo (>= 0)
+    """
+    R = rh + rr
+    Prh = human_pos - robot_pos
+    Vrel = robot_vel - human_vel
+    drheff = np.linalg.norm(Prh)
+    
+    PV = np.dot(Prh, Vrel)
+    
+    if PV > 0 and drheff > 0:
+        return np.linalg.norm(Vrel) / drheff
+    else:
+        return 0.0
+
+
+def danger_panic_cost(agents: List[Agents], robot: List[Agent]) -> List[int]:
+    pc = 0.0
+    pc_list = []
+    for agts, rb in zip(agents, robot):
+        robot_pos = np.array([rb.position.position.x, rb.position.position.y])
+        #robot_vel = rb.linear_vel * np.array([math.cos(rb.yaw), math.sin(rb.yaw)])
+        robot_vel = np.array([rb.velocity.linear.x, rb.velocity.linear.y])
+        rr=rb.radius
+        for idx, agent in enumerate(agts.agents):
+            human_pos = np.array([agent.position.position.x, agent.position.position.y])
+            human_vel = np.array([agent.velocity.linear.x, agent.velocity.linear.y])
+            p = cost_panic(robot_pos, robot_vel, human_pos, human_vel, rh=agent.radius, rr=rr)
+            pc += p
+            pc_list[idx]+=p
+
+    return [pc, pc_list]
+
+
+def cost_panic(robot_pos, robot_vel, human_pos, human_vel, rh=0.3, rr=0.3):
+    """
+    Calcula el costo de pánico (Cost_panic) según la ecuación (2) del paper.
+    
+    Parámetros:
+        robot_pos : np.array (2,)
+            Posición [x, y] del robot
+        robot_vel : np.array (2,)
+            Velocidad [vx, vy] del robot
+        human_pos : np.array (2,)
+            Posición [x, y] del humano
+        human_vel : np.array (2,)
+            Velocidad [vx, vy] del humano
+        rh : float
+            Radio circunscrito del humano
+        rr : float
+            Radio circunscrito del robot
+    
+    Retorna:
+        float : valor del costo de pánico (>= 0)
+    """
+    R = rh + rr
+    Prh = human_pos - robot_pos
+    Vrel = robot_vel - human_vel
+    
+    PV = np.dot(Prh, Vrel)
+    if PV <= 0:
+        return 0.0
+    
+    norm_Prh = np.linalg.norm(Prh)
+    norm_Vrel = np.linalg.norm(Vrel)
+    if norm_Prh == 0 or norm_Vrel == 0:
+        return 0.0
+    
+    cos_theta = np.dot(Prh, Vrel) / (norm_Prh * norm_Vrel)
+    cos_theta = np.clip(cos_theta, -1.0, 1.0)  # Evitar errores numéricos
+    theta = np.arccos(cos_theta)
+    
+    d_perp = norm_Prh * np.sin(theta)
+    
+    if d_perp > R and np.abs(np.sin(theta)) > 1e-6:
+        return norm_Vrel / ((d_perp - R) * np.abs(np.sin(theta)))
+    else:
+        return 0.0
+
+
+
+
 # TODO
 def path_irregularity(agents, robot):
     pass
@@ -1016,4 +1141,11 @@ metrics = {
     "social_work": social_work,
     "obstacle_force_on_robot": obstacle_force_on_robot,
     "obstacle_force_on_agents": obstacle_force_on_agents,
+    # P. T. Singamaneni, A. Favier, and R. Alami, “Towards benchmarking
+    # human-aware social robot navigation: A new perspective and metrics,”
+    # in 2023 32nd IEEE International Conference on Robot and Human
+    # Interactive Communication (RO-MAN), 2023, pp. 914–921.
+    # Danger costs: Fear and Panic
+    "danger_fear_cost": danger_fear_cost,
+    "danger_panic_cost": danger_panic_cost,
 }
