@@ -189,7 +189,7 @@ void MetricsPanel::metricsSelectionWindow() {
   category_checkboxes.clear();
 
   // Create category groups
-  QStringList categories = {"Navigation Performance", "Social Behavior", "Motion Analysis", "Safety & Collisions", "Social Forces", "Danger Metrics"};
+  QStringList categories = {"Navigation Performance", "Social Behavior", "Motion Analysis", "Safety & Collisions", "Social Forces", "Danger & Surprise Metrics"};
   
   for (const QString &category : categories) {
     QGroupBox *group = new QGroupBox(category);
@@ -432,8 +432,8 @@ QString MetricsPanel::categorizeMetric(const QString& metricName) {
   }
 
   // Danger metrics
-  if (metricName.contains("danger")) {
-    return "Danger Metrics";
+  if (metricName.contains("danger") || metricName.contains("surprise")) {
+    return "Danger & Surprise Metrics";
   }
   
   return "Navigation Performance"; // default category
@@ -593,6 +593,21 @@ QString MetricsPanel::getMetricTooltip(const QString& metricName) {
     return "<b>Panic cost</b><br/>"
            "Perceived feelings of panic.<br/>"
            "<i>Based on:</i> Depends on the velocities of humans and the robot<br/>"
+           "<i>Values close to zero indicate no panic</i>";
+  } else if (metricName == "surprise_visibility_cost") {
+    return "<b>Surprise visibility cost</b><br/>"
+           "Perceived feeling of surprise based on the visibility<br/>"
+           "<i>Based on:</i> Measures the surprise based on the distance and angle between human and robot<br/>"
+           "<i>Values close to zero indicate no panic</i>";
+  } else if (metricName == "surprise_shock_cost") {
+    return "<b>Surprise shock cost</b><br/>"
+           "Perceived feeling of shock when something happens before it can be recognized<br/>"
+           "<i>Based on:</i> Measures surprise in terms of time <br/>"
+           "<i>Values close to zero indicate no panic</i>";
+  } else if (metricName == "surprise_react_cost") {
+    return "<b>Surprise react cost</b><br/>"
+           "Perceived feeling of reaction to sudden aparitions<br/>"
+           "<i>Based on:</i> Measures surprise in terms of time <br/>"
            "<i>Values close to zero indicate no panic</i>";
   }
   

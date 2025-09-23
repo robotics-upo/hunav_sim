@@ -9,6 +9,7 @@ from hunav_evaluator import hunav_metrics
 from hunav_msgs.msg import Agents
 from hunav_msgs.msg import Agent
 from hunav_msgs.srv import StartEvaluation
+from nav_msgs.srv import GetMap
 from std_srvs.srv import Empty
 from geometry_msgs.msg import PoseStamped
 import pandas as pd
@@ -25,6 +26,7 @@ class HunavEvaluatorNode(Node):
         self.metrics_to_compute = {}
         self.metrics_lists = {}
         self.number_of_behaviors = 6
+        self.use_map = False
 
         # The user start/stop the recording through the
         #    the services /hunav_start_recording and
@@ -48,6 +50,9 @@ class HunavEvaluatorNode(Node):
         self.get_logger().info("Metrics:")
         for m in self.metrics_to_compute.keys():
             self.get_logger().info(f"   {m}")
+            # if any metric requires the map, set use_map to true
+            if m.startswith("surprise_"):
+                self.use_map = True
 
         if self.freq > 0.0:
             self.agents = Agents()
@@ -70,6 +75,46 @@ class HunavEvaluatorNode(Node):
         self.robot_sub = self.create_subscription(
             Agent, "robot_states", self.robot_callback, 1
         )
+
+        if self.use_map:
+            self.cli = self.create_client(GetMap, '/map_server/Map')
+            counter = 1
+            while not self.cli.wait_for_service(timeout_sec=2.0) and counter < 5:
+                self.get_logger().info('/map_server/Map not available, waiting...%i', counter)
+                counter += 1
+            if counter >= 5:
+                self.get_logger().error('/map_server/Map service not available. Metrics requiring the map will not be computed.')
+                self.use_map = False
+            else:
+                self.get_logger().info('/map_server/Map service available.')
+                self.occupancy_grid = self.get_map()
+
+
+    def get_map(self):
+        req = GetMap.Request()
+        future = self.cli.call_async(req)
+        rclpy.spin_until_future_complete(self, future)
+        if future.result() is not None:
+            occ_grid = future.result().map
+            self.get_logger().info(f"Map received: {occ_grid.info.width} x {occ_grid.info.height}")
+            return occ_grid
+        else:
+            self.get_logger().error('Failed to call /map_service/Map')
+            return None
+
+    def occupancy_grid_to_numpy(self):
+        """
+        Convert ROS2 OccupancyGrid to numpy 2D array.
+        0 -> free, 1 -> occupied, -1 -> unknown (treated as occupied here).
+        """
+        width = self.occupancy_grid.info.width
+        height = self.occupancy_grid.info.height
+        data = np.array(self.occupancy_grid.data).reshape((height, width))
+        # binarize: unknown (-1) and occupied (>50) treated as 1, free (0) as 0
+        binary_grid = np.where(data > 50, 1, 0)
+        binary_grid = np.where(data < 0, 1, binary_grid)
+        return binary_grid
+
 
     def recording_service_start(
         self, request: StartEvaluation.Request, response: StartEvaluation.Response
@@ -166,9 +211,21 @@ class HunavEvaluatorNode(Node):
 
         # for each metric, compute the value
         for m in self.metrics_to_compute.keys():
-            # call the metric function with the agents and robot lists
-            metric = hunav_metrics.metrics[m](self.agents_list, self.robot_list)
-            #
+
+            if m.startswith("surprise_") and self.use_map:
+                if self.occupancy_grid is None:
+                    self.get_logger().warn(f"Metric {m} requires the map, but it is not available. Setting to zero.")
+                    self.metrics_to_compute[m] = 0.0
+                    continue
+                else:
+                    # convert occupancy grid to numpy array
+                    occ_grid_np = self.occupancy_grid_to_numpy()
+                    # pass the occupancy grid to the metric function
+                    metric = hunav_metrics.metrics[m](self.agents_list, self.robot_list, occ_grid_np)
+            else:
+                # call the metric function with the agents and robot lists
+                metric = hunav_metrics.metrics[m](self.agents_list, self.robot_list)
+
             self.metrics_to_compute[m] = metric[0]
             # if the metric function returns more than one value,
             # store the second value in the metrics_lists dictionary

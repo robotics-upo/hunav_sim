@@ -929,7 +929,7 @@ def obstacle_force_on_robot(agents: List[Agents], robot: List[Agent]) -> List[fl
 # in 2023 32nd IEEE International Conference on Robot and Human
 # Interactive Communication (RO-MAN), 2023, pp. 914–921.
 # Danger costs: Fear and Panic
-
+# Surprise cost: Visibility, Shock, React
 def danger_fear_cost(agents: List[Agents], robot: List[Agent]) -> List[int]:
     fc = 0.0
     fc_list = []
@@ -1047,6 +1047,240 @@ def cost_panic(robot_pos, robot_vel, human_pos, human_vel, rh=0.3, rr=0.3):
 
 
 
+# ---------- World ↔ Grid coordinate transforms ----------
+def world_to_grid(world_pos, occ_grid):
+    """
+    Convert world coordinates (meters) to grid indices (ints).
+    
+    Parameters:
+        world_pos : (x, y) in meters
+        occ_grid : nav_msgs/OccupancyGrid
+    
+    Returns:
+        (i, j) tuple in grid coordinates
+    """
+    x, y = world_pos
+    res = occ_grid.info.resolution
+    x0 = occ_grid.info.origin.position.x
+    y0 = occ_grid.info.origin.position.y
+    
+    i = int((x - x0) / res)
+    j = int((y - y0) / res)
+    return (i, j)
+
+
+def grid_to_world(grid_idx, occ_grid):
+    """
+    Convert grid indices to world coordinates (meters).
+    """
+    i, j = grid_idx
+    res = occ_grid.info.resolution
+    x0 = occ_grid.info.origin.position.x
+    y0 = occ_grid.info.origin.position.y
+    
+    x = i * res + x0 + res / 2.0
+    y = j * res + y0 + res / 2.0
+    return (x, y)
+
+# ---------- Line of sight check (Bresenham) ----------
+def line_of_sight(human_pos, robot_pos, occupancy_grid):
+    """
+    Check if the robot is visible from the human using Bresenham ray tracing.
+    
+    Parameters:
+        human_pos : tuple (x, y) in grid coordinates (ints)
+        robot_pos : tuple (x, y) in grid coordinates (ints)
+        occupancy_grid : 2D np.array (0=free, 1=obstacle)
+    
+    Returns:
+        bool : True if LoS is free, False if occluded
+    """
+    x0, y0 = human_pos
+    x1, y1 = robot_pos
+
+    dx = abs(x1 - x0)
+    dy = abs(y1 - y0)
+    x, y = x0, y0
+    sx = 1 if x0 < x1 else -1
+    sy = 1 if y0 < y1 else -1
+    err = dx - dy
+
+    while True:
+        if occupancy_grid[y, x] == 1:
+            return False  # obstacle blocks LoS
+        if (x, y) == (x1, y1):
+            break
+        e2 = 2 * err
+        if e2 > -dy:
+            err -= dy
+            x += sx
+        if e2 < dx:
+            err += dx
+            y += sy
+    return True
+
+
+def is_visible(robot_pos, human_pos, human_dir, occ_grid):
+    # --- check FoV ---
+    vis_angle = cost_visibility(robot_pos, human_pos, human_dir)
+    if vis_angle == 0.0:
+        return False  # outside FoV
+    # --- check LoS ---
+    # --- check line of sight ---
+    human_grid = world_to_grid(human_pos, occ_grid)
+    robot_grid = world_to_grid(robot_pos, occ_grid)
+    if not line_of_sight(human_grid, robot_grid, occ_grid):
+        return False  # occluded
+    return True  # visible
+
+
+def cost_visibility(robot_pos, human_pos, human_dir,
+                    theta_fov=120.0, d_proxemics=0.45):
+    """
+    Cost of visibility (eq. 3 in the paper).
+    
+    Parameters:
+        robot_pos : np.array (2,) -> [x_r, y_r]
+        human_pos : np.array (2,) -> [x_h, y_h]
+        human_dir : np.array (2,) -> unit vector of human orientation
+        theta_fov : float -> human FoV angle in degrees
+        d_proxemics : float -> proxemics distance (>0.45m)
+    """
+    Prh = robot_pos - human_pos
+    dhreff = np.linalg.norm(Prh)
+    if dhreff <= 0:
+        return 0.0
+    
+    u_Prh = Prh / dhreff
+    cos_theta = np.dot(human_dir / np.linalg.norm(human_dir), u_Prh)
+    cos_theta = np.clip(cos_theta, -1.0, 1.0)
+    theta = np.arccos(cos_theta)  # rad
+    
+    if theta > np.deg2rad(theta_fov / 2.0):
+        return 0.0  # outside FoV
+    
+    alpha = d_proxemics / (np.deg2rad(theta_fov) / 2.0)
+    return alpha * (theta / dhreff)
+
+def surprise_visibility_cost(agents: List[Agents], robot: List[Agent], grid) -> List[int]:
+    vc = 0.0
+    vc_list = []
+    for agts, rb in zip(agents, robot):
+        robot_pos = np.array([rb.position.position.x, rb.position.position.y])
+        for idx, agent in enumerate(agts.agents):
+            human_pos = np.array([agent.position.position.x, agent.position.position.y])
+            human_dir = np.array([math.cos(agent.yaw), math.sin(agent.yaw)])
+            if is_visible(robot_pos, human_pos, human_dir, grid):
+                v = cost_visibility(robot_pos, human_pos, human_dir)
+            else:
+                v = 0.0
+            vc += v
+            vc_list[idx]+=v
+
+    return [vc, vc_list]
+
+
+
+def cost_shock(robot_pos, human_pos, t,
+               trecognise=0.150, treact=0.600, d_proxemics=0.45):
+    """"
+    Parameters:
+        robot_pos : np.array (2,)
+            Position [x, y] of the robot
+        human_pos : np.array (2,)
+            Position [x, y] of the human
+        dhreff : float
+            Effective distance between human and robot
+        t : float
+            Timeo since the robot entered the human's FoV (seconds)
+        trecognise : float
+            Recognition time (~0.150 s)
+        treact : float
+            Reaction time (~0.600 s)
+        d_proxemics : float
+            Distancia proxemics distance (>0.45m)
+    Return:
+        float : shock cost
+    """
+    dhreff = np.linalg.norm(robot_pos - human_pos)
+    if dhreff <= 0:
+        return 0.0
+    gamma = treact / trecognise
+    SR = t / treact if 0 < t < treact else 1.0
+    return max(d_proxemics / dhreff * (1 - gamma * SR), 0)
+
+
+def surprise_shock_cost(agents: List[Agents], robot: List[Agent], grid) -> List[int]:
+    sc = 0.0
+    t1 = rclpy.time.Time.from_msg(agents[1].stamp)
+    t2 = rclpy.time.Time.from_msg(agents[0].stamp)
+    dt = (t2 - t1).nanoseconds / 1e9  # Diferencia en segundos (float)
+    sc_list = []
+    time_visible = np.zeros(len(agents[0].agents))
+    for agts, rb in zip(agents, robot):
+        robot_pos = np.array([rb.position.position.x, rb.position.position.y])
+        for idx, agent in enumerate(agts.agents):
+            human_pos = np.array([agent.position.position.x, agent.position.position.y])
+            human_dir = np.array([math.cos(agent.yaw), math.sin(agent.yaw)])
+            if is_visible(robot_pos, human_pos, human_dir, grid):
+                time_visible[idx] += dt  
+                s = cost_shock(robot_pos, human_pos, t=time_visible[idx])
+            else:
+                s = 0.0
+                time_visible[idx] = 0.0
+            sc += s
+            sc_list[idx]+=s
+
+    return [sc, sc_list]
+
+
+def cost_react(robot_pos, human_pos, t, treact=0.600, d_proxemics=0.45):
+    """    
+    Parameters:
+        robot_pos : np.array (2,)
+            Position [x, y] of the robot
+        human_pos : np.array (2,)
+            Position [x, y] of the human
+        t : float
+            Time since the robot entered the human's FoV (seconds)
+        treact : float
+            Reaction time (~0.600 s)
+        d_proxemics : float
+            Proxemics distance (>0.45m)
+    
+    Returns:
+        float : reaction cost
+    """
+    dhreff = np.linalg.norm(robot_pos - human_pos)
+    SR = t / treact if 0 < t < treact else 1.0
+    return d_proxemics / dhreff * (1 - SR)
+
+
+
+def surprise_react_cost(agents: List[Agents], robot: List[Agent], grid) -> List[int]:
+    rc = 0.0
+    t1 = rclpy.time.Time.from_msg(agents[1].stamp)
+    t2 = rclpy.time.Time.from_msg(agents[0].stamp)
+    dt = (t2 - t1).nanoseconds / 1e9  # Diferencia en segundos (float)
+    rc_list = []
+    time_visible = np.zeros(len(agents[0].agents))
+    for agts, rb in zip(agents, robot):
+        robot_pos = np.array([rb.position.position.x, rb.position.position.y])
+        for idx, agent in enumerate(agts.agents):
+            human_pos = np.array([agent.position.position.x, agent.position.position.y])
+            human_dir = np.array([math.cos(agent.yaw), math.sin(agent.yaw)])
+            if is_visible(robot_pos, human_pos, human_dir, grid):
+                time_visible[idx] += dt  
+                r = cost_react(robot_pos, human_pos, t=time_visible[idx])
+            else:
+                r = 0.0
+                time_visible[idx] = 0.0
+            rc += r
+            rc_list[idx]+=r
+
+    return [rc, rc_list]
+
+
 
 # TODO
 def path_irregularity(agents, robot):
@@ -1146,6 +1380,10 @@ metrics = {
     # in 2023 32nd IEEE International Conference on Robot and Human
     # Interactive Communication (RO-MAN), 2023, pp. 914–921.
     # Danger costs: Fear and Panic
+    # Surprise cost: Visibility, Shock, React
     "danger_fear_cost": danger_fear_cost,
     "danger_panic_cost": danger_panic_cost,
+    "surprise_visibility_cost": surprise_visibility_cost,
+    "surprise_shock_cost": surprise_shock_cost,
+    "surprise_react_cost": surprise_react_cost,
 }

@@ -68,5 +68,9 @@ hunav_evaluator_node:
       # in 2023 32nd IEEE International Conference on Robot and Human
       # Interactive Communication (RO-MAN), 2023, pp. 914–921.
       # Danger costs: Fear and Panic
+      # surprise costs: Visibility, Shock, React
       danger_fear_cost: true
       danger_panic_cost: true
+      surprise_visibility_cost: true
+      surprise_shock_cost: true
+      surprise_react_cost: true
