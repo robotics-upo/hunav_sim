@@ -403,7 +403,8 @@ namespace hunav
     if (time_step_secs < 0.0)
       time_step_secs = 0.0; // 0.05
 
-    BT::NodeStatus status = tree_tick(time_step_secs);
+    //BT::NodeStatus status = tree_tick(time_step_secs);
+    (void)tree_tick(time_step_secs);
     prev_time_ = rclcpp::Time(ag->header.stamp);
     //}
 
@@ -470,7 +471,8 @@ namespace hunav
     // if (time_step_secs > 0.008) {
     // Call the ticks of the behavior trees (they must update the
     // sfm_agents_)
-    BT::NodeStatus status = tree_tick(request->agent_id, time_step_secs);
+    //BT::NodeStatus status = tree_tick(request->agent_id, time_step_secs);
+    (void)tree_tick(request->agent_id, time_step_secs);
     prev_time_ = rclcpp::Time(ag->header.stamp);
     //}
 
@@ -484,7 +486,8 @@ namespace hunav
     // while (!btfunc_.ok()) {
     // loop_rate.sleep();
     //}
-    BT::NodeStatus status = tree_tick(request->id);
+    //BT::NodeStatus status = tree_tick(request->id);
+    (void)tree_tick(request->id);
     response->updated_agent = btfunc_.getUpdatedAgent(request->id);
   }
 
@@ -540,11 +543,13 @@ namespace hunav
 
   void BTnode::publish_agent_states(rclcpp::Time t, const hunav_msgs::msg::Agents::SharedPtr msg)
   {
+    (void)t;
     human_state_publisher_->publish(*msg);
   }
 
   void BTnode::publish_robot_state(rclcpp::Time t, const hunav_msgs::msg::Agent::SharedPtr msg)
   {
+    (void)t;
     robot_state_publisher_->publish(*msg);
   }
 
