@@ -80,7 +80,7 @@ class HunavEvaluatorNode(Node):
             self.cli = self.create_client(GetMap, '/map_server/Map')
             counter = 1
             while not self.cli.wait_for_service(timeout_sec=2.0) and counter < 5:
-                self.get_logger().info('/map_server/Map not available, waiting...%i', counter)
+                self.get_logger().info(f'/map_server/Map not available, waiting...{counter}')
                 counter += 1
             if counter >= 5:
                 self.get_logger().error('/map_server/Map service not available. Metrics requiring the map will not be computed.')
