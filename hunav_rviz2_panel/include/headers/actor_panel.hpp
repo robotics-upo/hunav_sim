@@ -114,6 +114,18 @@ namespace hunav_rviz2_panel
      */
     virtual void save(rviz_common::Config config) const;
 
+    /**
+     * @brief Convert share directory path to src directory path
+     * @param share_path Path to shared package directory
+     * @return Path to source directory
+     * 
+     * Converts install/share paths to src paths
+     * Example:
+     * Input: /home/workspace/install/hunav_gazebo_wrapper/share/hunav_gazebo_wrapper
+     * Output: /home/workspace/src/hunav_gazebo_wrapper
+     */
+    std::string share_to_src_path(const std::string& share_path);
+
   public Q_SLOTS:
     /**
      * @brief Set the topic name
@@ -147,8 +159,6 @@ namespace hunav_rviz2_panel
      * @brief Reset panel to initial state
      */
     void resetPanel();
-
-    std::string share_to_src_path(const std::string& share_path); 
 
     // ================================ POSE AND GOAL HANDLING ================================
     /**

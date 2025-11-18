@@ -1,4 +1,5 @@
 #include "headers/BTConfigDialog.h"
+#include "headers/actor_panel.hpp"
 #include <QWizardPage>
 #include <QLabel>
 #include <QTimer>
@@ -19,6 +20,8 @@
 #include <QDrag>
 #include <QMimeData>
 #include <QDropEvent>
+#include <sstream>
+#include <algorithm>
 #include <QDragEnterEvent>
 #include <QDragLeaveEvent>
 #include <QPainter>
@@ -39,7 +42,8 @@ private:
 };
 
 BTConfigDialog::BTConfigDialog(QWidget *parent)
-    : QWizard(parent), xmlDoc_(nullptr), isUpdatingConfiguration_(false)
+    : QWizard(parent), xmlDoc_(nullptr), isUpdatingConfiguration_(false), 
+      actorPanel_(qobject_cast<hunav_rviz2_panel::ActorPanel*>(parent))
 {
     // setPage(Page_Welcome, new QWizardPage(this));
     setPage(Page_Configuration, new QWizardPage(this));
@@ -4366,7 +4370,43 @@ QStringList BTConfigDialog::generateBTPathsForScenario(const QString &scenarioNa
     {
         QString shareDir = QString::fromStdString(
             ament_index_cpp::get_package_share_directory(packageName.toStdString()));
-        btDir = shareDir + "/behavior_trees";
+        
+        std::string srcDir = shareDir.toStdString();
+        
+        QWidgetList topLevelWidgets = QApplication::topLevelWidgets();
+        hunav_rviz2_panel::ActorPanel* actorPanel = nullptr;
+        
+        for (QWidget* widget : topLevelWidgets) {
+            actorPanel = widget->findChild<hunav_rviz2_panel::ActorPanel*>();
+            if (actorPanel) break;
+        }
+        
+        if (actorPanel) {
+            srcDir = actorPanel->share_to_src_path(shareDir.toStdString());
+        } else {
+            // Fallback: try to do the conversion manually
+            // Convert from .../install/package_name/share/package_name to .../src/package_name
+            std::vector<std::string> parts;
+            std::stringstream ss(shareDir.toStdString());
+            std::string item;
+            while (std::getline(ss, item, '/')) {
+                if (!item.empty()) parts.push_back(item);
+            }
+            
+            auto it = std::find(parts.begin(), parts.end(), "install");
+            if (it != parts.end() && (it + 1) != parts.end()) {
+                size_t install_idx = std::distance(parts.begin(), it);
+                std::string pkg_name = parts[install_idx + 1];
+                std::ostringstream src_path;
+                for (size_t i = 0; i < install_idx; ++i) {
+                    src_path << "/" << parts[i];
+                }
+                src_path << "/src/" << pkg_name;
+                srcDir = src_path.str();
+            }
+        }
+        
+        btDir = QString::fromStdString(srcDir + "/behavior_trees");
     }
     catch (const std::exception &e)
     {

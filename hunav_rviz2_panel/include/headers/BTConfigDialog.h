@@ -36,6 +36,10 @@
 #include <QMessageBox>
 #include <QDebug>
 
+namespace hunav_rviz2_panel {
+    class ActorPanel;
+}
+
 /**
  * @brief Enhanced Behavior Tree Configuration Dialog
  * 
@@ -284,6 +288,7 @@ private:
     QString templateFile_;                    ///< Selected template file
     tinyxml2::XMLDocument *xmlDoc_;          ///< Loaded XML document
     bool isUpdatingConfiguration_;            ///< Guard to prevent concurrent configuration updates
+    hunav_rviz2_panel::ActorPanel* actorPanel_;  ///< Pointer to parent ActorPanel for path conversion
 };
 
 #endif // BTCONFIGDIALOG_H
