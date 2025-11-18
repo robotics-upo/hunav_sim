@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>hunav_behavior_tree_generator</name>
+  <version>1.0.0</version>
+  <description>LLM-based behavior tree and scenario generator for HuNav simulation</description>
+  <maintainer email="quentin.dury@cpe.fr">Quentin Dury</maintainer>
+  <license>MIT</license>
+
+  <!-- Build dependencies -->
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <!-- Runtime dependencies -->
+  <depend>rclpy</depend>
+  <depend>std_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>hunav_msgs</depend>
+  <depend>hunav_gazebo_wrapper</depend>
+  
+  <!-- Python pip dependencies -->
+  <exec_depend>python3-pip</exec_depend>
+  <exec_depend>python3-openai</exec_depend>
+  <exec_depend>python3-rich</exec_depend>
+
+  <!-- Test dependencies -->
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
