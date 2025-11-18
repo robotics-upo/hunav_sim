@@ -4,7 +4,6 @@ Simple terminal interface manager without Rich dependencies.
 Author: Quentin Dury
 """
 import time
-import sys
 from typing import List, Dict
 
 class InterfaceManager:

@@ -66,16 +66,14 @@ class FileGenerator:
         Returns:
             str: Filename of the saved behavior tree
         """
-        # Clean the content and the scenario name
+        
         cleaned_content = self._clean_content(content)
         if scenario_name.endswith('.yaml'):
             scenario_name = scenario_name[:-5]
 
-        # Create filename
         filename = f"{scenario_name}__agent_{agent_id}_bt.xml"
         filepath = os.path.join(BT_OUTPUT_DIR, filename)
         
-        # Save to file
         with open(filepath, 'w', encoding='utf-8') as f:
             f.write(cleaned_content)
         
@@ -131,7 +129,6 @@ class FileGenerator:
             goals = input("Enter the goals number for the agent (comma-separated): ").strip()
 
             try:
-                # Parse and convert to integers
                 goals_list = [int(x.strip()) for x in goals.split(",") if x.strip()]
 
                 if len(goals_list) == 0:
@@ -307,21 +304,17 @@ class FileGenerator:
             for agent_id in agents_info.keys():
                 print(f"\nGenerating behavior for Agent {agent_id} ({agent_id}/{len(agents_info)})\n")
                 
-                # Ask for behavior description
                 user_behavior_desc = self._ask_behavior_description(agent_id, agents_goals_list[agent_id])
 
-                # Generate behavior tree
                 generated_bt = self.behavior_manager.generate_agent_behavior(
                     agent_id,
                     user_behavior_desc,
                     agents_goals_list[agent_id]
                 )
 
-                # Save generated behavior
                 filename = self._save_behavior_file(generated_bt, agent_id, scenario_name)
                 self.generated_files.append(filename)
 
-                # Show generation completion for this agent
                 self.ui_manager.show_generation_complete(agent_id, filename)
 
             # ---------- FINAL SUMMARY ----------

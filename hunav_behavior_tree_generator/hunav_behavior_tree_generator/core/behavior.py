@@ -34,12 +34,10 @@ class BehaviorManager:
         """
         context_parts = []
         
-        # Add goal information if provided
         if goal_positions :
             goal_info = f"Agent {agent_id} goals: {goal_positions}"
             context_parts.append(goal_info)
 
-        # Prepare the complete prompt
         context_str = " | ".join(context_parts) if context_parts else ""
         full_prompt = f"{behavior_desc}"
         if context_str:

@@ -209,7 +209,6 @@ class ScenarioManager:
         """
         agents_info_from_scenario = self._extract_agents_and_goals(scenario_data, scenario_name)
         
-        # Convert to the format expected by FileGenerator
         agents_goals_list = {}
         for agent_id, agent_info in agents_info_from_scenario.items():
             agent_goals = agent_info.get('goals', [])

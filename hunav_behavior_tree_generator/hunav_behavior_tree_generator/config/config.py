@@ -58,7 +58,6 @@ def get_scenarios_directory():
     scenarios_path = Path(SCENARIOS_DIR).resolve()
     if not scenarios_path.exists():
         logging.warning(f"Scenarios directory not found: {scenarios_path}")
-        # Fallback to a relative path
         scenarios_path = Path("scenarios").resolve()
     return str(scenarios_path)
 
@@ -71,16 +70,12 @@ DEFAULT_WORLD_FILE = WORLD_DIR / "house.world"
 def setup_logging():
     """ Setup logging configuration. """
     try:
-        # Create logs directory if it doesn't exist
         os.makedirs(LOG_DIR, exist_ok=True)
         
-        # Configure handlers
         handlers = [logging.FileHandler(LOG_FILE)]
     except (PermissionError, OSError):
-        # Fallback to console only if we can't write to log file
         handlers = [logging.StreamHandler()]
     
-    # Configure logging
     logging.basicConfig(
         level=logging.INFO,
         format=LOG_FORMAT,
