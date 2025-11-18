@@ -22,14 +22,28 @@
 
     <BehaviorTree ID="ThreateningNavTree">
         <Fallback name="ThreateningFallback">
-            <Sequence name="ThreadNav"> <!--ReactiveSequence-->
-                <IsRobotVisible agent_id="{id}" distance="4.5" />
+        	
+            {GOAL_SEQUENCE}
+            
+            <Sequence name="ThreadNav"> 
+                <!-- <IsRobotVisible agent_id="{id}" distance="4.5" />
                 <Sequence name="ThreadTimerNav">
                     <Inverter>
                         <TimeExpiredCondition seconds="{duration}" ts="{dt}" only_once="{once}" />
                     </Inverter>
-                    <ThreateningNav agent_id="{id}" time_step="{dt}" goal_dist="{frontdist}" />
-                </Sequence>
+                    <ThreateningNav agent_id="{id}" time_step="{dt}" goal_dist="{frontdist}" /> -->
+
+                <!-- </Sequence> -->
+
+            	<RunOnce>
+                    <IsRobotVisible agent_id="{id}" distance="{dist}" />
+                </RunOnce>
+                
+                <RunOnce>
+                    <BlockRobot agent_id="{id}" time_step="{dt}" front_dist="{frontdist}" duration="{duration}" />
+                </RunOnce>
+
+                
             </Sequence>
             <Sequence name="RegNav">
                 <SetBlackboard output_key="agentid" value="{id}" />

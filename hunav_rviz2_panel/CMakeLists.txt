@@ -32,6 +32,7 @@ find_package(rviz_rendering REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 find_package(visualization_msgs REQUIRED)
+find_package(behaviortree_cpp REQUIRED)
 
 set(nav2_rviz_plugins_headers_to_moc
   include/headers/goal_pose_updater.hpp
@@ -39,6 +40,7 @@ set(nav2_rviz_plugins_headers_to_moc
   include/headers/goal_tool.hpp  
   include/headers/actor_panel.hpp
   include/headers/metrics_panel.hpp
+  include/headers/BTConfigDialog.h
 )
 
 include_directories(
@@ -51,6 +53,7 @@ add_library(${library_name} SHARED
   src/actor_panel.cpp
   src/goal_tool.cpp
   src/metrics_panel.cpp
+  src/BTConfigDialog.cpp
   ${nav2_rviz_plugins_headers_to_moc}
 )
 
@@ -73,6 +76,7 @@ set(dependencies
   visualization_msgs
   hunav_msgs
   ament_index_cpp
+  behaviortree_cpp
 )
 
 ament_target_dependencies(${library_name}
@@ -88,6 +92,8 @@ target_include_directories(${library_name} PUBLIC
 target_link_libraries(${library_name}
   rviz_common::rviz_common
   Qt5::Xml 
+  Qt5::Core 
+  Qt5::Widgets
 )
 
 # Causes the visibility macros to use dllexport rather than dllimport,

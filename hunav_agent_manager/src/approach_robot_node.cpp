@@ -25,7 +25,7 @@ namespace hunav
         {
             agent_manager_ = hunav::g_agent_manager;
             if (agent_manager_ == nullptr)
-                throw BT::RuntimeError("ConversationFormationNode: global AgentManager pointer not set");
+                throw BT::RuntimeError("ApproachRobotNode: global AgentManager pointer not set");
         }
         // If a duration is provided (>0), record the start time
         if (duration_ > 0.0)
@@ -40,7 +40,7 @@ namespace hunav
         double current_dt;
         auto dt_msg = getInput<double>("time_step");
         if (!dt_msg)
-            throw BT::RuntimeError("ConversationFormationNode: missing input [time_step] in onRunning", dt_msg.error());
+            throw BT::RuntimeError("ApproachRobotNode: missing input [time_step] in onRunning", dt_msg.error());
         current_dt = dt_msg.value();
 
         agent_manager_->approximateRobot(agent_id_, current_dt, closest_dist_, max_vel_);

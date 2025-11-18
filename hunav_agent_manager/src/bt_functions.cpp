@@ -586,7 +586,7 @@ BT::NodeStatus BTfunctions::scaredNav(BT::TreeNode& self)
   auto msg = self.getInput<int>("agent_id");
   auto msg2 = self.getInput<double>("time_step");
   auto msg3 = self.getInput<double>("runaway_vel");
-  auto msg4 = self.getInput<double>("scary_force_factor");
+  auto msg4 = self.getInput<double>("safe_distance");
   if (!msg)
   {
     throw BT::RuntimeError("ScaredNav. missing required input [agent_id]: ", msg.error());
@@ -601,15 +601,15 @@ BT::NodeStatus BTfunctions::scaredNav(BT::TreeNode& self)
   }
   if (!msg4)
   {
-    throw BT::RuntimeError("ScaredNav. missing required input [scary_force_factor]: ", msg4.error());
+    throw BT::RuntimeError("ScaredNav. missing required input [safe_distance]: ", msg4.error());
   }
   int id = msg.value();
   // printf("[BTfunctions.ScareNav] After getting id: %i\n", id);
   double dt = msg2.value();
   double vel = msg3.value();
-  double factor = msg4.value();
+  double safe_distance = msg4.value();
 
-  agent_manager_.avoidRobot(id, dt, factor, vel);
+  agent_manager_.avoidRobot(id, dt, safe_distance, vel);
   return BT::NodeStatus::SUCCESS;
 }
 

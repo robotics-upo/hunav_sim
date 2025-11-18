@@ -214,7 +214,7 @@ public:
    * @param id identifier of the agent
    * @param dt time to compute the agent's movement
    */
-  void avoidRobot(int id, double dt, double scary_factor_force = 20.0, double max_vel = 0.6);
+  void avoidRobot(int id, double dt, double safe_distance = 5.0, double max_vel = 0.6);
 
   /**
    * @brief the agent will try to block the path of the robot

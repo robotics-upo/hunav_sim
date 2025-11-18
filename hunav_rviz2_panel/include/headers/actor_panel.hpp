@@ -53,8 +53,12 @@
 #include "yaml-cpp/yaml.h"
 #include "nav2_util/geometry_utils.hpp"
 
+// ================================ LOCAL INCLUDES ================================
+#include "BTConfigDialog.h"
+
 // ================================ FORWARD DECLARATIONS ================================
 class QLineEdit;
+class BTConfigDialog;
 
 namespace hunav_rviz2_panel
 {
@@ -281,11 +285,6 @@ namespace hunav_rviz2_panel
     void removeCurrentMarkers();
     
     /**
-     * @brief Publish all markers to RViz
-     */
-    void publishAllMarkers();
-    
-    /**
      * @brief Clear non-agent markers
      */
     void clearNonAgentMarkers();
@@ -369,7 +368,8 @@ namespace hunav_rviz2_panel
     QLabel *yaml_file_label_;             ///< YAML file label
     QLabel *skin_label_ = nullptr;        ///< Skin selection label
     QLabel *goals_remaining;              ///< Goals remaining label
-    
+    QLabel *statusLabel_;
+
     // Behavior configuration labels and inputs
     QLabel *dur;                          ///< Duration label
     QLineEdit *beh_duration;              ///< Behavior duration input
@@ -391,6 +391,8 @@ namespace hunav_rviz2_panel
     QLineEdit *beh_stop_dist;             ///< Stop distance input
     QLabel *front;                        ///< Front distance label
     QLineEdit *beh_front_dist;            ///< Front distance input
+    QLabel *safe_dist;                    ///< Safe distance label
+    QLineEdit *beh_safe_distance;         ///< Safe distance input
 
     // Layouts
     QHBoxLayout *main_layout_;            ///< Main horizontal layout
@@ -520,7 +522,96 @@ namespace hunav_rviz2_panel
     QObject *goals_connection;                             ///< Goals connection object
     QMetaObject::Connection *conn_delete = new QMetaObject::Connection(); ///< Connection to delete
     QMetaObject::Connection initial_pose_conn_;            ///< Initial pose connection
-  };
+  
+  
+    // ===================== BT WIZARD INTEGRATION =====================
+
+    // Block Definition Structure
+    struct BlockDefinition {
+        QString blockId;
+        QString displayName;
+        QString description;
+        QStringList requiredNodes;
+        QMap<QString, QVariant> defaultParameters;
+        
+        BlockDefinition() = default;
+        BlockDefinition(const QString &id, const QString &name, const QString &desc, const QStringList &nodes)
+            : blockId(id), displayName(name), description(desc), requiredNodes(nodes) {}
+    };
+
+  private:               
+
+    QString buildGoalSequence(int agentIndex);
+
+    // Enhanced parameter handling
+    QMap<QString, QVariant> resolveEnhancedParametersForAgent(int agentIndex, const QString &blockId, const QString &nodeId) const;
+        
+    // Multi-Agent Block Configuration Structure
+    struct AgentBTConfig {
+        QString templateFile;
+        QStringList selectedBlockIds;                    // Which blocks were selected
+        QMap<QString, QVariant> globalBlockParameters;  // Global block-level parameters
+        QMap<int, QStringList> agentBlockAssignments;   // Per-agent block assignments
+        QMap<int, QMap<QString, QVariant>> agentOverrides; // Per-agent parameter overrides
+        QMap<int, bool> agentRandomization;              // Per-agent randomization setting
+        bool isCustomized = false;
+
+        BTConfigDialog::Config lastWizardConfig_;
+        
+        // Constructor
+        AgentBTConfig() = default;
+        
+        // Clear all configuration
+        void clear() {
+            templateFile.clear();
+            selectedBlockIds.clear();
+            globalBlockParameters.clear();
+            agentBlockAssignments.clear();
+            agentOverrides.clear();
+            agentRandomization.clear();
+            isCustomized = false;
+        }
+        
+        // Check if configuration is valid
+        bool isValid() const {
+            return isCustomized && !selectedBlockIds.isEmpty() && !agentBlockAssignments.isEmpty();
+        }
+    };
+    
+    // ===================== STATE MANAGEMENT =====================
+    
+    // Current agent BT configuration
+    AgentBTConfig agentBTConfig_;
+    
+    // Wizard state
+    std::vector<QString> agentBtPaths_;
+    QString currentXmlPath_;
+    BTConfigDialog::Config lastWizardConfig_;
+    
+    // ===================== CORE WORKFLOW METHODS =====================
+    
+    // Main wizard integration
+    void launchBTWizard();
+    void resetBTConfiguration(const QStringList &btPaths = QStringList());
+    
+    // BT generation
+    QString generateDefaultBTForAgent(int agentIndex);
+
+    // LLM-based BT generation (future extension)
+    void launchLLMBTGenerator(); 
+    
+    // ===================== UTILITIES =====================
+    
+    // File operations
+    QString loadFile(const QString &filepath);
+    
+    // ===================== CONSTANTS =====================
+    
+    static const QString DEFAULT_BT_TEMPLATE;
+    static const double DEFAULT_TIME_STEP;
+    static const double DEFAULT_DISTANCE_TOLERANCE;
+    static const double DEFAULT_SPEED_MULTIPLIER;
+};
 
 } // namespace hunav_rviz2_panel
 

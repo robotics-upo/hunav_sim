@@ -21,6 +21,9 @@
 
     <BehaviorTree ID="SurprisedNavTree">
         <Fallback name="SurprisedFallback">
+            
+            {GOAL_SEQUENCE}
+            
             <Sequence name="SurNav"> <!--ReactiveSequence-->
                 <IsRobotVisible agent_id="{id}" distance="{dist}" />
                 <Inverter>

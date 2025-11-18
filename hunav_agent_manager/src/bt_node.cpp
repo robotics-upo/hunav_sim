@@ -229,6 +229,7 @@ namespace hunav
     factory_.registerNodeType<hunav::FollowAgentNode>("FollowAgent");
     factory_.registerNodeType<hunav::ApproachRobotNode>("ApproachRobot");
     factory_.registerNodeType<hunav::BlockRobotNode>("BlockRobot");
+    factory_.registerNodeType<hunav::AvoidRobotNode>("AvoidRobot");
     factory_.registerNodeType<hunav::BlockAgentNode>("BlockAgent");
     factory_.registerNodeType<hunav::GroupWalkNode>("SetGroupWalk");
     factory_.registerNodeType<hunav::IsAnyoneSpeakingNode>("IsAnyoneSpeaking");

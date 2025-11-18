@@ -16,6 +16,9 @@
 
     <BehaviorTree ID="RegularNavTree">
         <Fallback name="RegularNavFallback">
+        
+            {GOAL_SEQUENCE}
+        
             <Sequence name="RegularNavigation">
                 <Inverter>
                     <IsGoalReached agent_id="{id}" />

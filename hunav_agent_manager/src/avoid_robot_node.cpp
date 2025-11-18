@@ -1,4 +1,4 @@
-#include "hunav_agent_manager/block_robot_node.hpp"
+#include "hunav_agent_manager/avoid_robot_node.hpp"
 #include "hunav_agent_manager/agent_manager.hpp"
 #include "hunav_agent_manager/bt_functions.hpp"
 #include <cmath>
@@ -7,14 +7,16 @@
 namespace hunav
 {
 
-    BT::NodeStatus BlockRobotNode::onStart()
+    BT::NodeStatus AvoidRobotNode::onStart()
     {
         if (!getInput<int>("agent_id", agent_id_))
-            throw BT::RuntimeError("BlockRobotNode: missing input [agent_id]");
+            throw BT::RuntimeError("AvoidRobotNode: missing input [agent_id]");
         if (!getInput<double>("time_step", dt_))
-            throw BT::RuntimeError("BlockRobotNode: missing input [time_step]");
-        if (!getInput<double>("front_dist", front_dist_))
-            throw BT::RuntimeError("BlockRobotNode: missing input [front_dist]");
+            throw BT::RuntimeError("AvoidRobotNode: missing input [time_step]");
+        if (!getInput<double>("safe_distance", safe_distance_))
+            throw BT::RuntimeError("AvoidRobotNode: missing input [safe_distance]");
+        if (!getInput<double>("runaway_vel", runaway_vel_))
+            throw BT::RuntimeError("AvoidRobotNode: missing input [runaway_vel]");
         if (!getInput<double>("duration", duration_))
             duration_ = 0.0; // Default: permanent
 
@@ -23,7 +25,7 @@ namespace hunav
         {
             agent_manager_ = hunav::g_agent_manager;
             if (agent_manager_ == nullptr)
-                throw BT::RuntimeError("BlockRobotNode: global AgentManager pointer not set");
+                throw BT::RuntimeError("AvoidRobotNode: global AgentManager pointer not set");
         }
 
         if (duration_ > 0.0)
@@ -32,15 +34,15 @@ namespace hunav
         return BT::NodeStatus::RUNNING;
     }
 
-    BT::NodeStatus BlockRobotNode::onRunning()
+    BT::NodeStatus AvoidRobotNode::onRunning()
     {
         double dt;
         auto dt_msg = getInput<double>("time_step");
         if (!dt_msg)
-            throw BT::RuntimeError("BlockRobotNode: missing input [time_step] during onRunning", dt_msg.error());
+            throw BT::RuntimeError("AvoidRobotNode: missing input [time_step] during onRunning", dt_msg.error());
         dt = dt_msg.value();
 
-        agent_manager_->blockRobot(agent_id_, dt, front_dist_);
+        agent_manager_->avoidRobot(agent_id_, dt, safe_distance_, runaway_vel_);
 
         if (duration_ > 0.0)
         {
@@ -52,7 +54,7 @@ namespace hunav
         return BT::NodeStatus::RUNNING;
     }
 
-    void BlockRobotNode::onHalted()
+    void AvoidRobotNode::onHalted()
     {
     }
 

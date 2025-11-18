@@ -22,12 +22,24 @@
 
     <BehaviorTree ID="CuriousNavTree">
         <Fallback name="CuriousFallback">
+
+            {GOAL_SEQUENCE}
+
             <Sequence name="CurNav"> <!--ReactiveSequence-->
-                <IsRobotVisible agent_id="{id}" distance="10.0" />
+                <!-- <IsRobotVisible agent_id="{id}" distance="10.0" />
                 <Inverter>
                     <TimeExpiredCondition seconds="{duration}" ts="{dt}" only_once="{once}" />
                 </Inverter>
-                <CuriousNav agent_id="{id}" time_step="{dt}" stop_distance="{stopdist}" agent_vel="{maxvel}" />
+                <CuriousNav agent_id="{id}" time_step="{dt}" stop_distance="{stopdist}" agent_vel="{maxvel}" /> -->
+
+            	<RunOnce>
+                    <IsRobotVisible agent_id="{id}" distance="{dist}" />
+                </RunOnce>
+                
+                <RunOnce>
+                    <ApproachRobot agent_id="{id}" time_step="{dt}" closest_dist="{stopdist}" max_vel="{maxvel}" duration="{duration}" />
+                </RunOnce>
+
             </Sequence>
             <Sequence name="RegNav">
                 <SetBlackboard output_key="agentid" value="{id}" />

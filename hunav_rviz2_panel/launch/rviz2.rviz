@@ -117,7 +117,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 31.19211196899414
+      Distance: 35.19211196899414
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -138,7 +138,7 @@ Visualization Manager:
       Yaw: -1.5707963705062866
     Saved:
       - Class: rviz_default_plugins/Orbit
-        Distance: 31.19211196899414
+        Distance: 35.19211196899414
         Enable Stereo Rendering:
           Stereo Eye Separation: 0.05999999865889549
           Stereo Focal Distance: 1
@@ -158,14 +158,12 @@ Visualization Manager:
         Value: Orbit (rviz_default_plugins)
         Yaw: -1.5707963705062866
 Window Geometry:
-  Height: 1485
+  Height: 1200
   Hide Left Dock: false
+  HunavPanel:
+    collapsed: false
   Hide Right Dock: false
   HunavMetricsPanel:
     collapsed: false
-  HunavPanel:
-    collapsed: false
   QMainWindow State: 000000ff00000000fd0000000200000000000001b800000573fc0200000001fb0000001400480075006e0061007600500061006e0065006c010000003d000005730000047800ffffff000000010000016300000573fc0200000001fb0000002200480075006e00610076004d00650074007200690063007300500061006e0065006c010000003d00000573000000f500ffffff000003e10000057300000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   Width: 1800
-  X: 2159
-  Y: 0

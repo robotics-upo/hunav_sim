@@ -229,9 +229,10 @@ void AgentManager::approximateRobot(int id, double dt, double closest_dist, doub
 
   agents_[id].behavior.state = 1;
 
-  // Get the robot's position
+  // Get the robot's position and velocity
   double rx = robot_.sfmAgent.position.getX();
   double ry = robot_.sfmAgent.position.getY();
+  float robot_speed = robot_.sfmAgent.linearVelocity;
 
   // Compute difference and Euclidean distance
   double ax = agents_[id].sfmAgent.position.getX();
@@ -240,9 +241,84 @@ void AgentManager::approximateRobot(int id, double dt, double closest_dist, doub
   double dy = ry - ay;
   double dist = std::hypot(dx, dy);
 
-  //printf("\n\n\t---> Distance between Agent (ID: %i) and Robot = %.2f\n\n", id, dist);
+  // Check if robot is moving towards the agent (collision risk)
+  bool robot_is_moving = (robot_speed > 0.1); // 0.1 m/s threshold
+  bool collision_risk = false;
+  
+  if (robot_is_moving && dist < closest_dist * 2.0) { // Within twice the desired distance
+    // Calculate robot's actual movement direction based on velocity, not yaw
+    float robot_vx = robot_.sfmAgent.velocity.getX();
+    float robot_vy = robot_.sfmAgent.velocity.getY();
+    float actual_robot_speed = std::hypot(robot_vx, robot_vy);
+    
+    // Only check collision if robot is actually translating, not just rotating
+    if (actual_robot_speed > 0.1) {
+      // Vector from robot to agent
+      float dx_robot_to_agent = ax - rx;
+      float dy_robot_to_agent = ay - ry;
+      
+      // Normalize vectors
+      float agent_dir_norm = std::hypot(dx_robot_to_agent, dy_robot_to_agent);
+      
+      if (actual_robot_speed > 0.001 && agent_dir_norm > 0.001) {
+        // Check if robot's actual velocity is towards agent (dot product > 0.5 means angle < 60°)
+        float dot_product = (robot_vx * dx_robot_to_agent + robot_vy * dy_robot_to_agent) / 
+                           (actual_robot_speed * agent_dir_norm);
+        collision_risk = (dot_product > 0.5);
+      }
+    }
+  }
 
-  if (dist <= closest_dist)
+  printf("Agent %i approaching robot: distance=%.2f, closest_dist=%.2f, robot_linear_vel=%.2f, robot_actual_vel=%.2f, collision_risk=%s\n", 
+         id, dist, closest_dist, robot_speed, 
+         robot_is_moving ? std::hypot(robot_.sfmAgent.velocity.getX(), robot_.sfmAgent.velocity.getY()) : 0.0,
+         collision_risk ? "true" : "false");
+
+  // Case 1: Collision risk - move away to avoid collision
+  if (collision_risk)
+  {
+    printf("Agent %i: Collision risk detected, moving away temporarily\n", id);
+    
+    // Calculate direction away from robot
+    double escape_dx = ax - rx;
+    double escape_dy = ay - ry;
+    double escape_norm = std::hypot(escape_dx, escape_dy);
+    
+    if (escape_norm > 0.001) {
+      // Normalize escape direction
+      escape_dx /= escape_norm;
+      escape_dy /= escape_norm;
+      
+      // Calculate safe position (further than closest_dist)
+      double safe_distance = closest_dist * 1.5;
+      double safe_x = rx + safe_distance * escape_dx;
+      double safe_y = ry + safe_distance * escape_dy;
+      
+      // Store original goals and create temporary escape goal
+      std::list<sfm::Goal> original_goals = agents_[id].sfmAgent.goals;
+      
+      sfm::Goal escape_goal;
+      escape_goal.center.set(safe_x, safe_y);
+      escape_goal.radius = 0.3;
+      agents_[id].sfmAgent.goals.push_front(escape_goal);
+      
+      // Use higher velocity for escape
+      double original_vel = agents_[id].sfmAgent.desiredVelocity;
+      agents_[id].sfmAgent.desiredVelocity = static_cast<float>(max_vel * 1.2);
+      
+      // Update position
+      computeForces(id);
+      sfm::SFM.updatePosition(agents_[id].sfmAgent, dt);
+      
+      // Restore original goals and velocity
+      agents_[id].sfmAgent.goals = original_goals;
+      agents_[id].sfmAgent.desiredVelocity = static_cast<float>(original_vel);
+      
+      printf("Agent %i escaped to safe position: (%.2f, %.2f)\n", id, safe_x, safe_y);
+    }
+  }
+  // Case 2: At desired distance - look at robot and stay
+  else if (dist <= closest_dist)
   {
       // When the agent is close enough, update its orientation to face the robot
       double desiredAngle = std::atan2(dy, dx);
@@ -255,7 +331,10 @@ void AgentManager::approximateRobot(int id, double dt, double closest_dist, doub
                           error;
       double newYaw = currentYaw + deltaYaw;
       agents_[id].sfmAgent.yaw.setRadian(newYaw);
+      
+      printf("Agent %i at desired distance, looking at robot (angle: %.2f)\n", id, newYaw);
   }
+  // Case 3: Too far - approach robot
   else
   {
       // When the agent is not close enough, set a temporary goal at the robot's position
@@ -276,9 +355,10 @@ void AgentManager::approximateRobot(int id, double dt, double closest_dist, doub
       // Remove the temporary goal and restore the original velocity
       agents_[id].sfmAgent.goals.pop_front();
       agents_[id].sfmAgent.desiredVelocity = static_cast<float>(original_vel);
+      
+      printf("Agent %i approaching robot: scaled_vel=%.2f\n", id, scaled_vel);
   }
 }
-
 
 void AgentManager::blockRobot(int id, double dt, double front_dist)
 {
@@ -286,61 +366,116 @@ void AgentManager::blockRobot(int id, double dt, double front_dist)
 
   agents_[id].behavior.state = 1;
 
-  // Robot position
+  // Get robot position, heading, and velocity
   float rx = robot_.sfmAgent.position.getX();
   float ry = robot_.sfmAgent.position.getY();
+  float robot_yaw = robot_.sfmAgent.yaw.toRadian();
+  float robot_speed = robot_.sfmAgent.linearVelocity;
 
-  float h = robot_.sfmAgent.yaw.toRadian();
-
-  // Store the initial set o goals
-  std::list<sfm::Goal> gls = agents_[id].sfmAgent.goals;
-
-  // Change the agent goal.
-  // We should compute a goal in front of the robot heading.
-  float newgx = rx + front_dist * sin(h);
-  float newgy = ry + front_dist * cos(h);
-  sfm::Goal g;
-  g.center.set(newgx, newgy);
-  g.radius = 0.05;  // robot_.sfmAgent.radius;
-  agents_[id].sfmAgent.goals.push_front(g);
-
-  // We should change the weights of the sfm agent???
-
-  float ini_desired_vel = agents_[id].sfmAgent.desiredVelocity;
-  // gives the agent high vel to pass the robot
-  agents_[id].sfmAgent.desiredVelocity = 2.0;
-
-  // recompute forces
-  computeForces(id);
-  // update position
-  sfm::SFM.updatePosition(agents_[id].sfmAgent, dt);
-
-  // if the agent is close to the robot,
-  // look at the robot
-  // float dist = sqrt(robotSquaredDistance(id));
+  // Get current agent position
   float ax = agents_[id].sfmAgent.position.getX();
   float ay = agents_[id].sfmAgent.position.getY();
-  float dist = sqrt((rx - ax) * (rx - ax) + (ry - ay) * (ry - ay));
-  if (dist <= 0.6)
+  float distance_to_robot = std::hypot(rx - ax, ry - ay);
+
+  // Calculate the ideal blocking position (in front of robot)
+  float ideal_x = rx + front_dist * cos(robot_yaw);
+  float ideal_y = ry + front_dist * sin(robot_yaw);
+  float distance_to_ideal = std::hypot(ideal_x - ax, ideal_y - ay);
+
+  // Check if robot is moving (threshold for "stationary")
+  bool robot_is_moving = (robot_speed > 0.1); // 0.1 m/s threshold
+  
+  // Calculate if agent is approximately in the blocking position
+  bool in_blocking_position = (distance_to_ideal <= 0.8) && (distance_to_robot <= (front_dist + 0.8));
+  
+  printf("Agent %i blocking robot: robot_yaw=%.2f, robot_speed=%.2f, ideal_pos=(%.2f,%.2f), agent_pos=(%.2f,%.2f), dist_to_ideal=%.2f, in_position=%s, robot_moving=%s\n", 
+         id, robot_yaw, robot_speed, ideal_x, ideal_y, ax, ay, distance_to_ideal, 
+         in_blocking_position ? "true" : "false", robot_is_moving ? "true" : "false");
+
+  // Case 1: Agent is in blocking position AND robot is stationary - just look at robot
+  if (in_blocking_position && !robot_is_moving)  
   {
-    // printf("Agent %i stoping and looking at the robot! dist: %.2f\n", id,
-    // dist);
-    // Agent position
-    float ax = agents_[id].sfmAgent.position.getX();
-    float ay = agents_[id].sfmAgent.position.getY();
-    float ah = agents_[id].sfmAgent.yaw.toRadian();
-    // Transform robot position to agent coords system
-    float nrx = (rx - ax) * cos(ah) + (ry - ay) * sin(ah);
-    float nry = -(rx - ax) * sin(ah) + (ry - ay) * cos(ah);
-    utils::Angle robotYaw;  // = utils::Angle::fromRadian(atan2(nry, nrx));
-    robotYaw.setRadian(atan2(nry, nrx));
-
-    agents_[id].sfmAgent.yaw = agents_[id].sfmAgent.yaw + robotYaw;
+    // Calculate the angle from agent to robot (safe custom calculation)
+    float angle_to_robot = std::atan2(ry - ay, rx - ax);
+    agents_[id].sfmAgent.yaw.setRadian(angle_to_robot);
+    
+    // Stop the agent by setting velocity to zero
+    float original_vel = agents_[id].sfmAgent.desiredVelocity;
+    agents_[id].sfmAgent.desiredVelocity = 0.0;
+    
+    // Compute forces with zero velocity (agent stays in place)
+    computeForces(id);
+    // Don't update position - agent should stay where it is
+    
+    // Restore original velocity for next iteration
+    agents_[id].sfmAgent.desiredVelocity = original_vel;
+    
+    printf("Agent %i in blocking position with stationary robot, looking at robot (angle: %.2f)\n", 
+           id, angle_to_robot);
   }
+  // Case 2: Agent is in blocking position BUT robot is moving - move away to maintain distance
+  else if (in_blocking_position && robot_is_moving)
+  {
+    // Robot is moving toward agent - agent should back away to maintain blocking distance
+    
+    // Store the original goals
+    std::list<sfm::Goal> original_goals = agents_[id].sfmAgent.goals;
 
-  // restore the goals and the velocity
-  agents_[id].sfmAgent.goals = gls;
-  agents_[id].sfmAgent.desiredVelocity = ini_desired_vel;
+    // Calculate a position further away in the same direction (backing away)
+    float backup_distance = front_dist + 0.5; // A bit further away
+    float backup_x = rx + backup_distance * cos(robot_yaw);
+    float backup_y = ry + backup_distance * sin(robot_yaw);
+    
+    // Create backing away goal
+    sfm::Goal backup_goal;
+    backup_goal.center.set(backup_x, backup_y);
+    backup_goal.radius = 0.2;
+    agents_[id].sfmAgent.goals.push_front(backup_goal);
+
+    // Use moderate velocity for backing away
+    float original_vel = agents_[id].sfmAgent.desiredVelocity;
+    agents_[id].sfmAgent.desiredVelocity = 1.5; // Moderate speed for repositioning
+
+    // Compute forces and update position (agent backs away)
+    computeForces(id);
+    sfm::SFM.updatePosition(agents_[id].sfmAgent, dt);
+
+    // Restore original goals and velocity
+    agents_[id].sfmAgent.goals = original_goals;
+    agents_[id].sfmAgent.desiredVelocity = original_vel;
+    
+    printf("Agent %i backing away from moving robot: backup_pos=(%.2f,%.2f)\n", 
+           id, backup_x, backup_y);
+  }
+  // Case 3: Agent is not in blocking position - move to ideal position
+  else
+  {
+    // Agent needs to move to the blocking position in front of the robot
+    
+    // Store the original goals
+    std::list<sfm::Goal> original_goals = agents_[id].sfmAgent.goals;
+
+    // Create blocking goal at the ideal position in front of robot
+    sfm::Goal blocking_goal;
+    blocking_goal.center.set(ideal_x, ideal_y);
+    blocking_goal.radius = 0.2;
+    agents_[id].sfmAgent.goals.push_front(blocking_goal);
+
+    // Store original velocity and increase it for faster approach
+    float original_vel = agents_[id].sfmAgent.desiredVelocity;
+    agents_[id].sfmAgent.desiredVelocity = 2.5; // Higher velocity for quicker positioning
+
+    // Compute forces and update position (agent moves toward blocking position)
+    computeForces(id);
+    sfm::SFM.updatePosition(agents_[id].sfmAgent, dt);
+
+    // Restore original goals and velocity
+    agents_[id].sfmAgent.goals = original_goals;
+    agents_[id].sfmAgent.desiredVelocity = original_vel;
+    
+    printf("Agent %i moving to blocking position: target=(%.2f,%.2f), current=(%.2f,%.2f)\n", 
+           id, ideal_x, ideal_y, ax, ay);
+  }
 }
 
 void AgentManager::blockAgent(int id, int target_id, double dt, double front_dist)
@@ -398,30 +533,155 @@ void AgentManager::blockAgent(int id, int target_id, double dt, double front_dis
 }
 
 
-void AgentManager::avoidRobot(int id, double dt, double scary_factor_force, double max_vel)
+void AgentManager::avoidRobot(int id, double dt, double safe_distance, double max_vel)
 {
   std::lock_guard<std::mutex> guard(mutex_);
 
   agents_[id].behavior.state = 1;
 
-  // we decrease the maximum velocity
-  double init_vel = agents_[id].sfmAgent.desiredVelocity;
-  agents_[id].sfmAgent.desiredVelocity = max_vel;
-  computeForces(id);
+  // Get robot position and velocity
+  float rx = robot_.sfmAgent.position.getX();
+  float ry = robot_.sfmAgent.position.getY();
+  float robot_vx = robot_.sfmAgent.velocity.getX();
+  float robot_vy = robot_.sfmAgent.velocity.getY();
 
-  // We add an extra repulsive force from the robot
-  utils::Vector2d minDiff = agents_[id].sfmAgent.position - robot_.sfmAgent.position;
-  double distance = minDiff.norm() - agents_[id].sfmAgent.radius;
+  // Get current agent position
+  float ax = agents_[id].sfmAgent.position.getX();
+  float ay = agents_[id].sfmAgent.position.getY();
+  float distance_to_robot = std::hypot(rx - ax, ry - ay);
 
-  utils::Vector2d Scaryforce =
-      scary_factor_force * (agents_[id].sfmAgent.params.forceSigmaObstacle / distance) * minDiff.normalized();
-  agents_[id].sfmAgent.forces.globalForce += Scaryforce;
+  // Calculate if agent is at a safe distance
+  bool at_safe_distance = (distance_to_robot >= safe_distance);
+  
+  // Track if agent has ever reached safe distance and previous distances
+  static std::map<int, bool> agent_reached_safe_distance;
+  static std::map<int, float> previous_distances;
+  
+  // Check if this is the first time at safe distance
+  if (at_safe_distance) {
+    if (agent_reached_safe_distance.find(id) == agent_reached_safe_distance.end()) {
+      agent_reached_safe_distance[id] = true;
+      printf("Agent %i: Reached safe distance for first time\n", id);
+    }
+  }
+  
+  // Detect if robot is approaching - based on movement direction and getting closer
+  bool robot_approaching = false;
+  bool distance_decreasing = false;
+  
+  // Check if distance is decreasing
+  if (previous_distances.find(id) != previous_distances.end()) {
+    float prev_distance = previous_distances[id];
+    distance_decreasing = (distance_to_robot < prev_distance - 0.05); // Robot got 5cm closer
+  }
+  previous_distances[id] = distance_to_robot;
+  
+  // Check if robot's movement direction is towards the agent
+  bool moving_towards_agent = false;
+  float robot_speed = std::hypot(robot_vx, robot_vy);
+  if (robot_speed > 0.1) { // Robot is moving
+    // Vector from robot to agent
+    float dx_robot_to_agent = ax - rx;
+    float dy_robot_to_agent = ay - ry;
+    
+    // Normalize robot velocity and robot-to-agent vector
+    float robot_vel_norm = std::hypot(robot_vx, robot_vy);
+    float agent_dir_norm = std::hypot(dx_robot_to_agent, dy_robot_to_agent);
+    
+    if (robot_vel_norm > 0.001 && agent_dir_norm > 0.001) {
+      // Calculate dot product to check if robot is moving towards agent
+      float dot_product = (robot_vx * dx_robot_to_agent + robot_vy * dy_robot_to_agent) / 
+                         (robot_vel_norm * agent_dir_norm);
+      
+      // If dot product > 0.5, robot is moving towards agent (angle < 60 degrees)
+      moving_towards_agent = (dot_product > 0.5);
+    }
+  }
+  
+  // Robot is approaching if BOTH conditions are true:
+  // 1. Distance is decreasing AND 2. Robot is moving towards agent
+  robot_approaching = distance_decreasing && moving_towards_agent;
+  
+  printf("Agent %i avoiding robot: distance=%.2f, safe_distance=%.2f, at_safe=%s, distance_decreasing=%s, moving_towards=%s, robot_approaching=%s\n", 
+         id, distance_to_robot, safe_distance, 
+         at_safe_distance ? "true" : "false", distance_decreasing ? "true" : "false",
+         moving_towards_agent ? "true" : "false", robot_approaching ? "true" : "false");
 
-  // update position
-  sfm::SFM.updatePosition(agents_[id].sfmAgent, dt);
+  // Case 1: At safe distance - just look at robot and stay still
+  if (at_safe_distance && 
+      agent_reached_safe_distance.find(id) != agent_reached_safe_distance.end() && 
+      agent_reached_safe_distance[id])
+  {
+    // Calculate the angle from agent to robot (to look at it)
+    float angle_to_robot = std::atan2(ry - ay, rx - ax);
+    agents_[id].sfmAgent.yaw.setRadian(angle_to_robot);
+    
+    // Stop the agent by setting velocity to zero
+    float original_vel = agents_[id].sfmAgent.desiredVelocity;
+    agents_[id].sfmAgent.desiredVelocity = 0.0;
+    
+    // Compute forces with zero velocity (agent stays in place)
+    computeForces(id);
+    // Don't update position - agent should stay where it is
+    
+    // Restore original velocity for next iteration
+    agents_[id].sfmAgent.desiredVelocity = original_vel;
+    
+    printf("Agent %i at safe distance, looking at robot and staying still (angle: %.2f, robot_approaching=%s)\n", 
+           id, angle_to_robot, robot_approaching ? "true" : "false");
+  }
+  // Case 2: Need to move away - either never reached safe distance OR too close (regardless of robot approach)
+  else if (agent_reached_safe_distance.find(id) == agent_reached_safe_distance.end() || 
+           !at_safe_distance)
+  {
+    printf("Agent %i: Moving away - distance=%.2f, at_safe=%s, never_reached_safe=%s\n", 
+           id, distance_to_robot, at_safe_distance ? "true" : "false",
+           (agent_reached_safe_distance.find(id) == agent_reached_safe_distance.end()) ? "true" : "false");
+           
+    // Calculate direction away from robot
+    float dx = ax - rx; // Direction: away from robot
+    float dy = ay - ry;
+    
+    // Normalize the direction vector
+    if (distance_to_robot > 0.1) // Avoid division by zero
+    {
+      dx /= distance_to_robot;
+      dy /= distance_to_robot;
+    }
+    else
+    {
+      // If too close, just move in current facing direction
+      dx = cos(agents_[id].sfmAgent.yaw.toRadian());
+      dy = sin(agents_[id].sfmAgent.yaw.toRadian());
+    }
+    
+    // Calculate escape position - move away from robot to safe distance
+    float escape_x = rx + safe_distance * dx;
+    float escape_y = ry + safe_distance * dy;
+    
+    // Store the original goals
+    std::list<sfm::Goal> original_goals = agents_[id].sfmAgent.goals;
 
-  // restore desired vel
-  agents_[id].sfmAgent.desiredVelocity = init_vel;
+    // Create escape goal away from robot
+    sfm::Goal escape_goal;
+    escape_goal.center.set(escape_x, escape_y);
+    escape_goal.radius = 0.3; // Larger radius for easier reaching
+    agents_[id].sfmAgent.goals.push_front(escape_goal);
+
+    // Store original velocity and set escape velocity
+    float original_vel = agents_[id].sfmAgent.desiredVelocity;
+    
+    agents_[id].sfmAgent.desiredVelocity = max_vel;
+
+    // Compute forces and update position (agent moves away from robot)
+    computeForces(id);
+    sfm::SFM.updatePosition(agents_[id].sfmAgent, dt);
+
+    // Restore original goals and velocity
+    agents_[id].sfmAgent.goals = original_goals;
+    agents_[id].sfmAgent.desiredVelocity = original_vel;
+    
+  }
 }
 
 int AgentManager::findNearestAgent(int id)
@@ -559,12 +819,12 @@ bool AgentManager::isAgentVisible(int observer_id, int target_id, double dist, d
     float nry = -(tx - ox) * sin(observer_yaw) + (ty - oy) * cos(observer_yaw);
     
     // Calculate the relative angle from the observer to the target
-    float relative_angle = atan2(nry, nrx);
+    float relative_angle = atan2(nry, nrx); 
     
     // if (fabs(relative_angle) <= fov_threshold)
     //   printf("\n\n\t---> Agent %i is seeing agent %i\n\n", observer_id, target_id);
     // If the absolute value of the relative angle is within the threshold, the target is visible
-    return (fabs(relative_angle) <= fov_threshold);
+    return (fabs(relative_angle) <= fov_threshold); 
 }
 
 void AgentManager::approachAgent(int id, int target_id, double dt, double closest_dist, double max_vel)
