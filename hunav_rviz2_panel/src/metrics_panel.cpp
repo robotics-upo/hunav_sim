@@ -156,32 +156,19 @@ void MetricsPanel::metricsSelectionWindow() {
   scroll_area = new QScrollArea(this);
   scroll_area->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
   scroll_area->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+  scroll_area->setFrameShape(QFrame::NoFrame);
+  scroll_area->setFrameShadow(QFrame::Plain);
   scroll_area->setWidgetResizable(true);
   scroll_area->setStyleSheet(
     "QScrollArea {"
-    "  border: 1px solid #bdc3c7;"
     "  border-radius: 5px;"
-    "  background-color: #ffffff;"
-    "  padding: 5px;"
-    "}"
-    "QScrollBar:vertical {"
-    "  background: #f1f1f1;"
-    "  width: 12px;"
-    "  border-radius: 6px;"
-    "}"
-    "QScrollBar::handle:vertical {"
-    "  background: #888;"
-    "  border-radius: 6px;"
-    "  min-height: 20px;"
-    "}"
-    "QScrollBar::handle:vertical:hover {"
-    "  background: #555;"
+    "  padding: 8px;"
     "}"
   );
   scroll_widget = new QWidget;
   QVBoxLayout *scroll_layout = new QVBoxLayout(scroll_widget);
   scroll_layout->setSpacing(8);
-  scroll_layout->setContentsMargins(5, 5, 5, 5);
+  scroll_layout->setContentsMargins(8, 8, 8, 8);
 
   // Clear previous data
   checkboxes.clear();
@@ -227,7 +214,7 @@ void MetricsPanel::metricsSelectionWindow() {
     );
     QVBoxLayout *group_layout = new QVBoxLayout(group);
     group_layout->setSpacing(3);
-    group_layout->setContentsMargins(10, 15, 10, 10);
+    group_layout->setContentsMargins(15, 15, 10, 10);
     category_groups[category] = group;
     scroll_layout->addWidget(group);
   }

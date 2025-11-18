@@ -28,6 +28,7 @@
 #include "hunav_agent_manager/follow_agent_node.hpp"
 #include "hunav_agent_manager/approach_robot_node.hpp"
 #include "hunav_agent_manager/block_robot_node.hpp"
+#include "hunav_agent_manager/avoid_robot_node.hpp"
 #include "hunav_agent_manager/block_agent_node.hpp"
 #include "hunav_agent_manager/time_delay_decorator.hpp"
 #include "hunav_agent_manager/group_walk_node.hpp"

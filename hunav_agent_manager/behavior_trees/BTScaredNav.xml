@@ -23,12 +23,23 @@
 
     <BehaviorTree ID="ScaredNavTree">
         <Fallback name="ScaredFallback">
+        
+            {GOAL_SEQUENCE}
+        
             <Sequence name="ScaNav">
-                <IsRobotVisible agent_id="{id}" distance="{dist}" /> <!--distance="3.0"-->
+                <!-- <IsRobotVisible agent_id="{id}" distance="{dist}" />
                 <Inverter>
                     <TimeExpiredCondition seconds="{duration}" ts="{dt}" only_once="{once}" />
                 </Inverter>
-                <ScaredNav agent_id="{id}" time_step="{dt}" runaway_vel="{maxvel}" scary_force_factor="{forcefactor}" />
+                <ScaredNav agent_id="{id}" time_step="{dt}" runaway_vel="{maxvel}" scary_force_factor="{forcefactor}" /> -->
+            
+            	<RunOnce>
+                    <IsRobotVisible agent_id="{id}" distance="{dist}" />
+                </RunOnce>
+                
+                <RunOnce>
+                    <AvoidRobot agent_id="{id}" time_step="{dt}" runaway_vel="{maxvel}" safe_distance="{safe_distance}" duration="{duration}" />
+                </RunOnce>
             </Sequence>
             <Sequence name="RegNav">
                 <SetBlackboard output_key="agentid" value="{id}" />

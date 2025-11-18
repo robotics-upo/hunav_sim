@@ -43,6 +43,7 @@
 #include <QDebug>
 #include <QProgressDialog>
 #include <QMessageBox>
+#include <QProcess>
 #include <QtConcurrent/QtConcurrent>
 
 // ================================ ROS2 INCLUDES ================================
@@ -74,6 +75,7 @@
 #include "headers/actor_panel.hpp"
 #include "headers/goal_pose_updater.hpp"
 #include "hunav_msgs/msg/agents.hpp"
+#include "headers/BTConfigDialog.h"
 
 using namespace std::chrono_literals;
 using std::placeholders::_1;
@@ -229,7 +231,7 @@ namespace hunav_rviz2_panel
     QVBoxLayout *map_layout_v = new QVBoxLayout;
     map_layout_v->setSpacing(2);
 
-    // Simulator selection with icons
+    // Simulator selection
     QLabel *sim_label = new QLabel("Select Simulator:");
     sim_label->setStyleSheet("font-weight: bold; color: #2c3e50;");
     map_layout_v->addWidget(sim_label);
@@ -289,7 +291,7 @@ namespace hunav_rviz2_panel
         "  color: #5d6d7e;"
         "  font-style: italic;"
         "}");
-    current_map_label_->setMinimumWidth(200);
+    current_map_label_->setMinimumWidth(100);
 
     map_select_layout->addWidget(map_select_btn_);
     map_select_layout->addWidget(current_map_label_, 1);
@@ -474,16 +476,15 @@ namespace hunav_rviz2_panel
     main_layout->addWidget(agent_config_group);
 
     connect(add_agent_button_, &QPushButton::clicked, this, [this](bool checked)
-    {
+            {
         // Toggle the button state
         add_agent_button_->setDown(checked);
         
         // Call the existing onAddAgent method
-        onAddAgent();
-    });
+        onAddAgent(); });
 
     connect(edit_goals_button_, &QPushButton::clicked, this, [this](bool checked)
-    {
+            {
         // Toggle the button state
         edit_goals_button_->setDown(checked);
 
@@ -626,43 +627,78 @@ namespace hunav_rviz2_panel
 
     // When “Create agents” / “Edit agents” is clicked, delegate to onCreateOrEditAgents():
     connect(actor_button_, &QPushButton::clicked, this, [this](bool checked)
-    {
-      // Toggle the button state
-      actor_button_->setDown(checked);
+            {
+              // Toggle the button state
+              actor_button_->setDown(checked);
 
-      onCreateOrEditAgents();
-
-    });
+              onCreateOrEditAgents(); });
 
     connect(open_button_, &QPushButton::clicked, this, [this]()
             {
               // 1) Ask which simulator we’re editing for
-              bool ok = false;
               QStringList sims = { "Gazebo Classic", "Gazebo Fortress", "Isaac Sim", "Webots" };
-              QString sim = QInputDialog::getItem(
-                  this,
-                  tr("Select Simulator"),
-                  tr("Which simulator are you using?"),
-                  sims,
-                  simulator_combo_->currentIndex(),  // start from whatever’s currently shown
-                  false,                        
-                  &ok);
-
-              if (!ok) {
-                // user cancelled the dialog
-                return;
-              }
-
-              // 2) Store it in sim combo so everything else sees the right simulator
-              simulator_combo_->setCurrentText(sim);
-
-              // 3) Now switch into Edit mode and parse the YAML
-              open_button_->setDown(true);
-              create_button_->setDown(false);
-              open_button_->setChecked(true);
-              create_button_->setChecked(false);
-
-              parseYaml(); });
+              QInputDialog dlg(this);
+              dlg.setWindowTitle(tr("Select Simulator"));
+              dlg.setLabelText(tr("Which simulator are you using?"));
+              dlg.setComboBoxItems(sims);
+              dlg.setOption(QInputDialog::UseListViewForComboBoxItems);  
+              dlg.setTextValue(simulator_combo_->currentText());
+              
+              dlg.setStyleSheet(R"(
+                QInputDialog {
+                  background-color: #f1f4f8ff;
+                  border: 2px solid #445cadff;
+                  border-radius: 8px;
+                }
+                QInputDialog QLabel {
+                  color: #2c3e50;
+                  font-size: 14px;
+                }
+                QComboBox {
+                  padding: 6px 10px;
+                  border: 2px solid #4457adff;
+                  border-radius: 6px;
+                  background-color: white;
+                  font-size: 14px;
+                }
+                QComboBox::drop-down {
+                  subcontrol-origin: padding;
+                  subcontrol-position: top right;
+                  width: 20px;
+                  border-left: none;
+                }
+                QComboBox QAbstractItemView {
+                  background: #ffffff;
+                  selection-background-color: #daddefff;
+                  font-size: 13px;
+                }
+                QDialogButtonBox QPushButton {
+                  padding: 6px 12px;
+                  border: 2px solid #445cadff;
+                  border-radius: 6px;
+                  background-color: #dae2efff;
+                  font-weight: bold;
+                }
+                QDialogButtonBox QPushButton:hover {
+                  background-color: #c3c9e8ff;
+                }
+                QDialogButtonBox QPushButton:disabled {
+                  background-color: #f8f9fa;
+                  color: #aeb6bf;
+                  border-color: #d5dbdb;
+                }
+              )");
+              
+              if (dlg.exec() == QDialog::Accepted) {
+                QString sim = dlg.textValue();
+                simulator_combo_->setCurrentText(sim);
+                open_button_->setDown(true);
+                create_button_->setDown(false);
+                open_button_->setChecked(true);
+                create_button_->setChecked(false);
+                parseYaml();
+                bt_group_->setEnabled(true);
+              } });
 
     // ─── Goal Management Section ───
     goal_group_ = new QGroupBox("Navigation Goals");
@@ -766,7 +802,7 @@ namespace hunav_rviz2_panel
         "  background-color: #3498db;"
         "  color: white;"
         "}");
-    goal_list_widget_->setMaximumHeight(120);
+    goal_list_widget_->setMaximumHeight(80);
     goal_layout->addWidget(goal_list_widget_);
 
     // Assign goals button
@@ -797,11 +833,12 @@ namespace hunav_rviz2_panel
         "}");
     goal_layout->addWidget(assign_goals_btn_);
 
-    connect(assign_goals_btn_, &QPushButton::clicked, this, [this](bool checked) {
+    connect(assign_goals_btn_, &QPushButton::clicked, this, [this](bool checked)
+            {
       // Toggle the button state
       assign_goals_btn_->setDown(checked);
-      onAssignGoalsClicked();
-    });
+      onAssignGoalsClicked(); 
+      bt_group_->setEnabled(true);});
 
     // Summary area for assigned goals
     summary_area_ = new QVBoxLayout;
@@ -890,17 +927,16 @@ namespace hunav_rviz2_panel
     output_layout->addWidget(save_bt_btn_);
 
     connect(save_bt_btn_, &QPushButton::clicked, this, [this](bool checked)
-    {
+            {
         // Toggle the button state
         save_bt_btn_->setDown(checked);
-        saveAndGenerateAll();
-    });
+        saveAndGenerateAll(); });
 
     output_group->setLayout(output_layout);
     main_layout->addWidget(output_group);
 
     // ─── Behavior Tree Management ───
-    bt_group_ = new QGroupBox("Behavior Tree Editor");
+    bt_group_ = new QGroupBox("Behavior Tree Management");
     bt_group_->setStyleSheet(
         "QGroupBox {"
         "  font-size: 16px;"
@@ -920,12 +956,124 @@ namespace hunav_rviz2_panel
         "  border: 1px solid #9b59b6;"
         "  border-radius: 4px;"
         "}");
-    bt_group_->setEnabled(true);
+    bt_group_->setEnabled(false);
 
     QVBoxLayout *bt_layout = new QVBoxLayout;
-    bt_layout->setSpacing(2);
+    bt_layout->setSpacing(8);
 
-    QLabel *bt_info = new QLabel("Behavior tree editing with visual interface");
+    // Small hint for the user to hover over buttons
+    statusLabel_ = new QLabel("Hover over buttons for more info", bt_group_);
+    statusLabel_->setStyleSheet(
+        "QLabel {"
+        "  color: #2c3e50;"
+        "  font-style: italic;"
+        "  font-size: 12px;"
+        "  padding: 4px;"
+        "  background-color: #ecf0f1;"
+        "  border-radius: 4px;"
+        "  border: 1px solid #bdc3c7;"
+        "}");
+    bt_layout->addWidget(statusLabel_); 
+
+    currentXmlPath_ = "BTRegularNav.xml";
+    agentBTConfig_.clear();
+
+    // Wizard configuration button
+    auto cfg_bt_btn = new QPushButton("Configure Agent Behaviors");
+    cfg_bt_btn->setToolTip(
+        "<html><b>Behavior Tree Configurator</b><br>"
+        "Launch a step-by-step configurator to customize agent behavior trees with predefined behavior blocks.<br>"
+        "This helps you set up behaviors without needing to edit XML files directly.</html>");
+    cfg_bt_btn->setStyleSheet(
+        "QPushButton {"
+        "  padding: 5px 8px;"
+        "  border: 2px solid #9b59b6;"
+        "  border-radius: 6px;"
+        "  background-color: #f4f1f8;"
+        "  font-weight: bold;"
+        "}"
+        "QPushButton:hover {"
+        "  border-color: #7d3c98;"
+        "  background-color: #e8daef;"
+        "  color: #6c3483;"
+        "}"
+        "QPushButton:pressed {"
+        "  background-color: #9b59b6;"
+        "  color: white;"
+        "}");
+
+    connect(cfg_bt_btn, &QPushButton::clicked, this, &ActorPanel::launchBTWizard);
+
+    bt_layout->addWidget(cfg_bt_btn);
+
+    // Reset customizations button
+    auto resetBTBtn = new QPushButton("Reset All Customizations");
+    resetBTBtn->setStyleSheet(
+        "QPushButton {"
+        "  padding: 4px 8px;"
+        "  border: 2px solid #e74c3c;"
+        "  border-radius: 6px;"
+        "  background-color: #fdf2f2;"
+        // "  color: #c0392b;"
+        "  font-weight: bold;"
+        "}"
+        "QPushButton:hover {"
+        "  background-color: #fcebea;"
+        "  border-color: #c0392b;"
+        "}");
+
+    resetBTBtn->setToolTip(
+        "<html><b>Reset Behavior Tree Customizations</b><br>"
+        "This will revert all agents to their default behavior templates.<br>"
+        "<b>Note:</b> This action cannot be undone.</html>");
+
+    connect(resetBTBtn, &QPushButton::clicked, this, [this]()
+            {
+        // Check if agents are loaded
+        if (loaded_agent_names_.empty()) {
+            QMessageBox::information(this, "No Agents", 
+                "No agents are currently loaded. Please load or create agents first.");
+            return;
+        }
+
+        // Check if any BT files exist for the current scenario
+        QString scenarioName = panel_mode_ == EDIT_MODE ? orig_yaml_base_name_ : yaml_base_name_;
+        QString simulator = simulator_combo_->currentText();
+        
+        if (scenarioName.isEmpty()) {
+            QMessageBox::information(this, "No Configuration", 
+                "No scenario configuration is loaded. Save your configuration first.");
+            return;
+        }
+        
+        // Generate BT file paths to check if they exist
+        QStringList btPaths = BTConfigDialog::generateBTPathsForScenario(
+            scenarioName, simulator, loaded_agent_names_.size());
+        
+        // Check if at least one BT file exists
+        bool anyBTExists = false;
+        for (const QString& path : btPaths) {
+            if (QFile::exists(path)) {
+                anyBTExists = true;
+                break;
+            }
+        }
+        
+        if (!anyBTExists) {
+            QMessageBox::information(this, "No BT Files", 
+                "No behavior tree files found for this scenario.\n\n"
+                "BT files are created when you save the configuration or use the BT wizard.");
+            return;
+        }
+
+
+        resetBTConfiguration(btPaths);
+        RCLCPP_INFO(this->get_logger(), "Reset all BT customizations");
+        });
+
+
+    // Info label
+    QLabel *bt_info = new QLabel("Use the option above for guided BT editing, or \nlaunch Groot2 for visual editing");
     bt_info->setStyleSheet(
         "QLabel {"
         "  color: #5d6d7e;"
@@ -935,10 +1083,41 @@ namespace hunav_rviz2_panel
         "  border-radius: 4px;"
         "  border: 1px solid #d5dbdb;"
         "}");
-    bt_layout->addWidget(bt_info);
+    // bt_layout->addWidget(bt_info); // (currently not used)
 
-    edit_bt_btn_ = new QPushButton("Launch Groot2 Editor");
-    edit_bt_btn_->setEnabled(true);
+    // Add button to launch LLM-based BT generator
+    auto llm_bt_btn_ = new QPushButton("Generate Behaviors with LLM");
+    llm_bt_btn_->setToolTip(
+        "<html><b>LLM-based Behavior Tree Generator</b><br>"
+        "Leverage a Large Language Model to automatically generate behavior trees based on high-level descriptions.</html>");
+    llm_bt_btn_->setStyleSheet(
+        "QPushButton {"
+        "  padding: 5px 8px;"
+        "  border: 2px solid #9b59b6;"
+        "  border-radius: 6px;"
+        "  background-color: #f4f1f8;"
+        "  font-weight: bold;"
+        "}"
+        "QPushButton:hover {"
+        "  border-color: #7d3c98;"
+        "  background-color: #e8daef;"
+        "  color: #6c3483;"
+        "}"
+        "QPushButton:pressed {"
+        "  background-color: #9b59b6;"
+        "  color: white;"
+        "}"); 
+    bt_layout->addWidget(llm_bt_btn_);
+    connect(llm_bt_btn_, &QPushButton::clicked, this, &ActorPanel::launchLLMBTGenerator);
+
+    bt_layout->addWidget(resetBTBtn);
+
+    edit_bt_btn_ = new QPushButton("Launch Groot2 Visual BT Editor");
+    // edit_bt_btn_->setEnabled(true);
+    edit_bt_btn_->setToolTip(
+        "<html><b>Launch Groot2</b><br>"
+        "Open the Behavior Tree configuration in Groot2 for visual editing.<br>"
+        "<b>Note:</b> Ensure Groot2 is installed and accessible from your system PATH.</html>");
     edit_bt_btn_->setStyleSheet(
         "QPushButton {"
         "  padding: 5px 8px;"
@@ -960,17 +1139,19 @@ namespace hunav_rviz2_panel
     bt_layout->addWidget(edit_bt_btn_);
 
     connect(edit_bt_btn_, &QPushButton::clicked, this, [this](bool checked)
-    {
+            {
         // Toggle the button state
         edit_bt_btn_->setDown(checked);
-        onEditAllInGroot();
-    });
+        onEditAllInGroot(); });
 
     bt_group_->setLayout(bt_layout);
     main_layout->addWidget(bt_group_);
 
+    // main_layout->addWidget(output_group);
+
     // ─── Reset Button ───
     reset_button_ = new QPushButton("Reset Panel", this);
+    main_layout->addStretch();
     reset_button_->setToolTip("Clear everything and return to initial panel state");
     reset_button_->setStyleSheet(
         "QPushButton {"
@@ -995,8 +1176,23 @@ namespace hunav_rviz2_panel
 
     connect(reset_button_, &QPushButton::clicked, this, &ActorPanel::resetPanel);
 
-    // Add stretch to push everything to the top
     main_layout->addStretch();
+
+    auto container = new QWidget;
+    container->setLayout(main_layout);
+
+    auto scroll = new QScrollArea;
+    scroll->setWidget(container);
+    scroll->setWidgetResizable(true);
+
+    scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    scroll->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+
+    auto topLayout = new QVBoxLayout(this);
+    topLayout->setContentsMargins(0, 0, 0, 0);
+    topLayout->addWidget(scroll);
+
+    setLayout(topLayout);
 
     // Set the main layout
     setLayout(main_layout);
@@ -1346,239 +1542,242 @@ namespace hunav_rviz2_panel
     // — 3) Agent Selection Dialog —
     QString btFileToOpen;
     QString yamlBaseName;
-    
-    if (panel_mode_ == EDIT_MODE && !orig_yaml_base_name_.isEmpty()) {
-        yamlBaseName = orig_yaml_base_name_;
+
+    if (panel_mode_ == EDIT_MODE && !orig_yaml_base_name_.isEmpty())
+    {
+      yamlBaseName = orig_yaml_base_name_;
     }
-    else if (panel_mode_ == CREATE_MODE && !yaml_base_name_.isEmpty()) {
-        yamlBaseName = yaml_base_name_;
+    else if (panel_mode_ == CREATE_MODE && !yaml_base_name_.isEmpty())
+    {
+      yamlBaseName = yaml_base_name_;
     }
 
     // Only show agent selection if we have agents and a valid scenario
     if (!loaded_agent_names_.empty() && !yamlBaseName.isEmpty())
     {
-        // Create agent selection dialog
-        QDialog agentDialog(this);
-        agentDialog.setWindowTitle("Select Agent for Behavior Tree Editing");
-        agentDialog.setMinimumWidth(400);
-        agentDialog.setStyleSheet(
-            "QDialog {"
-            "  background-color: #f8f9fa;"
-            "  border: 2px solid #9b59b6;"
-            "  border-radius: 8px;"
-            "}"
-            "QLabel {"
-            "  color: #2c3e50;"
-            "  font-weight: bold;"
-            "  font-size: 14px;"
-            "}"
-            "QComboBox {"
-            "  padding: 8px 12px;"
-            "  border: 2px solid #bdc3c7;"
-            "  border-radius: 6px;"
-            "  background-color: white;"
-            "  font-size: 14px;"
-            "  min-height: 20px;"
-            "}"
-            "QComboBox:focus {"
-            "  border-color: #9b59b6;"
-            "}"
-            "QPushButton {"
-            "  padding: 8px 16px;"
-            "  border: 2px solid #9b59b6;"
-            "  border-radius: 6px;"
-            "  background-color: #f4f1f8;"
-            "  color: #7d3c98;"
-            "  font-weight: bold;"
-            "  font-size: 13px;"
-            "  min-width: 80px;"
-            "}"
-            "QPushButton:hover:enabled {"
-            "  border-color: #7d3c98;"
-            "}"
-            "QPushButton:pressed {"
-            "  background-color: #9b59b6;"
-            "  color: white;"
-            "}");
+      // Create agent selection dialog
+      QDialog agentDialog(this);
+      agentDialog.setWindowTitle("Select Agent for Behavior Tree Editing");
+      agentDialog.setMinimumWidth(400);
+      agentDialog.setStyleSheet(
+          "QDialog {"
+          "  border: 2px solid #9b59b6;"
+          "  border-radius: 8px;"
+          "}"
+          "QLabel {"
+          "  color: #2c3e50;"
+          "  font-weight: bold;"
+          "  font-size: 14px;"
+          "}"
+          "QComboBox {"
+          "  padding: 8px 12px;"
+          "  border: 2px solid #bdc3c7;"
+          "  border-radius: 6px;"
+          "  font-size: 14px;"
+          "  min-height: 20px;"
+          "}"
+          "QComboBox:focus {"
+          "  border-color: #9b59b6;"
+          "}"
+          "QPushButton {"
+          "  padding: 8px 16px;"
+          "  border: 2px solid #9b59b6;"
+          "  border-radius: 6px;"
+          "  background-color: #f4f1f8;"
+          "  color: #7d3c98;"
+          "  font-weight: bold;"
+          "  font-size: 13px;"
+          "  min-width: 80px;"
+          "}"
+          "QPushButton:hover:enabled {"
+          "  border-color: #7d3c98;"
+          "}"
+          "QPushButton:pressed {"
+          "  background-color: #9b59b6;"
+          "  color: white;"
+          "}");
 
-        QVBoxLayout *dialogLayout = new QVBoxLayout(&agentDialog);
-        dialogLayout->setSpacing(16);
-        dialogLayout->setContentsMargins(20, 20, 20, 20);
+      QVBoxLayout *dialogLayout = new QVBoxLayout(&agentDialog);
+      dialogLayout->setSpacing(16);
+      dialogLayout->setContentsMargins(20, 20, 20, 20);
 
-        // Header
-        QLabel *headerLabel = new QLabel("Choose Agent for BT Editing");
-        headerLabel->setStyleSheet(
-            "QLabel {"
-            "  font-size: 16px;"
-            "  font-weight: bold;"
-            "  color: #9b59b6;"
-            "  background-color: #f4f1f8;"
-            "  padding: 8px;"
-            "  border-radius: 6px;"
-            "  border: 1px solid #9b59b6;"
-            "}");
-        headerLabel->setAlignment(Qt::AlignCenter);
-        dialogLayout->addWidget(headerLabel);
+      // Header
+      QLabel *headerLabel = new QLabel("Choose Agent for BT Editing");
+      headerLabel->setStyleSheet(
+          "QLabel {"
+          "  font-size: 16px;"
+          "  font-weight: bold;"
+          "  color: #9b59b6;"
+          "  background-color: #f4f1f8;"
+          "  padding: 8px;"
+          "  border-radius: 6px;"
+          "  border: 1px solid #9b59b6;"
+          "}");
+      headerLabel->setAlignment(Qt::AlignCenter);
+      dialogLayout->addWidget(headerLabel);
 
-        // Agent selection
-        QLabel *selectLabel = new QLabel("Select agent to edit behavior tree:");
-        dialogLayout->addWidget(selectLabel);
+      // Agent selection
+      QLabel *selectLabel = new QLabel("Select agent to edit behavior tree:");
+      dialogLayout->addWidget(selectLabel);
 
-        QComboBox *agentSelector = new QComboBox;
-        
-        // Populate with agent information
-        for (size_t i = 0; i < loaded_agent_names_.size(); ++i)
+      QComboBox *agentSelector = new QComboBox;
+
+      // Populate with agent information
+      for (size_t i = 0; i < loaded_agent_names_.size(); ++i)
+      {
+        QString agentName = QString::fromStdString(loaded_agent_names_[i]);
+        QString behaviorType = "Regular"; // Default
+
+        if (i < loaded_agent_nodes_.size() &&
+            loaded_agent_nodes_[i]["behavior"] &&
+            loaded_agent_nodes_[i]["behavior"]["type"])
         {
-            QString agentName = QString::fromStdString(loaded_agent_names_[i]);
-            QString behaviorType = "Regular"; // Default
-            
-            if (i < loaded_agent_nodes_.size() && 
-                loaded_agent_nodes_[i]["behavior"] && 
-                loaded_agent_nodes_[i]["behavior"]["type"])
-            {
-                behaviorType = QString::fromStdString(
-                    loaded_agent_nodes_[i]["behavior"]["type"].as<std::string>());
-            }
-            
-            QString displayText = QString("Agent %1 - %2 Behavior")
-                .arg(i + 1)
-                .arg(behaviorType);
-            
-            agentSelector->addItem(displayText, static_cast<int>(i + 1));
+          behaviorType = QString::fromStdString(
+              loaded_agent_nodes_[i]["behavior"]["type"].as<std::string>());
         }
-        
-        agentSelector->setCurrentIndex(0);
-        dialogLayout->addWidget(agentSelector);
 
-        // Information label
-        QLabel *infoLabel = new QLabel(
-            "<html><i>The selected agent's behavior tree file will be opened in Groot2 for editing.<br>"
-            "File format: <b>" + yamlBaseName + "__agent_X_bt.xml</b></i></html>");
-        infoLabel->setStyleSheet(
-            "QLabel {"
-            "  color: #7f8c8d;"
-            "  font-size: 12px;"
-            "  background-color: #ecf0f1;"
-            "  padding: 8px;"
-            "  border-radius: 4px;"
-            "  border-left: 4px solid #9b59b6;"
-            "}");
-        dialogLayout->addWidget(infoLabel);
+        QString displayText = QString("Agent %1 - %2 Behavior")
+                                  .arg(i + 1)
+                                  .arg(behaviorType);
 
-        // Buttons
-        QHBoxLayout *buttonLayout = new QHBoxLayout;
-        QPushButton *openButton = new QPushButton("Open in Groot2");
-        QPushButton *cancelButton = new QPushButton("Cancel");
-        
-        openButton->setStyleSheet(openButton->styleSheet() + 
-            "QPushButton { border-color: #27ae60; background-color: #d5f4e6; }"
-            "QPushButton:hover { background-color: #a9dfbf; }");
-        cancelButton->setStyleSheet(cancelButton->styleSheet() + 
-            "QPushButton { border-color: #e74c3c; background-color: #fdf2f2; }"
-            "QPushButton:hover { background-color: #fcebea; }");
-        
-        buttonLayout->addStretch();
-        buttonLayout->addWidget(openButton);
-        buttonLayout->addWidget(cancelButton);
-        dialogLayout->addLayout(buttonLayout);
+        agentSelector->addItem(displayText, static_cast<int>(i + 1));
 
-        // Connect buttons
-        connect(openButton, &QPushButton::clicked, &agentDialog, &QDialog::accept);
-        connect(cancelButton, &QPushButton::clicked, &agentDialog, &QDialog::reject);
+        QString btFileName = QString("%1__agent_%2_bt.xml").arg(yamlBaseName).arg(i + 1);
+        QString fullBtPath = btDir + "/" + btFileName;
+        agentBtPaths_.push_back(fullBtPath);
+      }
 
-        // Show dialog and get result
-        if (agentDialog.exec() == QDialog::Accepted)
+      agentSelector->setCurrentIndex(0);
+      dialogLayout->addWidget(agentSelector);
+
+      // Information label
+      QLabel *infoLabel = new QLabel(
+          "<html><i>The selected agent's behavior tree file will be opened in Groot2 for editing.<br>"
+          "File format: <b>" +
+          yamlBaseName + "__agent_X_bt.xml</b></i></html>");
+      infoLabel->setStyleSheet(
+          "QLabel {"
+          "  color: #7f8c8d;"
+          "  font-size: 12px;"
+          "  background-color: #ecf0f1;"
+          "  padding: 8px;"
+          "  border-radius: 4px;"
+          "  border-left: 4px solid #9b59b6;"
+          "}");
+      dialogLayout->addWidget(infoLabel);
+
+      // Buttons
+      QHBoxLayout *buttonLayout = new QHBoxLayout;
+      QPushButton *openButton = new QPushButton("Open in Groot2");
+      QPushButton *cancelButton = new QPushButton("Cancel");
+
+      openButton->setStyleSheet(openButton->styleSheet() +
+                                "QPushButton { border-color: #27ae60; background-color: #d5f4e6; }"
+                                "QPushButton:hover { background-color: #a9dfbf; }");
+      cancelButton->setStyleSheet(cancelButton->styleSheet() +
+                                  "QPushButton { border-color: #e74c3c; background-color: #fdf2f2; }"
+                                  "QPushButton:hover { background-color: #fcebea; }");
+
+      buttonLayout->addStretch();
+      buttonLayout->addWidget(openButton);
+      buttonLayout->addWidget(cancelButton);
+      dialogLayout->addLayout(buttonLayout);
+
+      // Connect buttons
+      connect(openButton, &QPushButton::clicked, &agentDialog, &QDialog::accept);
+      connect(cancelButton, &QPushButton::clicked, &agentDialog, &QDialog::reject);
+
+      // Show dialog and get result
+      if (agentDialog.exec() == QDialog::Accepted)
+      {
+        int selectedAgentId = agentSelector->currentData().toInt();
+        QString selectedAgentName = QString::fromStdString(loaded_agent_names_[selectedAgentId - 1]);
+        QString selectedBehavior = "Regular";
+
+        if (selectedAgentId - 1 < static_cast<int>(loaded_agent_nodes_.size()) &&
+            loaded_agent_nodes_[selectedAgentId - 1]["behavior"] &&
+            loaded_agent_nodes_[selectedAgentId - 1]["behavior"]["type"])
         {
-            int selectedAgentId = agentSelector->currentData().toInt();
-            QString selectedAgentName = QString::fromStdString(loaded_agent_names_[selectedAgentId - 1]);
-            QString selectedBehavior = "Regular";
-            
-            if (selectedAgentId - 1 < static_cast<int>(loaded_agent_nodes_.size()) && 
-                loaded_agent_nodes_[selectedAgentId - 1]["behavior"] && 
-                loaded_agent_nodes_[selectedAgentId - 1]["behavior"]["type"])
-            {
-                selectedBehavior = QString::fromStdString(
-                    loaded_agent_nodes_[selectedAgentId - 1]["behavior"]["type"].as<std::string>());
-            }
-
-            // Construct the BT file path for the selected agent
-            QString btFileName = QString("%1__agent_%2_bt.xml").arg(yamlBaseName).arg(selectedAgentId);
-            QString fullBtPath = btDir + "/" + btFileName;
-
-            if (QFile::exists(fullBtPath))
-            {
-                btFileToOpen = fullBtPath;
-                RCLCPP_INFO(get_logger(), "Opening BT file for Agent %d (%s - %s): %s", 
-                    selectedAgentId, 
-                    selectedAgentName.toStdString().c_str(),
-                    selectedBehavior.toStdString().c_str(),
-                    btFileToOpen.toStdString().c_str());
-            }
-            else
-            {
-                RCLCPP_WARN(get_logger(), "BT file not found for Agent %d: %s", 
-                    selectedAgentId, fullBtPath.toStdString().c_str());
-                
-                QMessageBox::warning(this, "File Not Found",
-                    QString("<html><h3>Behavior Tree File Not Found</h3>"
-                           "<p><b>Agent:</b> %1 (%2)</p>"
-                           "<p><b>Expected file:</b> %3</p>"
-                           "<p><b>Location:</b> %4</p>"
-                           "<br><p>Please ensure the scenario has been saved and behavior trees generated.</p></html>")
-                        .arg(selectedAgentId)
-                        .arg(selectedAgentName)
-                        .arg(btFileName)
-                        .arg(btDir));
-                return;
-            }
+          selectedBehavior = QString::fromStdString(
+              loaded_agent_nodes_[selectedAgentId - 1]["behavior"]["type"].as<std::string>());
         }
-        else
-        {
-            // User cancelled
-            return;
-        }
-    }
-    else if (!yamlBaseName.isEmpty())
-    {
-        // Fallback to first agent if no agent selection is possible
-        QString btFileName = QString("%1__agent_1_bt.xml").arg(yamlBaseName);
+
+        // Construct the BT file path for the selected agent
+        QString btFileName = QString("%1__agent_%2_bt.xml").arg(yamlBaseName).arg(selectedAgentId);
         QString fullBtPath = btDir + "/" + btFileName;
 
         if (QFile::exists(fullBtPath))
         {
-            btFileToOpen = fullBtPath;
-            RCLCPP_INFO(get_logger(), "Opening default BT file (Agent 1): %s", btFileToOpen.toStdString().c_str());
+          btFileToOpen = fullBtPath;
+          RCLCPP_INFO(get_logger(), "Opening BT file for Agent %d (%s - %s): %s",
+                      selectedAgentId,
+                      selectedAgentName.toStdString().c_str(),
+                      selectedBehavior.toStdString().c_str(),
+                      btFileToOpen.toStdString().c_str());
         }
         else
         {
-            RCLCPP_WARN(get_logger(), "Default BT file not found: %s", fullBtPath.toStdString().c_str());
+          RCLCPP_WARN(get_logger(), "BT file not found for Agent %d: %s",
+                      selectedAgentId, fullBtPath.toStdString().c_str());
+
+          QMessageBox::warning(this, "File Not Found",
+                               QString("<html><h3>Behavior Tree File Not Found</h3>"
+                                       "<p><b>Agent:</b> %1 (%2)</p>"
+                                       "<p><b>Expected file:</b> %3</p>"
+                                       "<p><b>Location:</b> %4</p>"
+                                       "<br><p>Please ensure the scenario has been saved and behavior trees generated.</p></html>")
+                                   .arg(selectedAgentId)
+                                   .arg(selectedAgentName)
+                                   .arg(btFileName)
+                                   .arg(btDir));
+          return;
         }
+      }
+      else
+      {
+        // User cancelled
+        return;
+      }
+    }
+    else if (!yamlBaseName.isEmpty())
+    {
+      // Fallback to first agent if no agent selection is possible
+      QString btFileName = QString("%1__agent_1_bt.xml").arg(yamlBaseName);
+      QString fullBtPath = btDir + "/" + btFileName;
+
+      if (QFile::exists(fullBtPath))
+      {
+        btFileToOpen = fullBtPath;
+        RCLCPP_INFO(get_logger(), "Opening default BT file (Agent 1): %s", btFileToOpen.toStdString().c_str());
+      }
+      else
+      {
+        RCLCPP_WARN(get_logger(), "Default BT file not found: %s", fullBtPath.toStdString().c_str());
+      }
     }
 
     // Show information about the BT directory and selected file
     QString infoMessage;
     if (!btFileToOpen.isEmpty())
     {
-        QFileInfo fileInfo(btFileToOpen);
-        infoMessage = QString(
-            "<html>All generated BehaviorTree XML files are located in:<br><br>"
-            "%1<br><br>"
-            "<b>Opening:</b> %2<br>"
-            "<i>Groot2 will launch with the selected agent's behavior tree file.</i></html>")
-            .arg(btDir)
-            .arg(fileInfo.fileName());
+      QFileInfo fileInfo(btFileToOpen);
+      infoMessage = QString(
+                        "<html>All generated BehaviorTree XML files are located in:<br><br>"
+                        "%1<br><br>"
+                        "<b>Groot2 will launch with the following agent's behavior tree file:</b> %2<br></html>")
+                        .arg(btDir)
+                        .arg(fileInfo.fileName());
     }
     else
     {
-        infoMessage = QString(
-            "<html>All generated BehaviorTree XML files are located in:<br><br>"
-            "%1<br><br>"
-            "<b>Groot2 will now launch.</b></html>")
-            .arg(btDir);
+      infoMessage = QString(
+                        "<html>All generated BehaviorTree XML files are located in:<br><br>"
+                        "%1<br><br>"
+                        "<b>Groot2 will now launch.</b></html>")
+                        .arg(btDir);
     }
 
     QMessageBox::information(this, "Behavior Trees Location", infoMessage);
-
 
     // — 3) Launch Groot2 —
 
@@ -1728,619 +1927,147 @@ namespace hunav_rviz2_panel
                                           : QString("<strong>Attempted to open file:</strong><br><span class='path'>%1</span><br><br>")
                                                 .arg(btFileToOpen)));
       }
-    }}
+    }
+  }
 
-    // Utility: load file to string
-    static QString loadFile(const QString &path)
+  // Utility: load file to string
+  // static QString loadFile(const QString &path)
+  // {
+  //   QFile f(path);
+  //   if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
+  //     return {};
+  //   return f.readAll();
+  // }
+
+  QString ActorPanel::loadFile(const QString &filepath)
+  {
+    QString fullPath = filepath;
+
+    if (!QFile::exists(fullPath))
     {
-      QFile f(path);
-      if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
-        return {};
-      return f.readAll();
+      try
+      {
+        auto pkg = QString::fromStdString(
+            ament_index_cpp::get_package_share_directory("hunav_agent_manager"));
+        fullPath = pkg + "/behavior_trees/" + filepath;
+      }
+      catch (const std::exception &e)
+      {
+        RCLCPP_WARN(this->get_logger(),
+                    "Could not find share dir for hunav_agent_manager: %s",
+                    e.what());
+      }
     }
 
-    void ActorPanel::addAgent()
+    QFile file(fullPath);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
     {
-      // ─────────────────────────── DETERMINE TOTAL AGENTS ────────────────────────
-      if (panel_mode_ == CREATE_MODE)
+      RCLCPP_WARN(this->get_logger(),
+                  "Cannot open BT template file: %s",
+                  fullPath.toStdString().c_str());
+      return QString();
+    }
+
+    QTextStream in(&file);
+    return in.readAll();
+  }
+
+  void ActorPanel::addAgent()
+  {
+    // ─────────────────────────── DETERMINE TOTAL AGENTS ────────────────────────
+    if (panel_mode_ == CREATE_MODE)
+    {
+      num_agents = actors->text().toInt();
+
+      // Make sure all arrays are sized correctly for CREATE mode
+      while (loaded_agent_nodes_.size() < static_cast<size_t>(num_agents))
       {
-        num_agents = actors->text().toInt();
-
-        // Make sure all arrays are sized correctly for CREATE mode
-        while (loaded_agent_nodes_.size() < static_cast<size_t>(num_agents))
-        {
-          loaded_agent_nodes_.push_back(YAML::Node());
-        }
-        while (loaded_agent_names_.size() < static_cast<size_t>(num_agents))
-        {
-          loaded_agent_names_.push_back("");
-        }
-        while (loaded_agent_goals_.size() < static_cast<size_t>(num_agents))
-        {
-          loaded_agent_goals_.push_back(std::vector<int>());
-        }
-        while (loaded_initial_marker_ids_.size() < static_cast<size_t>(num_agents))
-        {
-          loaded_initial_marker_ids_.push_back(-1);
-        }
+        loaded_agent_nodes_.push_back(YAML::Node());
       }
-      else if (panel_mode_ == EDIT_MODE)
+      while (loaded_agent_names_.size() < static_cast<size_t>(num_agents))
       {
-        num_agents = static_cast<int>(loaded_agent_nodes_.size());
-
-        // For adding new agents in EDIT mode, we might need to expand
-        if (adding_new_agent_)
-        {
-          num_agents = static_cast<int>(loaded_agent_names_.size()) + 1;
-        }
+        loaded_agent_names_.push_back("");
       }
-
-      // Validate current_edit_idx_
-      if (!adding_new_agent_ &&
-          (current_edit_idx_ < 0 || current_edit_idx_ >= static_cast<int>(loaded_agent_names_.size())))
+      while (loaded_agent_goals_.size() < static_cast<size_t>(num_agents))
       {
-        RCLCPP_ERROR(get_logger(),
-                     "Invalid current_edit_idx_ %d (should be 0-%zu)",
-                     current_edit_idx_, loaded_agent_names_.size() - 1);
-        current_edit_idx_ = 0;
+        loaded_agent_goals_.push_back(std::vector<int>());
       }
-      initAgentColors(num_agents);
-
-      // ─────────────────────── POPUP WINDOW SETUP ─────────────────────────────────
-      if (!window)
+      while (loaded_initial_marker_ids_.size() < static_cast<size_t>(num_agents))
       {
-        window = new QWidget;
-        window->setWindowFlag(Qt::WindowStaysOnTopHint);
-        window->setStyleSheet(
-            "QGroupBox {"
-            "  font-weight: bold;"
-            "  font-size: 16px;"
-            "  color:rgb(0, 0, 0);"
-            "  margin-top: 8px;"
-            "  padding-top: 4px;"
-            "  border: 2px solid #3498db;"
-            "  border-radius: 6px;"
-            "  background-color: rgb(229, 236, 247);"
-            "}"
-            "QGroupBox::title {"
-            "  font-size: 16px;"
-            "  subcontrol-origin: margin;"
-            "  subcontrol-position: top left;"
-            "  padding: 0 4px;"
-            "  border: 1px solid #3498db;"
-            "  background-color: rgb(150, 198, 253);"
-            "  border-radius: 4px;"
-            "}"
-            "QLabel {"
-            "  font-weight: bold;"
-            "}"
-            "QLineEdit {"
-            "  padding: 3px 5px;"
-            "  border: 2px solid #bdc3c7;"
-            "  border-radius: 4px;"
-            "}"
-            "QComboBox {"
-            "  padding: 3px 5px;"
-            "}"
-            "QLineEdit:focus, QComboBox:focus {"
-            "  border-color: #3498db;"
-            "}"
-            "QPushButton {"
-            "  padding: 4px 8px;"
-            "  border: 2px solid #27ae60;"
-            "  border-radius: 6px;"
-            "  background-color: #d5f4e6;"
-            "  font-weight: bold;"
-            "}"
-            "QPushButton:hover {"
-            "  border-color: #1e8449;"
-            "  background-color: #a9dfbf;"
-            "}"
-            "QPushButton:disabled {"
-            "  background-color: #f8f9fa;"
-            "  color: #aeb6bf;"
-            "  border-color: #d5dbdb;"
-            "}");
-
-        QTimer::singleShot(0, this, [this]() {
-          window->adjustSize();
-          QPoint panelTL = this->mapToGlobal(QPoint(0,0));
-          int x = panelTL.x() + (this->width() - window->width()) / 2;
-
-          window->move(x, panelTL.y());
-        });
+        loaded_initial_marker_ids_.push_back(-1);
       }
+    }
+    else if (panel_mode_ == EDIT_MODE)
+    {
+      num_agents = static_cast<int>(loaded_agent_nodes_.size());
 
-      // Enhanced window title
-      QString window_title;
+      // For adding new agents in EDIT mode, we might need to expand
       if (adding_new_agent_)
       {
-        window_title = QString("Add New Agent (#%1)").arg(current_edit_idx_ + 1);
+        num_agents = static_cast<int>(loaded_agent_names_.size()) + 1;
       }
-      else if (panel_mode_ == CREATE_MODE)
-      {
-        window_title = QString("Agent %1 of %2").arg(agent_count).arg(num_agents);
-      }
-      else
-      {
-        window_title = QString("Edit Agent %1 of %2").arg(current_edit_idx_ + 1).arg(num_agents);
-      }
-      window->setWindowTitle(window_title);
+    }
 
-      // Clear existing layout
-      if (topic_layout)
-      {
-        QLayoutItem *child;
-        while ((child = topic_layout->takeAt(0)) != nullptr)
-        {
-          if (auto w = child->widget())
-            delete w;
-          delete child;
-        }
-      }
-      else
-      {
-        topic_layout = new QVBoxLayout;
-        window->setLayout(topic_layout);
-      }
+    // Validate current_edit_idx_
+    if (!adding_new_agent_ &&
+        (current_edit_idx_ < 0 || current_edit_idx_ >= static_cast<int>(loaded_agent_names_.size())))
+    {
+      RCLCPP_ERROR(get_logger(),
+                   "Invalid current_edit_idx_ %d (should be 0-%zu)",
+                   current_edit_idx_, loaded_agent_names_.size() - 1);
+      current_edit_idx_ = 0;
+    }
+    initAgentColors(num_agents);
 
-      // ─── Header with Agent Info ───
-      QLabel *header = new QLabel(window_title, window);
-      header->setStyleSheet(
+    // ─────────────────────── POPUP WINDOW SETUP ─────────────────────────────────
+    if (!window)
+    {
+      window = new QWidget;
+      window->setWindowFlag(Qt::WindowStaysOnTopHint);
+      window->setStyleSheet(
+          "QGroupBox {"
+          "  font-weight: bold;"
+          "  font-size: 16px;"
+          "  color:rgb(0, 0, 0);"
+          "  margin-top: 8px;"
+          "  padding-top: 4px;"
+          "  border: 2px solid #3498db;"
+          "  border-radius: 6px;"
+          "  background-color: rgb(229, 236, 247);"
+          "}"
+          "QGroupBox::title {"
+          "  font-size: 16px;"
+          "  subcontrol-origin: margin;"
+          "  subcontrol-position: top left;"
+          "  padding: 0 4px;"
+          "  border: 1px solid #3498db;"
+          "  background-color: rgb(150, 198, 253);"
+          "  border-radius: 4px;"
+          "}"
           "QLabel {"
-          "  font-size: 18px;"
-          "  font-weight: bold;"
-          // "  color: #2c3e50;"
-          "  background-color:rgb(120, 179, 247);"
-          "  padding: 4px;"
-          "  border-radius: 6px;"
-          "  border: 4px #3498db;"
-          "}");
-      header->setAlignment(Qt::AlignCenter);
-      topic_layout->addWidget(header);
-
-      // ─── Navigation Buttons for Edit Mode ───
-      if (panel_mode_ == EDIT_MODE && !adding_new_agent_)
-      {
-        QHBoxLayout *nav_layout = new QHBoxLayout;
-
-        QPushButton *prev_btn = new QPushButton("Previous", window);
-        QPushButton *next_btn = new QPushButton("Next", window);
-
-        prev_btn->setEnabled(current_edit_idx_ > 0);
-        next_btn->setEnabled(current_edit_idx_ + 1 < num_agents);
-
-        nav_layout->addStretch();
-        nav_layout->addWidget(prev_btn);
-        nav_layout->addWidget(next_btn);
-        nav_layout->addStretch();
-
-        topic_layout->addLayout(nav_layout);
-
-        // Connect navigation
-        connect(prev_btn, &QPushButton::clicked, this, [this]()
-                {
-        if (current_edit_idx_ > 0) {
-          current_edit_idx_--;
-          window->close();
-          addAgent();
-        } });
-
-        connect(next_btn, &QPushButton::clicked, this, [this]()
-                {
-        if (current_edit_idx_ + 1 < num_agents) {
-          current_edit_idx_++;
-          window->close();
-          addAgent();
-        } });
-      }
-      // ─────────────────────────── AGENT CONFIGURATION FIELDS ─────────────────────
-
-      // ─── Basic Configuration Group ───
-      QGroupBox *basic_group = new QGroupBox("Basic Configuration");
-      QVBoxLayout *basic_layout = new QVBoxLayout;
-
-      // Desired velocity
-      basic_layout->addWidget(new QLabel("Maximum velocity (m/s):"));
-      agent_desired_vel = new QLineEdit(window);
-      agent_desired_vel->setText(QString::number(1.5, 'f', 1));
-      agent_desired_vel->setPlaceholderText("0.0 - 1.5 m/s");
-      basic_layout->addWidget(agent_desired_vel);
-
-      // Cyclic goals
-      cyclic_goals_checkbox = new QCheckBox("Cyclic navigation", window);
-      cyclic_goals_checkbox->setChecked(true);
-      cyclic_goals_checkbox->setToolTip("Agent will return to the first goal after reaching the last one and start navigation over.");
-      basic_layout->addWidget(cyclic_goals_checkbox);
-
-      basic_group->setLayout(basic_layout);
-      topic_layout->addWidget(basic_group);
-
-      // ─── Behavior Configuration Group ───
-      QGroupBox *behavior_group = new QGroupBox("Behavior Configuration");
-      QVBoxLayout *behavior_layout = new QVBoxLayout;
-
-      // Behavior type
-      behavior_layout->addWidget(new QLabel("Behavior type:"));
-      behavior_type_combobox = new QComboBox(window);
-      behavior_type_combobox->addItems({"Regular", "Impassive", "Surprised", "Scared", "Curious", "Threatening"});
-      behavior_layout->addWidget(behavior_type_combobox);
-      connect(behavior_type_combobox,
-              QOverload<int>::of(&QComboBox::currentIndexChanged),
-              this, &ActorPanel::checkComboBoxConf);
-
-      // Behavior configuration
-      behavior_layout->addWidget(new QLabel("Configuration preset:"));
-      behavior_conf_combobox = new QComboBox(window);
-      behavior_conf_combobox->addItems({"Default", "Custom", "Random-normal distribution", "Random-uniform distribution"});
-      behavior_layout->addWidget(behavior_conf_combobox);
-
-      dur = new QLabel("Duration:", window);
-      dur->setVisible(false);
-      beh_duration = new QLineEdit(window);
-      beh_duration->setVisible(false);
-      once = new QLabel("Only once:", window);
-      once->setVisible(false);
-      beh_once = new QLineEdit(window);
-      beh_once->setVisible(false);
-      dist = new QLabel("Visibility distance:", window);
-      dist->setVisible(false);
-      beh_dist = new QLineEdit(window);
-      beh_dist->setVisible(false);
-      vel = new QLabel("Behavior velocity:", window);
-      vel->setVisible(false);
-      beh_vel = new QLineEdit(window);
-      beh_vel->setVisible(false);
-      other = new QLabel("Repulsive force factor:", window);
-      other->setVisible(false);
-      beh_otherff = new QLineEdit(window);
-      beh_otherff->setVisible(false);
-      front = new QLabel("Front distance:", window);
-      front->setVisible(false);
-      beh_front_dist = new QLineEdit(window);
-      beh_front_dist->setVisible(false);
-      stop = new QLabel("Stop distance:", window);
-      stop->setVisible(false);
-      beh_stop_dist = new QLineEdit(window);
-      beh_stop_dist->setVisible(false);
-
-      // Agent desired velocity tooltip
-      agent_desired_vel->setToolTip(
-          "<html><b>Maximum Velocity</b><br>"
-          "Sets the agent's maximum walking speed in meters per second.<br>"
-          "<b>Range:</b> 0.1 - 1.5 m/s</html>");
-
-      // Behavior duration tooltip
-      beh_duration->setToolTip(
-          "<html><b>Duration</b><br>"
-          "How long the special behavior lasts (in seconds) when triggered.<br>"
-          "<b>Note:</b> After this time, agent returns to regular navigation.</html>");
-
-      // Behavior velocity tooltip
-      beh_vel->setToolTip(
-          "<html><b>Behavior Velocity</b><br>"
-          "Agent's velocity during the special behavior state.<br>"
-          "<b>Note:</b> Usually different from normal walking speed.</html>");
-
-      // Behavior once tooltip
-      beh_once->setToolTip(
-          "<html><b>Only Once</b><br>"
-          "Whether the behavior triggers only once per simulation.<br>"
-          "<b>Values:</b><br>"
-          "• <b>true:</b> Behavior happens only the first time<br>"
-          "• <b>false:</b> Behavior can happen multiple times</html>");
-
-      // Visibility distance tooltip
-      beh_dist->setToolTip(
-          "<html><b>Visibility Distance</b><br>"
-          "Maximum distance at which the agent can detect the robot.<br>"
-          "<b>Range:</b> 1.0 - 15.0 meters<br>"
-          "<b>Note:</b> Larger values make agents more reactive to distant robots.</html>");
-
-      // Stop distance tooltip (for Curious behavior)
-      beh_stop_dist->setToolTip(
-          "<html><b>Stop Distance</b><br>"
-          "Distance from robot where curious agent stops approaching.<br>"
-          "<b>Range:</b> 0.5 - 3.0 meters<br>"
-          "<b>Note:</b> Agent maintains this distance when observing robot.</html>");
-
-      // Front distance tooltip (for Threatening behavior)
-      beh_front_dist->setToolTip(
-          "<html><b>Front Distance</b><br>"
-          "How far in front of the robot the agent positions itself.<br>"
-          "<b>Range:</b> 0.5 - 2.0 meters<br>"
-          "<b>Note:</b> Used for blocking or confrontational behavior.</html>");
-
-
-      behavior_layout->addWidget(dur);
-      behavior_layout->addWidget(beh_duration);
-      behavior_layout->addWidget(vel);
-      behavior_layout->addWidget(beh_vel);
-      behavior_layout->addWidget(once);
-      behavior_layout->addWidget(beh_once);
-      behavior_layout->addWidget(dist);
-      behavior_layout->addWidget(beh_dist);
-      behavior_layout->addWidget(stop);
-      behavior_layout->addWidget(beh_stop_dist);
-      behavior_layout->addWidget(other);
-      behavior_layout->addWidget(beh_otherff);
-
-      behavior_group->setLayout(behavior_layout);
-      topic_layout->addWidget(behavior_group);
-
-      // ─── Simulator-Specific Configuration Group ───
-      QGroupBox *sim_group = new QGroupBox("Simulator Options");
-      QVBoxLayout *sim_layout = new QVBoxLayout;
-
-      // Skin selection (simulator-specific)
-      skin_label_ = new QLabel("Agent appearance:", window);
-      skin_combobox = new QComboBox(window);
-      skin_combobox->setToolTip(
-        "<html><b>Agent Appearance</b><br>"
-        "Visual representation of the agent in simulation.</html>");
-
-      // Populate combobox based on current simulator
-      QString currentSim = simulator_combo_->currentText();
-
-      skin_combobox->clear();
-
-      if (currentSim.contains("Gazebo", Qt::CaseInsensitive) ||
-          currentSim == "Gazebo Classic" ||
-          currentSim == "Gazebo Fortress")
-      {
-        skin_combobox->addItems({"Elegant man",
-                                 "Casual man",
-                                 "Elegant woman",
-                                 "Regular man",
-                                 "Worker man",
-                                 "Blue jeans",
-                                 "Green t-shirt",
-                                 "Blue t-shirt",
-                                 "Red t-shirt"});
-      }
-      else if (currentSim.contains("Isaac", Qt::CaseInsensitive) || currentSim == "Isaac Sim")
-      {
-        skin_combobox->addItems({"Random",
-                                 "F_Business_02",
-                                 "F_Medical_01",
-                                 "M_Medical_01",
-                                 "male_adult_construction_01",
-                                 "male_adult_construction_05",
-                                 "female_adult_police_01",
-                                 "female_adult_police_02",
-                                 "female_adult_police_03",
-                                 "male_adult_police_04",
-                                 "female_adult_business_02",
-                                 "female_adult_medical_01"});
-
-        // Set "Random" as default
-        skin_combobox->setCurrentIndex(0);
-      }
-      else if (currentSim.contains("Webots", Qt::CaseInsensitive) || currentSim == "Webots")
-      {
-        skin_combobox->addItems({
-            "Default Character", // 0 - placeholder
-            "Character Type 1",  // 1 - placeholder
-            "Character Type 2",  // 2 - placeholder
-            "Character Type 3"   // 3 - placeholder
-        });
-      }
-
-      skin_combobox->update();
-      skin_combobox->repaint();
-      skin_label_->update();
-      skin_label_->repaint();
-
-      sim_layout->addWidget(skin_label_);
-      sim_layout->addWidget(skin_combobox);
-
-      sim_group->setLayout(sim_layout);
-      sim_group->setVisible(true);
-      sim_group->show();
-
-      topic_layout->addWidget(sim_group);
-
-      // Store the current connection to avoid duplicates
-      static QMetaObject::Connection simulator_connection;
-
-      // Disconnect any existing connection
-      if (simulator_connection)
-      {
-        disconnect(simulator_connection);
-      }
-
-      // Update skin options when simulator changes in the main panel
-      simulator_connection = connect(simulator_combo_,
-                                     QOverload<int>::of(&QComboBox::currentIndexChanged),
-                                     this,
-                                     [this]()
-                                     {
-                                       // Only update if the dialog is open and skin_combobox exists
-                                       if (!skin_combobox || !window || !window->isVisible())
-                                         return;
-
-                                       QString newSim = simulator_combo_->currentText();
-                                       RCLCPP_INFO(get_logger(), "Simulator changed to: '%s' while agent window is open", newSim.toStdString().c_str());
-
-                                       // Clear existing items
-                                       skin_combobox->clear();
-
-                                       if (newSim.contains("Gazebo", Qt::CaseInsensitive) ||
-                                           newSim == "Gazebo Classic" ||
-                                           newSim == "Gazebo Fortress")
-                                       {
-                                         skin_combobox->addItems({"Elegant man",
-                                                                  "Casual man",
-                                                                  "Elegant woman",
-                                                                  "Regular man",
-                                                                  "Worker man",
-                                                                  "Blue jeans",
-                                                                  "Green t-shirt",
-                                                                  "Blue t-shirt",
-                                                                  "Red t-shirt"});
-                                         skin_combobox->setCurrentIndex(0);
-                                         skin_label_->setVisible(true);
-                                         skin_combobox->setVisible(true);
-                                       }
-                                       else if (newSim.contains("Isaac", Qt::CaseInsensitive) || newSim == "Isaac Sim")
-                                       {
-                                         skin_combobox->addItems({"Random",
-                                                                  "F_Business_02",
-                                                                  "F_Medical_01",
-                                                                  "M_Medical_01",
-                                                                  "male_adult_construction_01",
-                                                                  "male_adult_construction_05",
-                                                                  "female_adult_police_01",
-                                                                  "female_adult_police_02",
-                                                                  "female_adult_police_03",
-                                                                  "male_adult_police_04",
-                                                                  "female_adult_business_02",
-                                                                  "female_adult_medical_01"});
-                                         skin_combobox->setCurrentIndex(0);
-                                         skin_label_->setVisible(true);
-                                         skin_combobox->setVisible(true);
-                                       }
-                                       else if (newSim.contains("Webots", Qt::CaseInsensitive) || newSim == "Webots")
-                                       {
-                                         skin_combobox->addItems({"Default Character",
-                                                                  "Character Type 1",
-                                                                  "Character Type 2",
-                                                                  "Character Type 3"});
-                                         skin_combobox->setCurrentIndex(0);
-                                         skin_label_->setVisible(true);
-                                         skin_combobox->setVisible(true);
-                                       }
-                                       else
-                                       {
-                                         skin_combobox->addItems({"Default Character",
-                                                                  "Character Type 1",
-                                                                  "Character Type 2"});
-                                         skin_combobox->setCurrentIndex(0);
-                                         skin_label_->setVisible(true);
-                                         skin_combobox->setVisible(true);
-                                       }
-
-                                       // Force widget updates
-                                       skin_combobox->update();
-                                       skin_label_->update();
-                                     });
-
-      // ─── Advanced Behavior Parameters ───
-      QGroupBox *advanced_group = new QGroupBox("SFM parameters");
-      QVBoxLayout *advanced_layout = new QVBoxLayout;
-
-      // (8) Hidden “GFF / OFF / SFF / …” fields:
-      // vel = new QLabel("Behavior agent vel:", window);
-      // vel->setVisible(false);
-      // behavior_layout->addWidget(vel);
-
-      // beh_vel = new QLineEdit(window);
-      // beh_vel->setText("1.0");
-      // beh_vel->setVisible(false);
-      // beh_vel->setEnabled(false);
-      // advanced_layout->addWidget(beh_vel);
-
-      gff = new QLabel("Beh Goal Force Factor:", window);
-      advanced_layout->addWidget(gff);
-      beh_gff = new QLineEdit(window);
-      beh_gff->setText(QString::number(2.0, 'f', 1));
-      beh_gff->setEnabled(false);
-      beh_gff->setToolTip(
-          "<html><b>Goal Force Factor</b><br>"
-          "Strength of attraction towards navigation goals.<br>"
-          "<b>Higher values:</b> More direct path to goals</html>");
-      advanced_layout->addWidget(beh_gff);
-
-      off = new QLabel("Beh Obstacle Force Factor:", window);
-      advanced_layout->addWidget(off);
-      beh_off = new QLineEdit(window);
-      beh_off->setText(QString::number(10.0, 'f', 1));
-      beh_off->setEnabled(false);
-      beh_off->setToolTip(
-          "<html><b>Obstacle Force Factor</b><br>"
-          "Strength of repulsion from obstacles and walls.<br>"
-          "<b>Higher values:</b> Better obstacle avoidance</html>");
-      advanced_layout->addWidget(beh_off);
-
-      sff = new QLabel("Beh Social Force Factor:", window);
-      advanced_layout->addWidget(sff);
-      beh_sff = new QLineEdit(window);
-      beh_sff->setText(QString::number(5.0, 'f', 1));
-      beh_sff->setEnabled(false);
-      beh_sff->setToolTip(
-          "<html><b>Social Force Factor</b><br>"
-          "Strength of repulsion from other people.<br>"
-          "<b>Higher values:</b> Agents keep more distance from each other</html>");
-      advanced_layout->addWidget(beh_sff);
-
-      other = new QLabel("Beh Robot Repulsive Force Factor:", window);
-      other->setVisible(false);
-      advanced_layout->addWidget(other);
-      beh_otherff = new QLineEdit(window);
-      beh_otherff->setText(QString::number(20.0, 'f', 1));
-      beh_otherff->setEnabled(false);
-      beh_otherff->setVisible(false);
-      beh_otherff->setToolTip(
-          "<html><b>Robot Repulsive Force Factor</b><br>"
-          "Strength of repulsion specifically from robots.<br>"
-          "<b>Scared behavior:</b> Higher values make agents flee faster</html>");
-      advanced_layout->addWidget(beh_otherff);
-
-      connect(behavior_conf_combobox,
-              QOverload<int>::of(&QComboBox::currentIndexChanged),
-              this,
-              &ActorPanel::checkComboBoxConf);
-
-      checkComboBoxConf();
-
-      advanced_group->setLayout(advanced_layout);
-      topic_layout->addWidget(advanced_group);
-
-      // ─── Position Configuration ───
-      initial_pose_button = new QPushButton("Set Initial Pose on Map", window);
-      if (panel_mode_ == EDIT_MODE)
-        initial_pose_button->setText("Edit Initial Pose");
-      initial_pose_button->setCheckable(true);
-      initial_pose_button->setStyleSheet(
-          "QPushButton {"
-          "  padding: 6px 8px;"
-          "  border: 2px solid #e67e22;"
-          "  border-radius: 6px;"
-          "  background-color: #fef5e7;"
-          // "  color: #d68910;"
           "  font-weight: bold;"
           "}"
-          "QPushButton:hover {"
-          "  background-color: #f5b041;"
-          "  color: #ffffff;"
-          "  border-color: #d35400;"
+          "QLineEdit {"
+          "  padding: 3px 5px;"
+          "  border: 2px solid #bdc3c7;"
+          "  border-radius: 4px;"
           "}"
-          "QPushButton:checked {"
-          "  background-color: #e67e22;"
-          "  color: white;"
-          "}");
-
-      topic_layout->addWidget(initial_pose_button);
-
-      connect(initial_pose_button, &QPushButton::clicked,
-              this, &ActorPanel::setInitialPose);
-
-      save_button_ = new QPushButton("Save & Continue", window);
-      save_button_->setEnabled(false);
-      save_button_->setStyleSheet(
+          "QComboBox {"
+          "  padding: 3px 5px;"
+          "}"
+          "QLineEdit:focus, QComboBox:focus {"
+          "  border-color: #3498db;"
+          "}"
           "QPushButton {"
-          "  padding: 6px 10px;"
+          "  padding: 4px 8px;"
           "  border: 2px solid #27ae60;"
           "  border-radius: 6px;"
           "  background-color: #d5f4e6;"
-          // "  color: #1e8449;"
           "  font-weight: bold;"
-          "  font-size: 14px;"
           "}"
-          "QPushButton:hover:enabled {"
+          "QPushButton:hover {"
           "  border-color: #1e8449;"
           "  background-color: #a9dfbf;"
-          "  color: #1e8449;"
           "}"
           "QPushButton:disabled {"
           "  background-color: #f8f9fa;"
@@ -2348,10 +2075,530 @@ namespace hunav_rviz2_panel
           "  border-color: #d5dbdb;"
           "}");
 
-      topic_layout->addWidget(save_button_);
+      QTimer::singleShot(0, this, [this]()
+                         {
+          window->adjustSize();
+          QPoint panelTL = this->mapToGlobal(QPoint(0,0));
+          int x = panelTL.x() + (this->width() - window->width()) / 2;
 
-      connect(save_button_, &QPushButton::clicked, [this]()
+          window->move(x, panelTL.y()); });
+    }
+
+    // Enhanced window title
+    QString window_title;
+    if (adding_new_agent_)
+    {
+      window_title = QString("Add New Agent (#%1)").arg(current_edit_idx_ + 1);
+    }
+    else if (panel_mode_ == CREATE_MODE)
+    {
+      window_title = QString("Agent %1 of %2").arg(agent_count).arg(num_agents);
+    }
+    else
+    {
+      window_title = QString("Edit Agent %1 of %2").arg(current_edit_idx_ + 1).arg(num_agents);
+    }
+    window->setWindowTitle(window_title);
+
+    // Clear existing layout
+    if (topic_layout)
+    {
+      QLayoutItem *child;
+      while ((child = topic_layout->takeAt(0)) != nullptr)
+      {
+        if (auto w = child->widget())
+          delete w;
+        delete child;
+      }
+    }
+    else
+    {
+      topic_layout = new QVBoxLayout;
+      window->setLayout(topic_layout);
+    }
+
+    // ─── Header with Agent Info ───
+    QLabel *header = new QLabel(window_title, window);
+    header->setStyleSheet(
+        "QLabel {"
+        "  font-size: 18px;"
+        "  font-weight: bold;"
+        // "  color: #2c3e50;"
+        "  background-color:rgb(120, 179, 247);"
+        "  padding: 4px;"
+        "  border-radius: 6px;"
+        "  border: 4px #3498db;"
+        "}");
+    header->setAlignment(Qt::AlignCenter);
+    topic_layout->addWidget(header);
+
+    // ─── Navigation Buttons for Edit Mode ───
+    if (panel_mode_ == EDIT_MODE && !adding_new_agent_)
+    {
+      QHBoxLayout *nav_layout = new QHBoxLayout;
+
+      QPushButton *prev_btn = new QPushButton("Previous", window);
+      QPushButton *next_btn = new QPushButton("Next", window);
+
+      prev_btn->setEnabled(current_edit_idx_ > 0);
+      next_btn->setEnabled(current_edit_idx_ + 1 < num_agents);
+
+      nav_layout->addStretch();
+      nav_layout->addWidget(prev_btn);
+      nav_layout->addWidget(next_btn);
+      nav_layout->addStretch();
+
+      topic_layout->addLayout(nav_layout);
+
+      // Connect navigation
+      connect(prev_btn, &QPushButton::clicked, this, [this]()
               {
+        if (current_edit_idx_ > 0) {
+          current_edit_idx_--;
+          window->close();
+          addAgent();
+        } });
+
+      connect(next_btn, &QPushButton::clicked, this, [this]()
+              {
+        if (current_edit_idx_ + 1 < num_agents) {
+          current_edit_idx_++;
+          window->close();
+          addAgent();
+        } });
+    }
+    // ─────────────────────────── AGENT CONFIGURATION FIELDS ─────────────────────
+
+    // ─── Basic Configuration Group ───
+    QGroupBox *basic_group = new QGroupBox("Basic Configuration");
+    QVBoxLayout *basic_layout = new QVBoxLayout;
+
+    // Desired velocity
+    basic_layout->addWidget(new QLabel("Maximum velocity (m/s):"));
+    agent_desired_vel = new QLineEdit(window);
+    agent_desired_vel->setText(QString::number(1.5, 'f', 1));
+    agent_desired_vel->setPlaceholderText("0.0 - 1.5 m/s");
+    basic_layout->addWidget(agent_desired_vel);
+
+    // Cyclic goals
+    cyclic_goals_checkbox = new QCheckBox("Cyclic navigation", window);
+    cyclic_goals_checkbox->setChecked(true);
+    cyclic_goals_checkbox->setToolTip("Agent will return to the first goal after reaching the last one and start navigation over.");
+    basic_layout->addWidget(cyclic_goals_checkbox);
+
+    basic_group->setLayout(basic_layout);
+    topic_layout->addWidget(basic_group);
+
+    // ─── Behavior Configuration Group ───
+    QGroupBox *behavior_group = new QGroupBox("Behavior Configuration");
+    QVBoxLayout *behavior_layout = new QVBoxLayout;
+
+    // Behavior type
+    behavior_layout->addWidget(new QLabel("Behavior type:"));
+    behavior_type_combobox = new QComboBox(window);
+    behavior_type_combobox->addItems({"Regular", "Impassive", "Surprised", "Scared", "Curious", "Threatening"});
+    behavior_layout->addWidget(behavior_type_combobox);
+    connect(behavior_type_combobox,
+            QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &ActorPanel::checkComboBoxConf);
+
+    // Behavior configuration
+    behavior_layout->addWidget(new QLabel("Configuration preset:"));
+    behavior_conf_combobox = new QComboBox(window);
+    behavior_conf_combobox->addItems({"Default", "Custom", "Random-normal distribution", "Random-uniform distribution"});
+    behavior_layout->addWidget(behavior_conf_combobox);
+
+    dur = new QLabel("Duration:", window);
+    dur->setVisible(false);
+    beh_duration = new QLineEdit(window);
+    beh_duration->setVisible(false);
+    once = new QLabel("Only once:", window);
+    once->setVisible(false);
+    beh_once = new QLineEdit(window);
+    beh_once->setVisible(false);
+    dist = new QLabel("Visibility distance:", window);
+    dist->setVisible(false);
+    beh_dist = new QLineEdit(window);
+    beh_dist->setVisible(false);
+    vel = new QLabel("Behavior velocity:", window);
+    vel->setVisible(false);
+    beh_vel = new QLineEdit(window);
+    beh_vel->setVisible(false);
+    other = new QLabel("Repulsive force factor:", window);
+    other->setVisible(false);
+    beh_otherff = new QLineEdit(window);
+    beh_otherff->setVisible(false);
+    front = new QLabel("Front distance:", window);
+    front->setVisible(false);
+    beh_front_dist = new QLineEdit(window);
+    beh_front_dist->setVisible(false);
+    safe_dist = new QLabel("Safe distance:", window);
+    safe_dist->setVisible(false);
+    beh_safe_distance = new QLineEdit(window);
+    beh_safe_distance->setVisible(false);
+    stop = new QLabel("Stop distance:", window);
+    stop->setVisible(false);
+    beh_stop_dist = new QLineEdit(window);
+    beh_stop_dist->setVisible(false);
+
+    // Agent desired velocity tooltip
+    agent_desired_vel->setToolTip(
+        "<html><b>Maximum Velocity</b><br>"
+        "Sets the agent's maximum walking speed in meters per second.<br>"
+        "<b>Range:</b> 0.1 - 1.5 m/s</html>");
+
+    // Behavior duration tooltip
+    beh_duration->setToolTip(
+        "<html><b>Duration</b><br>"
+        "How long the special behavior lasts (in seconds) when triggered.<br>"
+        "<b>Note:</b> After this time, agent returns to regular navigation.</html>");
+
+    // Behavior velocity tooltip
+    beh_vel->setToolTip(
+        "<html><b>Behavior Velocity</b><br>"
+        "Agent's velocity during the special behavior state.<br>"
+        "<b>Note:</b> Usually different from normal walking speed.</html>");
+
+    // Behavior once tooltip
+    beh_once->setToolTip(
+        "<html><b>Only Once</b><br>"
+        "Whether the behavior triggers only once per simulation.<br>"
+        "<b>Values:</b><br>"
+        "• <b>true:</b> Behavior happens only the first time<br>"
+        "• <b>false:</b> Behavior can happen multiple times</html>");
+
+    // Visibility distance tooltip
+    beh_dist->setToolTip(
+        "<html><b>Visibility Distance</b><br>"
+        "Maximum distance at which the agent can detect the robot.<br>"
+        "<b>Range:</b> 1.0 - 15.0 meters<br>"
+        "<b>Note:</b> Larger values make agents more reactive to distant robots.</html>");
+
+    // Stop distance tooltip (for Curious behavior)
+    beh_stop_dist->setToolTip(
+        "<html><b>Stop Distance</b><br>"
+        "Distance from robot where curious agent stops approaching.<br>"
+        "<b>Range:</b> 0.5 - 3.0 meters<br>"
+        "<b>Note:</b> Agent maintains this distance when observing robot.</html>");
+
+    // Front distance tooltip (for Threatening behavior)
+    beh_front_dist->setToolTip(
+        "<html><b>Front Distance</b><br>"
+        "How far in front of the robot the agent positions itself.<br>"
+        "<b>Range:</b> 0.5 - 2.0 meters<br>"
+        "<b>Note:</b> Used for blocking or confrontational behavior.</html>");
+
+    // Safe distance tooltip (for Scared behavior)
+    beh_safe_distance->setToolTip(
+        "<html><b>Safe Distance</b><br>"
+        "Minimum distance the scared agent tries to maintain from the robot.<br>"
+        "<b>Range:</b> 2.0 - 10.0 meters<br>"
+        "<b>Note:</b> Agent moves away if robot gets closer than this distance.</html>");
+
+    behavior_layout->addWidget(dur);
+    behavior_layout->addWidget(beh_duration);
+    behavior_layout->addWidget(vel);
+    behavior_layout->addWidget(beh_vel);
+    behavior_layout->addWidget(once);
+    behavior_layout->addWidget(beh_once);
+    behavior_layout->addWidget(dist);
+    behavior_layout->addWidget(beh_dist);
+    behavior_layout->addWidget(stop);
+    behavior_layout->addWidget(beh_stop_dist);
+    behavior_layout->addWidget(front);
+    behavior_layout->addWidget(beh_front_dist);
+    behavior_layout->addWidget(safe_dist);
+    behavior_layout->addWidget(beh_safe_distance);
+    behavior_layout->addWidget(other);
+    behavior_layout->addWidget(beh_otherff);
+
+    behavior_group->setLayout(behavior_layout);
+    topic_layout->addWidget(behavior_group);
+
+    // ─── Simulator-Specific Configuration Group ───
+    QGroupBox *sim_group = new QGroupBox("Simulator Options");
+    QVBoxLayout *sim_layout = new QVBoxLayout;
+
+    // Skin selection (simulator-specific)
+    skin_label_ = new QLabel("Agent appearance:", window);
+    skin_combobox = new QComboBox(window);
+    skin_combobox->setToolTip(
+        "<html><b>Agent Appearance</b><br>"
+        "Visual representation of the agent in simulation.</html>");
+
+    // Populate combobox based on current simulator
+    QString currentSim = simulator_combo_->currentText();
+
+    skin_combobox->clear();
+
+    if (currentSim.contains("Gazebo", Qt::CaseInsensitive) ||
+        currentSim == "Gazebo Classic" ||
+        currentSim == "Gazebo Fortress")
+    {
+      skin_combobox->addItems({"Elegant man",
+                               "Casual man",
+                               "Elegant woman",
+                               "Regular man",
+                               "Worker man",
+                               "Blue jeans",
+                               "Green t-shirt",
+                               "Blue t-shirt",
+                               "Red t-shirt"});
+    }
+    else if (currentSim.contains("Isaac", Qt::CaseInsensitive) || currentSim == "Isaac Sim")
+    {
+      skin_combobox->addItems({"Random",
+                               "F_Business_02",
+                               "F_Medical_01",
+                               "M_Medical_01",
+                               "male_adult_construction_01",
+                               "male_adult_construction_05",
+                               "female_adult_police_01",
+                               "female_adult_police_02",
+                               "female_adult_police_03",
+                               "male_adult_police_04",
+                               "female_adult_business_02",
+                               "female_adult_medical_01"});
+
+      // Set "Random" as default
+      skin_combobox->setCurrentIndex(0);
+    }
+    else if (currentSim.contains("Webots", Qt::CaseInsensitive) || currentSim == "Webots")
+    {
+      skin_combobox->addItems({
+          "Default Character", // 0 - placeholder
+          "Character Type 1",  // 1 - placeholder
+          "Character Type 2",  // 2 - placeholder
+          "Character Type 3"   // 3 - placeholder
+      });
+    }
+
+    skin_combobox->update();
+    skin_combobox->repaint();
+    skin_label_->update();
+    skin_label_->repaint();
+
+    sim_layout->addWidget(skin_label_);
+    sim_layout->addWidget(skin_combobox);
+
+    sim_group->setLayout(sim_layout);
+    sim_group->setVisible(true);
+    sim_group->show();
+
+    topic_layout->addWidget(sim_group);
+
+    // Store the current connection to avoid duplicates
+    static QMetaObject::Connection simulator_connection;
+
+    // Disconnect any existing connection
+    if (simulator_connection)
+    {
+      disconnect(simulator_connection);
+    }
+
+    // Update skin options when simulator changes in the main panel
+    simulator_connection = connect(simulator_combo_,
+                                   QOverload<int>::of(&QComboBox::currentIndexChanged),
+                                   this,
+                                   [this]()
+                                   {
+                                     // Only update if the dialog is open and skin_combobox exists
+                                     if (!skin_combobox || !window || !window->isVisible())
+                                       return;
+
+                                     QString newSim = simulator_combo_->currentText();
+                                     RCLCPP_INFO(get_logger(), "Simulator changed to: '%s' while agent window is open", newSim.toStdString().c_str());
+
+                                     // Clear existing items
+                                     skin_combobox->clear();
+
+                                     if (newSim.contains("Gazebo", Qt::CaseInsensitive) ||
+                                         newSim == "Gazebo Classic" ||
+                                         newSim == "Gazebo Fortress")
+                                     {
+                                       skin_combobox->addItems({"Elegant man",
+                                                                "Casual man",
+                                                                "Elegant woman",
+                                                                "Regular man",
+                                                                "Worker man",
+                                                                "Blue jeans",
+                                                                "Green t-shirt",
+                                                                "Blue t-shirt",
+                                                                "Red t-shirt"});
+                                       skin_combobox->setCurrentIndex(0);
+                                       skin_label_->setVisible(true);
+                                       skin_combobox->setVisible(true);
+                                     }
+                                     else if (newSim.contains("Isaac", Qt::CaseInsensitive) || newSim == "Isaac Sim")
+                                     {
+                                       skin_combobox->addItems({"Random",
+                                                                "F_Business_02",
+                                                                "F_Medical_01",
+                                                                "M_Medical_01",
+                                                                "male_adult_construction_01",
+                                                                "male_adult_construction_05",
+                                                                "female_adult_police_01",
+                                                                "female_adult_police_02",
+                                                                "female_adult_police_03",
+                                                                "male_adult_police_04",
+                                                                "female_adult_business_02",
+                                                                "female_adult_medical_01"});
+                                       skin_combobox->setCurrentIndex(0);
+                                       skin_label_->setVisible(true);
+                                       skin_combobox->setVisible(true);
+                                     }
+                                     else if (newSim.contains("Webots", Qt::CaseInsensitive) || newSim == "Webots")
+                                     {
+                                       skin_combobox->addItems({"Default Character",
+                                                                "Character Type 1",
+                                                                "Character Type 2",
+                                                                "Character Type 3"});
+                                       skin_combobox->setCurrentIndex(0);
+                                       skin_label_->setVisible(true);
+                                       skin_combobox->setVisible(true);
+                                     }
+                                     else
+                                     {
+                                       skin_combobox->addItems({"Default Character",
+                                                                "Character Type 1",
+                                                                "Character Type 2"});
+                                       skin_combobox->setCurrentIndex(0);
+                                       skin_label_->setVisible(true);
+                                       skin_combobox->setVisible(true);
+                                     }
+
+                                     // Force widget updates
+                                     skin_combobox->update();
+                                     skin_label_->update();
+                                   });
+
+    // ─── Advanced Behavior Parameters ───
+    QGroupBox *advanced_group = new QGroupBox("SFM parameters");
+    QVBoxLayout *advanced_layout = new QVBoxLayout;
+
+    // (8) Hidden “GFF / OFF / SFF / …” fields:
+    // vel = new QLabel("Behavior agent vel:", window);
+    // vel->setVisible(false);
+    // behavior_layout->addWidget(vel);
+
+    // beh_vel = new QLineEdit(window);
+    // beh_vel->setText("1.0");
+    // beh_vel->setVisible(false);
+    // beh_vel->setEnabled(false);
+    // advanced_layout->addWidget(beh_vel);
+
+    gff = new QLabel("Goal Force Factor:", window);
+    advanced_layout->addWidget(gff);
+    beh_gff = new QLineEdit(window);
+    beh_gff->setText(QString::number(2.0, 'f', 1));
+    beh_gff->setEnabled(false);
+    beh_gff->setToolTip(
+        "<html><b>Goal Force Factor</b><br>"
+        "Strength of attraction towards navigation goals.<br>"
+        "<b>Higher values:</b> More direct path to goals</html>");
+    advanced_layout->addWidget(beh_gff);
+
+    off = new QLabel("Obstacle Force Factor:", window);
+    advanced_layout->addWidget(off);
+    beh_off = new QLineEdit(window);
+    beh_off->setText(QString::number(10.0, 'f', 1));
+    beh_off->setEnabled(false);
+    beh_off->setToolTip(
+        "<html><b>Obstacle Force Factor</b><br>"
+        "Strength of repulsion from obstacles and walls.<br>"
+        "<b>Higher values:</b> Better obstacle avoidance</html>");
+    advanced_layout->addWidget(beh_off);
+
+    sff = new QLabel("Social Force Factor:", window);
+    advanced_layout->addWidget(sff);
+    beh_sff = new QLineEdit(window);
+    beh_sff->setText(QString::number(5.0, 'f', 1));
+    beh_sff->setEnabled(false);
+    beh_sff->setToolTip(
+        "<html><b>Social Force Factor</b><br>"
+        "Strength of repulsion from other people.<br>"
+        "<b>Higher values:</b> Agents keep more distance from each other</html>");
+    advanced_layout->addWidget(beh_sff);
+
+    other = new QLabel("Robot Repulsive Force Factor:", window);
+    other->setVisible(false);
+    advanced_layout->addWidget(other);
+    beh_otherff = new QLineEdit(window);
+    beh_otherff->setText(QString::number(20.0, 'f', 1));
+    beh_otherff->setEnabled(false);
+    beh_otherff->setVisible(false);
+    beh_otherff->setToolTip(
+        "<html><b>Robot Repulsive Force Factor</b><br>"
+        "Strength of repulsion specifically from robots.<br>"
+        "<b>Scared behavior:</b> Higher values make agents flee faster</html>");
+    advanced_layout->addWidget(beh_otherff);
+
+    connect(behavior_conf_combobox,
+            QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this,
+            &ActorPanel::checkComboBoxConf);
+
+    checkComboBoxConf();
+
+    advanced_group->setLayout(advanced_layout);
+    topic_layout->addWidget(advanced_group);
+
+    // ─── Position Configuration ───
+    initial_pose_button = new QPushButton("Set Initial Pose on Map", window);
+    if (panel_mode_ == EDIT_MODE)
+      initial_pose_button->setText("Edit Initial Pose");
+    initial_pose_button->setCheckable(true);
+    initial_pose_button->setStyleSheet(
+        "QPushButton {"
+        "  padding: 6px 8px;"
+        "  border: 2px solid #e67e22;"
+        "  border-radius: 6px;"
+        "  background-color: #fef5e7;"
+        // "  color: #d68910;"
+        "  font-weight: bold;"
+        "}"
+        "QPushButton:hover {"
+        "  background-color: #f5b041;"
+        "  color: #ffffff;"
+        "  border-color: #d35400;"
+        "}"
+        "QPushButton:checked {"
+        "  background-color: #e67e22;"
+        "  color: white;"
+        "}");
+
+    topic_layout->addWidget(initial_pose_button);
+
+    connect(initial_pose_button, &QPushButton::clicked,
+            this, &ActorPanel::setInitialPose);
+
+    save_button_ = new QPushButton("Save & Continue", window);
+    save_button_->setEnabled(false);
+    save_button_->setStyleSheet(
+        "QPushButton {"
+        "  padding: 6px 10px;"
+        "  border: 2px solid #27ae60;"
+        "  border-radius: 6px;"
+        "  background-color: #d5f4e6;"
+        // "  color: #1e8449;"
+        "  font-weight: bold;"
+        "  font-size: 14px;"
+        "}"
+        "QPushButton:hover:enabled {"
+        "  border-color: #1e8449;"
+        "  background-color: #a9dfbf;"
+        "  color: #1e8449;"
+        "}"
+        "QPushButton:disabled {"
+        "  background-color: #f8f9fa;"
+        "  color: #aeb6bf;"
+        "  border-color: #d5dbdb;"
+        "}");
+
+    topic_layout->addWidget(save_button_);
+
+    connect(save_button_, &QPushButton::clicked, [this]()
+            {
     // ─────────────────────────── SAVE CURRENT FIELDS ─────────────────────────
     YAML::Node new_node;
 
@@ -2372,7 +2619,7 @@ namespace hunav_rviz2_panel
     }
 
     new_node["id"] = agent_id;
-    new_node["group_id"] = -1;
+    new_node["group_id"] = agent_id; //-1;
 
     // (b) skin
     new_node["skin"] = skin_combobox->currentIndex();
@@ -2424,6 +2671,7 @@ namespace hunav_rviz2_panel
         new_node["behavior"]["once"]             = (beh_once->text().toLower() == "true");
         new_node["behavior"]["vel"]           = QString::number(beh_vel->text().toDouble(), 'f', 3).toStdString();
         new_node["behavior"]["other_force_factor"] = QString::number(beh_otherff->text().toDouble(), 'f', 1).toStdString();
+        new_node["behavior"]["safe_distance"] = QString::number(beh_safe_distance->text().toDouble(), 'f', 1).toStdString();
         break;
 
       case hunav_msgs::msg::AgentBehavior::BEH_CURIOUS:
@@ -2438,7 +2686,7 @@ namespace hunav_rviz2_panel
         new_node["behavior"]["dist"]   = QString::number(beh_dist->text().toDouble(), 'f', 2).toStdString();
         new_node["behavior"]["duration"]              = QString::number(beh_duration->text().toDouble(), 'f', 2).toStdString();
         new_node["behavior"]["once"]             = (beh_once->text().toLower() == "true");
-        new_node["behavior"]["front_dist"]   = QString::number(beh_otherff->text().toDouble(), 'f', 2).toStdString();
+        new_node["behavior"]["front_dist"]   = QString::number(beh_front_dist->text().toDouble(), 'f', 2).toStdString();
         break;
     }
     QString txt = behavior_conf_combobox->currentText();
@@ -2585,26 +2833,26 @@ namespace hunav_rviz2_panel
                                .arg((panel_mode_ == EDIT_MODE) ? "edit/add" : "pick/assign")
                                .arg((panel_mode_ == EDIT_MODE) ? edit_goals_button_->text() : enter_goal_mode_btn_->text())); });
 
-      // ──────────────────────── Cancel button ──────────────────────────
-      auto *dialog_cancel_button = new QPushButton("Cancel", window);
-      dialog_cancel_button->setStyleSheet(
-          "QPushButton {"
-          "  padding: 6px 10px;"
-          "  border: 2px solid #e74c3c;"
-          "  border-radius: 6px;"
-          "  background-color: #fdf2f2;"
-          // "  color: #c0392b;"
-          "  font-weight: bold;"
-          "}"
-          "QPushButton:hover {"
-          "  background-color: #f5b7b1;"
-          "  color: #ffffff;"
-          "  border-color: #c0392b;"
-          "}");
-      topic_layout->addWidget(dialog_cancel_button);
+    // ──────────────────────── Cancel button ──────────────────────────
+    auto *dialog_cancel_button = new QPushButton("Cancel", window);
+    dialog_cancel_button->setStyleSheet(
+        "QPushButton {"
+        "  padding: 6px 10px;"
+        "  border: 2px solid #e74c3c;"
+        "  border-radius: 6px;"
+        "  background-color: #fdf2f2;"
+        // "  color: #c0392b;"
+        "  font-weight: bold;"
+        "}"
+        "QPushButton:hover {"
+        "  background-color: #f5b7b1;"
+        "  color: #ffffff;"
+        "  border-color: #c0392b;"
+        "}");
+    topic_layout->addWidget(dialog_cancel_button);
 
-      connect(dialog_cancel_button, &QPushButton::clicked, [this]()
-              {
+    connect(dialog_cancel_button, &QPushButton::clicked, [this]()
+            {
                 if (adding_new_agent_)
                 {
                   // Just reset the flag - no data was added to clean up
@@ -2636,344 +2884,374 @@ namespace hunav_rviz2_panel
                 actor_button_->setChecked(false);
                 add_agent_button_->setEnabled(true);
                 add_agent_button_->setDown(false);
-                add_agent_button_->setChecked(false);
-              });
+                add_agent_button_->setChecked(false); });
 
-      // ────────────────────── POPULATE FORM FIELDS ─────────────────────────────────
+    // ────────────────────── POPULATE FORM FIELDS ─────────────────────────────────
 
-      if (adding_new_agent_)
+    if (adding_new_agent_)
+    {
+      // ═══════════════════ NEW AGENT - USE DEFAULTS ═══════════════════
+      agent_desired_vel->setText("1.5");
+      behavior_type_combobox->setCurrentText("Regular");
+      behavior_conf_combobox->setCurrentText("Default");
+      beh_gff->setText("2.0");
+      beh_off->setText("10.0");
+      beh_sff->setText("5.0");
+      beh_otherff->setText("20.0");
+      beh_dist->setText("3.0");
+      beh_duration->setText("5.0");
+      beh_once->setText("false");
+      beh_vel->setText("1.0");
+      beh_stop_dist->setText("1.5");
+      beh_front_dist->setText("1.0");
+      beh_safe_distance->setText("5.0");
+
+      cyclic_goals_checkbox->setChecked(true);
+
+      skin_combobox->setCurrentIndex(0);
+
+      initial_pose_set = false;
+      save_button_->setEnabled(false);
+    }
+    else if (panel_mode_ == EDIT_MODE &&
+             current_edit_idx_ >= 0 &&
+             current_edit_idx_ < static_cast<int>(loaded_agent_nodes_.size()))
+    {
+      // ═══════════════════ EXISTING AGENT - READ FROM YAML ═══════════════════
+      const YAML::Node &agentYAML = loaded_agent_nodes_[current_edit_idx_];
+
+      // — Desired velocity —
+      if (agentYAML["max_vel"])
       {
-        // ═══════════════════ NEW AGENT - USE DEFAULTS ═══════════════════
-        agent_desired_vel->setText("1.5");
-        behavior_type_combobox->setCurrentText("Regular");
+        double dv = agentYAML["max_vel"].as<double>();
+        agent_desired_vel->setText(QString::number(dv, 'f', 1));
+      }
+
+      // — Behavior type —
+      if (agentYAML["behavior"] && agentYAML["behavior"]["type"])
+      {
+        QString type = QString::fromStdString(
+            agentYAML["behavior"]["type"].as<std::string>());
+        behavior_type_combobox->setCurrentText(type);
+      }
+
+      // — Behavior configuration —
+      int conf = hunav_msgs::msg::AgentBehavior::BEH_CONF_DEFAULT;
+      if (agentYAML["behavior"] && agentYAML["behavior"]["configuration"])
+        conf = agentYAML["behavior"]["configuration"].as<int>();
+      switch (conf)
+      {
+      case hunav_msgs::msg::AgentBehavior::BEH_CONF_CUSTOM:
+        behavior_conf_combobox->setCurrentText("Custom");
+        break;
+      case hunav_msgs::msg::AgentBehavior::BEH_CONF_RANDOM_NORMAL:
+        behavior_conf_combobox->setCurrentText("Random-normal distribution");
+        break;
+      case hunav_msgs::msg::AgentBehavior::BEH_CONF_RANDOM_UNIFORM:
+        behavior_conf_combobox->setCurrentText("Random-uniform distribution");
+        break;
+      default:
         behavior_conf_combobox->setCurrentText("Default");
-        beh_gff->setText("2.0");
-        beh_off->setText("10.0");
-        beh_sff->setText("5.0");
-        beh_otherff->setText("20.0");
-        beh_dist->setText("3.0");
-        beh_duration->setText("5.0");
-        beh_once->setText("false");
-        beh_vel->setText("1.0");
-        beh_stop_dist->setText("1.5");
-        beh_front_dist->setText("1.0");
-
-        cyclic_goals_checkbox->setChecked(true);
-
-        skin_combobox->setCurrentIndex(0);
-
-        initial_pose_set = false;
-        save_button_->setEnabled(false);
+        break;
       }
-      else if (panel_mode_ == EDIT_MODE &&
-               current_edit_idx_ >= 0 &&
-               current_edit_idx_ < static_cast<int>(loaded_agent_nodes_.size()))
+
+      checkComboBoxConf();
+
+      // Load custom behavior parameters if configuration is Custom
+      if (conf == hunav_msgs::msg::AgentBehavior::BEH_CONF_CUSTOM && 
+          agentYAML["behavior"])
       {
-        // ═══════════════════ EXISTING AGENT - READ FROM YAML ═══════════════════
-        const YAML::Node &agentYAML = loaded_agent_nodes_[current_edit_idx_];
-
-        // — Desired velocity —
-        if (agentYAML["max_vel"])
-        {
-          double dv = agentYAML["max_vel"].as<double>();
-          agent_desired_vel->setText(QString::number(dv, 'f', 1));
-        }
-
-        // — Behavior type —
-        if (agentYAML["behavior"] && agentYAML["behavior"]["type"])
-        {
-          QString type = QString::fromStdString(
-              agentYAML["behavior"]["type"].as<std::string>());
-          behavior_type_combobox->setCurrentText(type);
-        }
-
-        // — Behavior configuration —
-        int conf = hunav_msgs::msg::AgentBehavior::BEH_CONF_DEFAULT;
-        if (agentYAML["behavior"] && agentYAML["behavior"]["configuration"])
-          conf = agentYAML["behavior"]["configuration"].as<int>();
-        switch (conf)
-        {
-        case hunav_msgs::msg::AgentBehavior::BEH_CONF_CUSTOM:
-          behavior_conf_combobox->setCurrentText("Custom");
-          break;
-        case hunav_msgs::msg::AgentBehavior::BEH_CONF_RANDOM_NORMAL:
-          behavior_conf_combobox->setCurrentText("Random-normal distribution");
-          break;
-        case hunav_msgs::msg::AgentBehavior::BEH_CONF_RANDOM_UNIFORM:
-          behavior_conf_combobox->setCurrentText("Random-uniform distribution");
-          break;
-        default:
-          behavior_conf_combobox->setCurrentText("Default");
-          break;
-        }
-
-        checkComboBoxConf();
-
-        // — Skin —
-        if (agentYAML["skin"])
-        {
-          try
-          {
-            int skinIndex = agentYAML["skin"].as<int>();
-            skin_combobox->setCurrentIndex(skinIndex);
-          }
-          catch (...)
-          {
-            // Default to first option if parsing fails
-            skin_combobox->setCurrentIndex(0);
-            RCLCPP_WARN(get_logger(), "Failed to parse skin value, defaulting to index 0");
-          }
-
-          skin_label_->setVisible(true);
-          skin_combobox->setVisible(true);
-        }
-
-        // — Initial pose —
-        if (agentYAML["init_pose"])
-        {
-          double ipx = agentYAML["init_pose"]["x"].as<double>();
-          double ipy = agentYAML["init_pose"]["y"].as<double>();
-          double ipz = agentYAML["init_pose"]["z"].as<double>();
-
-          stored_pose.pose.position.x = ipx;
-          stored_pose.pose.position.y = ipy;
-          stored_pose.pose.position.z = ipz;
-          initial_pose_set = true;
-
-          // Enable “Save & Next” since we have a stored pose:
-          save_button_->setEnabled(true);
-        }
-        else
-        {
-          initial_pose_set = false;
-          save_button_->setEnabled(false);
-        }
-
-        // — Cyclic goals —
-        if (agentYAML["cyclic_goals"])
-        {
-          bool is_cyclic = agentYAML["cyclic_goals"].as<bool>();
-          cyclic_goals_checkbox->setChecked(is_cyclic);
-        }
-        else
-        {
-          cyclic_goals_checkbox->setChecked(true); // Default to true if not specified
-        }
+        const YAML::Node &behYAML = agentYAML["behavior"];
+        
+        if (behYAML["duration"])
+          beh_duration->setText(QString::number(behYAML["duration"].as<double>(), 'f', 1));
+        if (behYAML["once"])
+          beh_once->setText(behYAML["once"].as<bool>() ? "true" : "false");
+        if (behYAML["vel"])
+          beh_vel->setText(QString::number(behYAML["vel"].as<double>(), 'f', 3));
+        if (behYAML["dist"])
+          beh_dist->setText(QString::number(behYAML["dist"].as<double>(), 'f', 2));
+        if (behYAML["goal_force_factor"])
+          beh_gff->setText(QString::number(behYAML["goal_force_factor"].as<double>(), 'f', 1));
+        if (behYAML["obstacle_force_factor"])
+          beh_off->setText(QString::number(behYAML["obstacle_force_factor"].as<double>(), 'f', 1));
+        if (behYAML["social_force_factor"])
+          beh_sff->setText(QString::number(behYAML["social_force_factor"].as<double>(), 'f', 1));
+        if (behYAML["other_force_factor"])
+          beh_otherff->setText(QString::number(behYAML["other_force_factor"].as<double>(), 'f', 1));
+        if (behYAML["stop_dist"])
+          beh_stop_dist->setText(QString::number(behYAML["stop_dist"].as<double>(), 'f', 2));
+        if (behYAML["front_dist"])
+          beh_front_dist->setText(QString::number(behYAML["front_dist"].as<double>(), 'f', 2));
+        if (behYAML["safe_distance"])
+          beh_safe_distance->setText(QString::number(behYAML["safe_distance"].as<double>(), 'f', 1));
       }
-      else
+
+      // — Skin —
+      if (agentYAML["skin"])
       {
-        // ─────────────────── “CREATE_MODE” DEFAULTS ────────────────────────────
-        agent_desired_vel->setText(QString::number(1.5, 'f', 1));
-        behavior_type_combobox->setCurrentIndex(0);
-        behavior_conf_combobox->setCurrentIndex(0);
-        initial_pose_set = false;
-        save_button_->setEnabled(false);
+        try
+        {
+          int skinIndex = agentYAML["skin"].as<int>();
+          skin_combobox->setCurrentIndex(skinIndex);
+        }
+        catch (...)
+        {
+          // Default to first option if parsing fails
+          skin_combobox->setCurrentIndex(0);
+          RCLCPP_WARN(get_logger(), "Failed to parse skin value, defaulting to index 0");
+        }
 
         skin_label_->setVisible(true);
         skin_combobox->setVisible(true);
-
-        cyclic_goals_checkbox->setChecked(true);
       }
 
-      if (adding_new_agent_)
+      // — Initial pose —
+      if (agentYAML["init_pose"])
       {
-        save_button_->setText(tr("Add agent"));
+        double ipx = agentYAML["init_pose"]["x"].as<double>();
+        double ipy = agentYAML["init_pose"]["y"].as<double>();
+        double ipz = agentYAML["init_pose"]["z"].as<double>();
+
+        stored_pose.pose.position.x = ipx;
+        stored_pose.pose.position.y = ipy;
+        stored_pose.pose.position.z = ipz;
+        initial_pose_set = true;
+
+        // Enable “Save & Next” since we have a stored pose:
+        save_button_->setEnabled(true);
       }
-      else if (panel_mode_ == CREATE_MODE)
+      else
       {
-        bool last = (agent_count >= num_agents);
-        save_button_->setText(last ? tr("Finish") : tr("Next agent"));
-      }
-      else // EDIT_MODE
-      {
-        bool last = (current_edit_idx_ + 1 >= num_agents);
-        save_button_->setText(last ? tr("Finish") : tr("Next agent"));
+        initial_pose_set = false;
+        save_button_->setEnabled(false);
       }
 
-      window->raise();
-      window->adjustSize();
-      window->show();
+      // — Cyclic goals —
+      if (agentYAML["cyclic_goals"])
+      {
+        bool is_cyclic = agentYAML["cyclic_goals"].as<bool>();
+        cyclic_goals_checkbox->setChecked(is_cyclic);
+      }
+      else
+      {
+        cyclic_goals_checkbox->setChecked(true); // Default to true if not specified
+      }
+    }
+    else
+    {
+      // ─────────────────── “CREATE_MODE” DEFAULTS ────────────────────────────
+      agent_desired_vel->setText(QString::number(1.5, 'f', 1));
+      behavior_type_combobox->setCurrentIndex(0);
+      behavior_conf_combobox->setCurrentIndex(0);
+      initial_pose_set = false;
+      save_button_->setEnabled(false);
+
+      skin_label_->setVisible(true);
+      skin_combobox->setVisible(true);
+
+      cyclic_goals_checkbox->setChecked(true);
     }
 
-    void ActorPanel::setInitialPose()
+    if (adding_new_agent_)
     {
-      // On very first click, pop a one‐time tip:
-      if (!initial_pose_tip_shown_)
-      {
-        initial_pose_tip_shown_ = true;
-        QMessageBox::information(
-            this, "Initial Pose Tip",
-            "<b>Click and drag on the map</b> to set the agent’s initial position and orientation.");
-      }
+      save_button_->setText(tr("Add agent"));
+    }
+    else if (panel_mode_ == CREATE_MODE)
+    {
+      bool last = (agent_count >= num_agents);
+      save_button_->setText(last ? tr("Finish") : tr("Next agent"));
+    }
+    else // EDIT_MODE
+    {
+      bool last = (current_edit_idx_ + 1 >= num_agents);
+      save_button_->setText(last ? tr("Finish") : tr("Next agent"));
+    }
 
-      // hook up the Pose tool so onInitialPose will fire
-      if (initial_pose_connection_)
-        disconnect(&GoalUpdater, 0, this, 0);
-      initial_pose_connection_ = new QObject(this);
-      connect(&GoalUpdater,
-              SIGNAL(updateGoal(double, double, double, QString)),
-              this,
-              SLOT(onInitialPose(double, double, double, QString)));
+    window->raise();
+    window->adjustSize();
+    window->show();
+  }
 
-      // switch RViz into HunavGoals tool
-      if (auto *tm = getDisplayContext()->getToolManager())
+  void ActorPanel::setInitialPose()
+  {
+    // On very first click, pop a one‐time tip:
+    if (!initial_pose_tip_shown_)
+    {
+      initial_pose_tip_shown_ = true;
+      QMessageBox::information(
+          this, "Initial Pose Tip",
+          "<b>Click and drag on the map</b> to set the agent’s initial position and orientation.");
+    }
+
+    // hook up the Pose tool so onInitialPose will fire
+    if (initial_pose_connection_)
+      disconnect(&GoalUpdater, 0, this, 0);
+    initial_pose_connection_ = new QObject(this);
+    connect(&GoalUpdater,
+            SIGNAL(updateGoal(double, double, double, QString)),
+            this,
+            SLOT(onInitialPose(double, double, double, QString)));
+
+    // switch RViz into HunavGoals tool
+    if (auto *tm = getDisplayContext()->getToolManager())
+    {
+      for (int i = 0; i < tm->numTools(); ++i)
       {
-        for (int i = 0; i < tm->numTools(); ++i)
+        if (QString(tm->getTool(i)->getName()) == "HunavGoals")
         {
-          if (QString(tm->getTool(i)->getName()) == "HunavGoals")
-          {
-            tm->setCurrentTool(tm->getTool(i));
-            break;
-          }
+          tm->setCurrentTool(tm->getTool(i));
+          break;
         }
       }
     }
+  }
 
-    void ActorPanel::onInitialPose(double x, double y, double theta, QString frame)
+  void ActorPanel::onInitialPose(double x, double y, double theta, QString frame)
+  {
+
+    // figure out which agent this is
+    int idx;
+    if (panel_mode_ == EDIT_MODE || adding_new_agent_)
     {
-
-      // figure out which agent this is
-      int idx;
-      if (panel_mode_ == EDIT_MODE || adding_new_agent_)
-      {
-        idx = current_edit_idx_;
-      }
-      else // CREATE_MODE
-      {
-        idx = agent_count - 1;
-      }
-
-      if (idx < 0 || idx >= (int)loaded_initial_marker_ids_.size())
-      {
-        RCLCPP_ERROR(get_logger(),
-                     "onInitialPose(): bogus agent index %d", idx);
-        return;
-      }
-
-      // 1) If in EDIT_MODE, delete both the old mesh and its label for this agent:
-      if (panel_mode_ == EDIT_MODE && !adding_new_agent_)
-      {
-        auto del = std::make_unique<visualization_msgs::msg::MarkerArray>();
-
-        visualization_msgs::msg::Marker m;
-        m.header.frame_id = "/map";
-        m.header.stamp = rclcpp::Clock().now();
-        m.id = loaded_initial_marker_ids_[idx];
-        m.action = visualization_msgs::msg::Marker::DELETE;
-
-        // delete the mesh
-        m.ns = "agent_initial";
-        del->markers.push_back(m);
-
-        // delete the floating text
-        m.ns = "agent_id_text";
-        del->markers.push_back(m);
-
-        initial_pose_publisher->publish(std::move(del));
-      }
-
-      // 2) Read Z offset for the selected simulator
-      double z_offset = simulator_combo_->currentData().toDouble();
-
-      // 3) Allocate fresh ID
-      int id = next_marker_id_++;
-      loaded_initial_marker_ids_[idx] = id;
-
-      // pick this agent’s unique color
-      const QColor &c = agent_colors_[idx];
-      std_msgs::msg::ColorRGBA agent_col;
-      agent_col.r = c.redF();
-      agent_col.g = c.greenF();
-      agent_col.b = c.blueF();
-      agent_col.a = 1.0f;
-
-      // 4) Build the mesh marker
-      visualization_msgs::msg::Marker mesh = createMarker(x, y, id, "person", "create");
-      mesh.ns = "agent_initial";
-      mesh.id = id;
-      mesh.pose.position.z = z_offset;
-      tf2::Quaternion q;
-      q.setRPY(0, 0, theta);
-      mesh.pose.orientation = tf2::toMsg(q);
-      mesh.color = agent_col;
-
-      // 5) Build the floating text label
-      visualization_msgs::msg::Marker label =
-          createAgentLabel(x, y, id, "/map");
-      label.ns = "agent_id_text";
-      label.id = id;
-      label.pose.position.z = z_offset + 1.5; // float above the agent
-      if (adding_new_agent_)
-      {
-        // For new agents, show the ID that will be assigned (current list size + 1)
-        label.text = std::to_string(static_cast<int>(loaded_agent_names_.size()) + 1);
-      }
-      else
-      {
-        // For existing agents, show their actual 1-based index
-        label.text = std::to_string(idx + 1);
-      }
-      label.color = agent_col;
-
-      // 6) Publish them together
-      auto out = std::make_unique<visualization_msgs::msg::MarkerArray>();
-      out->markers.push_back(mesh);
-      out->markers.push_back(label);
-      initial_pose_publisher->publish(std::move(out));
-
-      // 7) Store the new pose + orientation
-      initial_pose_set = true;
-      stored_pose.header.frame_id = frame.toStdString();
-      stored_pose.header.stamp = rclcpp::Clock().now();
-      stored_pose.pose.position.x = x;
-      stored_pose.pose.position.y = y;
-      stored_pose.pose.position.z = z_offset;
-      stored_pose.pose.orientation.x = q.x();
-      stored_pose.pose.orientation.y = q.y();
-      stored_pose.pose.orientation.z = q.z();
-      stored_pose.pose.orientation.w = q.w();
-
-      // 8) Tear down goal-updater connection
-      disconnect(&GoalUpdater,
-                 SIGNAL(updateGoal(double, double, double, QString)),
-                 this,
-                 SLOT(onInitialPose(double, double, double, QString)));
-
-      // 9) Re-enable panel’s controls so the user can press Next/Finish
-      if (save_button_)
-        save_button_->setEnabled(true);
-
-      if (panel_mode_ == CREATE_MODE && idx == num_agents - 1)
-        goal_group_->setEnabled(true);
-
-      window->raise();
-      window->activateWindow();
-      window->show();
+      idx = current_edit_idx_;
+    }
+    else // CREATE_MODE
+    {
+      idx = agent_count - 1;
     }
 
-    void ActorPanel::onSelectMap()
+    if (idx < 0 || idx >= (int)loaded_initial_marker_ids_.size())
     {
-      removeCurrentMarkers();
+      RCLCPP_ERROR(get_logger(),
+                   "onInitialPose(): bogus agent index %d", idx);
+      return;
+    }
 
-      QString simulatorName = simulator_combo_->currentText();
-      QString packageName;
+    // 1) If in EDIT_MODE, delete both the old mesh and its label for this agent:
+    if (panel_mode_ == EDIT_MODE && !adding_new_agent_)
+    {
+      auto del = std::make_unique<visualization_msgs::msg::MarkerArray>();
 
-      if (simulatorName == "Gazebo Classic")
-      {
-        packageName = "hunav_gazebo_wrapper";
-      }
-      else if (simulatorName == "Gazebo Fortress")
-      {
-        packageName = "hunav_gazebo_fortress_wrapper";
-      }
-      else if (simulatorName == "Isaac Sim")
-      {
-        packageName = "hunav_isaac_wrapper";
-      }
-      else
-      { // Webots
-        packageName = "hunav_webots_wrapper";
-      }
+      visualization_msgs::msg::Marker m;
+      m.header.frame_id = "/map";
+      m.header.stamp = rclcpp::Clock().now();
+      m.id = loaded_initial_marker_ids_[idx];
+      m.action = visualization_msgs::msg::Marker::DELETE;
+
+      // delete the mesh
+      m.ns = "agent_initial";
+      del->markers.push_back(m);
+
+      // delete the floating text
+      m.ns = "agent_id_text";
+      del->markers.push_back(m);
+
+      initial_pose_publisher->publish(std::move(del));
+    }
+
+    // 2) Read Z offset for the selected simulator
+    double z_offset = simulator_combo_->currentData().toDouble();
+
+    // 3) Allocate fresh ID
+    int id = next_marker_id_++;
+    loaded_initial_marker_ids_[idx] = id;
+
+    // pick this agent’s unique color
+    const QColor &c = agent_colors_[idx];
+    std_msgs::msg::ColorRGBA agent_col;
+    agent_col.r = c.redF();
+    agent_col.g = c.greenF();
+    agent_col.b = c.blueF();
+    agent_col.a = 1.0f;
+
+    // 4) Build the mesh marker
+    visualization_msgs::msg::Marker mesh = createMarker(x, y, id, "person", "create");
+    mesh.ns = "agent_initial";
+    mesh.id = id;
+    mesh.pose.position.z = z_offset;
+    tf2::Quaternion q;
+    q.setRPY(0, 0, theta);
+    mesh.pose.orientation = tf2::toMsg(q);
+    mesh.color = agent_col;
+
+    // 5) Build the floating text label
+    visualization_msgs::msg::Marker label =
+        createAgentLabel(x, y, id, "/map");
+    label.ns = "agent_id_text";
+    label.id = id;
+    label.pose.position.z = z_offset + 1.5; // float above the agent
+    if (adding_new_agent_)
+    {
+      // For new agents, show the ID that will be assigned (current list size + 1)
+      label.text = std::to_string(static_cast<int>(loaded_agent_names_.size()) + 1);
+    }
+    else
+    {
+      // For existing agents, show their actual 1-based index
+      label.text = std::to_string(idx + 1);
+    }
+    label.color = agent_col;
+
+    // 6) Publish them together
+    auto out = std::make_unique<visualization_msgs::msg::MarkerArray>();
+    out->markers.push_back(mesh);
+    out->markers.push_back(label);
+    initial_pose_publisher->publish(std::move(out));
+
+    // 7) Store the new pose + orientation
+    initial_pose_set = true;
+    stored_pose.header.frame_id = frame.toStdString();
+    stored_pose.header.stamp = rclcpp::Clock().now();
+    stored_pose.pose.position.x = x;
+    stored_pose.pose.position.y = y;
+    stored_pose.pose.position.z = z_offset;
+    stored_pose.pose.orientation.x = q.x();
+    stored_pose.pose.orientation.y = q.y();
+    stored_pose.pose.orientation.z = q.z();
+    stored_pose.pose.orientation.w = q.w();
+
+    // 8) Tear down goal-updater connection
+    disconnect(&GoalUpdater,
+               SIGNAL(updateGoal(double, double, double, QString)),
+               this,
+               SLOT(onInitialPose(double, double, double, QString)));
+
+    // 9) Re-enable panel’s controls so the user can press Next/Finish
+    if (save_button_)
+      save_button_->setEnabled(true);
+
+    if (panel_mode_ == CREATE_MODE && idx == num_agents - 1)
+      goal_group_->setEnabled(true);
+
+    window->raise();
+    window->activateWindow();
+    window->show();
+  }
+
+  void ActorPanel::onSelectMap()
+  {
+    removeCurrentMarkers();
+
+    QString simulatorName = simulator_combo_->currentText();
+    QString packageName;
+
+    if (simulatorName == "Gazebo Classic")
+    {
+      packageName = "hunav_gazebo_wrapper";
+    }
+    else if (simulatorName == "Gazebo Fortress")
+    {
+      packageName = "hunav_gazebo_fortress_wrapper";
+    }
+    else if (simulatorName == "Isaac Sim")
+    {
+      packageName = "hunav_isaac_wrapper";
+    }
+    else
+    { // Webots
+      packageName = "hunav_webots_wrapper";
+    }
 
       QString baseDir;
       try
@@ -2990,294 +3268,157 @@ namespace hunav_rviz2_panel
         baseDir = QDir(dockerPath).exists() ? dockerPath : homePath;
       }
 
-      QString yaml = QFileDialog::getOpenFileName(
-          this,
-          "Select map YAML",
-          baseDir,
-          "YAML files (*.yaml *.yml)");
-      if (yaml.isEmpty())
-      {
-        return;
-      }
-
-      map_file_ = yaml;
-      current_map_label_->setText(QFileInfo(yaml).fileName());
-
-      // 2) call the map_server/load_map service
-      auto client = this->create_client<nav2_msgs::srv::LoadMap>("/map_server/load_map");
-      if (!client->wait_for_service(2s))
-      {
-        QMessageBox::warning(this, "Map Server",
-                             "Timed out waiting for /map_server/load_map\n\n Is map_server up?");
-        return;
-      }
-
-      auto req = std::make_shared<nav2_msgs::srv::LoadMap::Request>();
-      req->map_url = yaml.toStdString();
-
-      auto future = client->async_send_request(req);
-      if (rclcpp::spin_until_future_complete(this->get_node_base_interface(), future, 5s) != rclcpp::FutureReturnCode::SUCCESS)
-      {
-        QMessageBox::critical(this, "Map Server",
-                              "Failed to call /map_server/load_map on:\n" + yaml);
-        return;
-      }
-      auto resp = future.get();
-      if (resp && resp->result == nav2_msgs::srv::LoadMap::Response::RESULT_SUCCESS)
-      {
-        // Enhanced success message
-        QMessageBox success_msg(this);
-        success_msg.setWindowTitle("Map Loaded Successfully");
-        success_msg.setText(QString(
-                                "<html>"
-                                "<h3>Map loaded successfully!</h3>"
-                                "<p><b>File:</b> %1</p>"
-                                "<p><b>Status:</b> Ready to configure agents</p>"
-                                "</html>")
-                                .arg(QFileInfo(yaml).fileName()));
-        success_msg.setIcon(QMessageBox::Information);
-        success_msg.setStyleSheet(
-            "QMessageBox {"
-            "  background-color: #d5f4e6;"
-            "}"
-            "QMessageBox QLabel {"
-            // "  color: #1e8449;"
-            "}");
-        success_msg.exec();
-
-        // Update UI state
-        panel_mode_ = CREATE_MODE;
-        actors->setEnabled(true);
-        n_agents_label_->setEnabled(true);
-        current_map_label_->setText(QFileInfo(yaml).fileName());
-        current_map_label_->setStyleSheet(
-            "QLabel {"
-            "  padding: 4px 6px;"
-            "  border: 1px solid #27ae60;"
-            "  border-radius: 4px;"
-            "  color: #1e8449;"
-            "  font-weight: bold;"
-            "}");
-      }
-      else
-      {
-        // Enhanced error message
-        QMessageBox error_msg(this);
-        error_msg.setWindowTitle("Map Loading Failed");
-        error_msg.setText(QString(
-                              "<html>"
-                              "<h3>Failed to load map</h3>"
-                              "<p><b>File:</b> %1</p>"
-                              "<p><b>Error:</b> Map server request failed</p>"
-                              "<p>Please check that the map_server is running and try again.</p>"
-                              "</html>")
-                              .arg(yaml));
-        error_msg.setIcon(QMessageBox::Critical);
-        error_msg.setStyleSheet(
-            "QMessageBox {"
-            "  background-color: #fdf2f2;"
-            "}"
-            "QMessageBox QLabel {"
-            "  color: #c0392b;"
-            "}");
-        error_msg.exec();
-      }
+    QString yaml = QFileDialog::getOpenFileName(
+        this,
+        "Select map YAML",
+        baseDir,
+        "YAML files (*.yaml *.yml)");
+    if (yaml.isEmpty())
+    {
+      return;
     }
 
-    /**
-     * @brief Handle goal point clicked from RViz map
-     *
-     * This method is called when the user clicks on the map while in goal-picking mode.
-     * It creates a new goal marker at the clicked location, assigns it a unique ID,
-     * and adds it to both the visual representation and internal data structures.
-     *
-     * @param msg Point stamped message containing the clicked coordinates in map frame
-     */
+    map_file_ = yaml;
+    current_map_label_->setText(QFileInfo(yaml).fileName());
 
-    void ActorPanel::onGoalPicked(const geometry_msgs::msg::PointStamped::SharedPtr msg)
+    // 2) call the map_server/load_map service
+    auto client = this->create_client<nav2_msgs::srv::LoadMap>("/map_server/load_map");
+    if (!client->wait_for_service(2s))
     {
-      if (!goal_picking_mode_)
-      {
-        return;
-      }
+      QMessageBox::warning(this, "Map Server",
+                           "Timed out waiting for /map_server/load_map\n\n Is map_server up?");
+      return;
+    }
 
-      // 1) If already “holding” a goal, this click is its new drop location:
-      if (moving_goal_id_ >= 0)
-      {
-        int gid = moving_goal_id_;
-        moving_goal_id_ = -1; // reset
+    auto req = std::make_shared<nav2_msgs::srv::LoadMap::Request>();
+    req->map_url = yaml.toStdString();
 
-        // update stored coords
-        loaded_global_goals_[gid] = msg->point;
+    auto future = client->async_send_request(req);
+    if (rclcpp::spin_until_future_complete(this->get_node_base_interface(), future, 5s) != rclcpp::FutureReturnCode::SUCCESS)
+    {
+      QMessageBox::critical(this, "Map Server",
+                            "Failed to call /map_server/load_map on:\n" + yaml);
+      return;
+    }
+    auto resp = future.get();
+    if (resp && resp->result == nav2_msgs::srv::LoadMap::Response::RESULT_SUCCESS)
+    {
+      // Enhanced success message
+      QMessageBox success_msg(this);
+      success_msg.setWindowTitle("Map Loaded Successfully");
+      success_msg.setText(QString(
+                              "<html>"
+                              "<h3>Map loaded successfully!</h3>"
+                              "<p><b>File:</b> %1</p>"
+                              "<p><b>Status:</b> Ready to configure agents</p>"
+                              "</html>")
+                              .arg(QFileInfo(yaml).fileName()));
+      success_msg.setIcon(QMessageBox::Information);
+      success_msg.setStyleSheet(
+          "QMessageBox {"
+          "  background-color: #d5f4e6;"
+          "}"
+          "QMessageBox QLabel {"
+          // "  color: #1e8449;"
+          "}");
+      success_msg.exec();
 
-        // add new markers at the drop point
-        visualization_msgs::msg::Marker sphere;
-        sphere.header = msg->header;
-        sphere.ns = "goal_points";
-        sphere.id = gid * 2;
-        sphere.type = visualization_msgs::msg::Marker::SPHERE;
-        sphere.action = visualization_msgs::msg::Marker::ADD;
-        sphere.pose.position = msg->point;
-        sphere.pose.orientation.w = 1.0;
-        sphere.scale.x = sphere.scale.y = sphere.scale.z = 0.2;
-        sphere.color.r = 0.0f;
-        sphere.color.g = 0.7f;
-        sphere.color.b = 0.7f;
-        sphere.color.a = 1.0f;
-        goal_markers_.markers.push_back(sphere);
+      // Update UI state
+      panel_mode_ = CREATE_MODE;
+      actors->setEnabled(true);
+      n_agents_label_->setEnabled(true);
+      current_map_label_->setText(QFileInfo(yaml).fileName());
+      current_map_label_->setStyleSheet(
+          "QLabel {"
+          "  padding: 4px 6px;"
+          "  border: 1px solid #27ae60;"
+          "  border-radius: 4px;"
+          "  color: #1e8449;"
+          "  font-weight: bold;"
+          "}");
+    }
+    else
+    {
+      // Enhanced error message
+      QMessageBox error_msg(this);
+      error_msg.setWindowTitle("Map Loading Failed");
+      error_msg.setText(QString(
+                            "<html>"
+                            "<h3>Failed to load map</h3>"
+                            "<p><b>File:</b> %1</p>"
+                            "<p><b>Error:</b> Map server request failed</p>"
+                            "<p>Please check that the map_server is running and try again.</p>"
+                            "</html>")
+                            .arg(yaml));
+      error_msg.setIcon(QMessageBox::Critical);
+      error_msg.setStyleSheet(
+          "QMessageBox {"
+          "  background-color: #fdf2f2;"
+          "}"
+          "QMessageBox QLabel {"
+          "  color: #c0392b;"
+          "}");
+      error_msg.exec();
+    }
+  }
 
-        visualization_msgs::msg::Marker label = sphere;
-        label.ns = "goal_numbers";
-        label.id = gid * 2 + 1;
-        label.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
-        label.pose.position.y += 0.5;
-        label.pose.position.z += 0.3;
-        label.scale.z = 0.7;
-        label.color.r = label.color.g = label.color.b = 1.0f;
-        label.color.a = 1.0f;
-        label.text = std::to_string(gid);
-        goal_markers_.markers.push_back(label);
+  /**
+   * @brief Handle goal point clicked from RViz map
+   *
+   * This method is called when the user clicks on the map while in goal-picking mode.
+   * It creates a new goal marker at the clicked location, assigns it a unique ID,
+   * and adds it to both the visual representation and internal data structures.
+   *
+   * @param msg Point stamped message containing the clicked coordinates in map frame
+   */
 
-        // refresh GUI
-        goal_markers_pub_->publish(goal_markers_);
-        rebuildGoalListWidget();
+  void ActorPanel::onGoalPicked(const geometry_msgs::msg::PointStamped::SharedPtr msg)
+  {
+    if (!goal_picking_mode_)
+    {
+      return;
+    }
 
-        if (auto *tm = getDisplayContext()->getToolManager())
-        {
-          for (int i = 0; i < tm->numTools(); ++i)
-          {
-            if (QString(tm->getTool(i)->getClassId()) == "rviz_default_plugins/PublishPoint")
-            {
-              tm->setCurrentTool(tm->getTool(i));
-              break;
-            }
-          }
-        }
+    // 1) If already “holding” a goal, this click is its new drop location:
+    if (moving_goal_id_ >= 0)
+    {
+      int gid = moving_goal_id_;
+      moving_goal_id_ = -1; // reset
 
-        return;
-      }
+      // update stored coords
+      loaded_global_goals_[gid] = msg->point;
 
-      // 2) Otherwise, see if this click is near an existing goal → pick it up
-      int picked_gid = -1;
-      double best_d = std::numeric_limits<double>::max();
-      for (auto const &it : loaded_global_goals_)
-      {
-        int gid = it.first;
-        auto &pos = it.second;
-        double d = std::hypot(msg->point.x - pos.x,
-                              msg->point.y - pos.y);
-        if (d < 0.2 && d < best_d)
-        {
-          picked_gid = gid;
-          best_d = d;
-        }
-      }
+      // add new markers at the drop point
+      visualization_msgs::msg::Marker sphere;
+      sphere.header = msg->header;
+      sphere.ns = "goal_points";
+      sphere.id = gid * 2;
+      sphere.type = visualization_msgs::msg::Marker::SPHERE;
+      sphere.action = visualization_msgs::msg::Marker::ADD;
+      sphere.pose.position = msg->point;
+      sphere.pose.orientation.w = 1.0;
+      sphere.scale.x = sphere.scale.y = sphere.scale.z = 0.2;
+      sphere.color.r = 0.0f;
+      sphere.color.g = 0.7f;
+      sphere.color.b = 0.7f;
+      sphere.color.a = 1.0f;
+      goal_markers_.markers.push_back(sphere);
 
-      if (picked_gid >= 0)
-      {
-        // pick up that goal:
-        moving_goal_id_ = picked_gid;
-        loaded_global_goals_.erase(picked_gid);
+      visualization_msgs::msg::Marker label = sphere;
+      label.ns = "goal_numbers";
+      label.id = gid * 2 + 1;
+      label.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
+      label.pose.position.y += 0.5;
+      label.pose.position.z += 0.3;
+      label.scale.z = 0.7;
+      label.color.r = label.color.g = label.color.b = 1.0f;
+      label.color.a = 1.0f;
+      label.text = std::to_string(gid);
+      goal_markers_.markers.push_back(label);
 
-        // remove its two markers:
-        goal_markers_.markers.erase(
-            std::remove_if(
-                goal_markers_.markers.begin(),
-                goal_markers_.markers.end(),
-                [&](auto &m)
-                {
-                  return m.id == picked_gid * 2 || m.id == picked_gid * 2 + 1;
-                }),
-            goal_markers_.markers.end());
-
-        // update GUI so user sees them vanish:
-        goal_markers_pub_->publish(goal_markers_);
-        rebuildGoalListWidget();
-
-        // optionally nudge user:
-        QMessageBox::information(
-            this,
-            tr("Edit Goal"),
-            tr("Now click on the map to place Goal %1 at its new location.").arg(picked_gid));
-
-        if (auto *tm = getDisplayContext()->getToolManager())
-        {
-          for (int i = 0; i < tm->numTools(); ++i)
-          {
-            if (QString(tm->getTool(i)->getClassId()) == "rviz_default_plugins/PublishPoint")
-            {
-              tm->setCurrentTool(tm->getTool(i));
-              break;
-            }
-          }
-        }
-
-        return;
-      }
-
-      // 3) If clicked nowhere near an existing goal, fall back to “add new”:
-      {
-        // ─── 1) Store the new goal pose ───
-        geometry_msgs::msg::Pose p;
-        p.position = msg->point;
-        p.orientation.w = 1.0;
-        // goals_.push_back(p);
-
-        // ─── 2) Compute a fresh 1-based goal ID ───
-        //    (max key in loaded_global_goals_ + 1, or 1 if empty)
-        // int newGID = goal_ids_.empty() ? 1 : (goal_ids_.back() + 1);
-        int newGID = loaded_global_goals_.empty()
-                         ? 1
-                         : (loaded_global_goals_.rbegin()->first + 1);
-        goal_ids_.push_back(newGID);
-        // Determine next available goal ID from existing global goals
-        // if (!loaded_global_goals_.empty())
-        //   newGID = loaded_global_goals_.rbegin()->first + 1;
-        loaded_global_goals_[newGID] = p.position;
-
-        // ─── 3) Create & append the sphere marker ───
-        visualization_msgs::msg::Marker sphere;
-        sphere.header = msg->header; // reuse frame & stamp
-        sphere.ns = "goal_points";
-        sphere.id = newGID * 2; // even IDs
-        sphere.type = visualization_msgs::msg::Marker::SPHERE;
-        sphere.action = visualization_msgs::msg::Marker::ADD;
-        sphere.pose = p;
-        sphere.scale.x = sphere.scale.y = sphere.scale.z = 0.2;
-        sphere.color.r = 0.0f;
-        sphere.color.g = 0.7f;
-        sphere.color.b = 0.7f;
-        sphere.color.a = 1.0f;
-        goal_markers_.markers.push_back(sphere);
-
-        // ─── 4) Create & append the text label marker ───
-        visualization_msgs::msg::Marker label;
-        label.header = msg->header;
-        label.ns = "goal_numbers";
-        label.id = newGID * 2 + 1; // odd IDs
-        label.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
-        label.action = visualization_msgs::msg::Marker::ADD;
-        label.pose = p;
-        label.pose.position.y += 0.5;
-        label.pose.position.z += 0.3;
-        label.scale.z = 0.7;
-        label.color.r = label.color.g = label.color.b = 1.0f;
-        label.color.a = 1.0f;
-        label.text = std::to_string(newGID);
-        goal_markers_.markers.push_back(label);
-
-        // ─── 5) Publish all goal markers together ───
-        goal_markers_pub_->publish(goal_markers_);
-
-        // ─── 6) Update the list widget with the same ID & coords ───
-        QString entry = QString("Goal %1: (%2, %3)")
-                            .arg(newGID)
-                            .arg(p.position.x, 0, 'f', 3)
-                            .arg(p.position.y, 0, 'f', 3);
-        goal_list_widget_->addItem(entry);
-
-        // rebuildGoalListWidget();
-      }
+      // refresh GUI
+      goal_markers_pub_->publish(goal_markers_);
+      rebuildGoalListWidget();
 
       if (auto *tm = getDisplayContext()->getToolManager())
       {
@@ -3290,601 +3431,738 @@ namespace hunav_rviz2_panel
           }
         }
       }
+
+      return;
     }
 
-    void ActorPanel::rebuildGoalListWidget()
+    // 2) Otherwise, see if this click is near an existing goal → pick it up
+    int picked_gid = -1;
+    double best_d = std::numeric_limits<double>::max();
+    for (auto const &it : loaded_global_goals_)
     {
-      goal_list_widget_->clear();
-      for (auto const &[gid, pos] : loaded_global_goals_)
+      int gid = it.first;
+      auto &pos = it.second;
+      double d = std::hypot(msg->point.x - pos.x,
+                            msg->point.y - pos.y);
+      if (d < 0.2 && d < best_d)
       {
-        goal_list_widget_->addItem(
-            QString("Goal %1: (%2, %3)")
-                .arg(gid)
-                .arg(pos.x, 0, 'f', 3)
-                .arg(pos.y, 0, 'f', 3));
+        picked_gid = gid;
+        best_d = d;
       }
     }
 
-    void ActorPanel::onEnterGoalPickingMode()
+    if (picked_gid >= 0)
     {
-      goal_picking_mode_ = !goal_picking_mode_;
+      // pick up that goal:
+      moving_goal_id_ = picked_gid;
+      loaded_global_goals_.erase(picked_gid);
 
-      enter_goal_mode_btn_->setText(goal_picking_mode_
-                                        ? "Exit Goal-Picking Mode"
-                                        : "Enter Goal-Picking Mode");
-      if (!goal_picking_mode_)
-        enter_goal_mode_btn_->setDown(false);
-      else
-        enter_goal_mode_btn_->setDown(true);
+      // remove its two markers:
+      goal_markers_.markers.erase(
+          std::remove_if(
+              goal_markers_.markers.begin(),
+              goal_markers_.markers.end(),
+              [&](auto &m)
+              {
+                return m.id == picked_gid * 2 || m.id == picked_gid * 2 + 1;
+              }),
+          goal_markers_.markers.end());
 
-      // only the first time, pop up instructions
-      if (!first_goal_picking_info_shown_)
-      {
-        first_goal_picking_info_shown_ = true;
+      // update GUI so user sees them vanish:
+      goal_markers_pub_->publish(goal_markers_);
+      rebuildGoalListWidget();
 
-        QString msg = QString(
-                          "<html>"
-                          "<b>Click on the map to set navigation goals</b>.<br>"
-                          "If you want to <b>modify</b> an already set goal, just <b>click on its marker</b>.<br><br>"
-                          "When you’re done, click <b><i>%1</i></b> and then <b><i>%2</i></b>."
-                          "</html>")
-                          .arg(enter_goal_mode_btn_->text())
-                          .arg(assign_goals_btn_->text());
+      // optionally nudge user:
+      QMessageBox::information(
+          this,
+          tr("Edit Goal"),
+          tr("Now click on the map to place Goal %1 at its new location.").arg(picked_gid));
 
-        QMessageBox::information(
-            this,
-            tr("Goal-Picking Mode"),
-            msg);
-      }
-
-      // ── Tool management - switch tools based on mode ──
       if (auto *tm = getDisplayContext()->getToolManager())
       {
-        if (goal_picking_mode_)
+        for (int i = 0; i < tm->numTools(); ++i)
         {
-          // Entering goal picking mode - switch to PublishPoint tool
-          for (int i = 0; i < tm->numTools(); ++i)
+          if (QString(tm->getTool(i)->getClassId()) == "rviz_default_plugins/PublishPoint")
           {
-            rviz_common::Tool *tool = tm->getTool(i);
-            if (QString(tool->getClassId()) == "rviz_default_plugins/PublishPoint")
-            {
-              tm->setCurrentTool(tool);
-              break;
-            }
-          }
-        }
-        else
-        {
-          // exiting goal picking mode - switch to Interact tool
-          for (int i = 0; i < tm->numTools(); ++i)
-          {
-            rviz_common::Tool *tool = tm->getTool(i);
-            if (QString(tool->getClassId()) == "rviz_default_plugins/Interact")
-            {
-              tm->setCurrentTool(tool);
-              break;
-            }
+            tm->setCurrentTool(tm->getTool(i));
+            break;
           }
         }
       }
 
-      bool anyGoals = !goal_ids_.empty();
-      assign_goals_btn_->setEnabled(!goal_picking_mode_ && anyGoals);
+      return;
     }
 
-    /**
-     * @brief Open dialog for assigning goals to specific agents
-     *
-     * Creates an interactive dialog that allows users to assign picked goals to individual agents.
-     * The dialog provides visual feedback with agent-specific colors and validates that all agents
-     * have at least one goal assigned before completion.
-     */
-    void ActorPanel::onAssignGoalsClicked()
+    // 3) If clicked nowhere near an existing goal, fall back to “add new”:
     {
-      // 1) Build and position a tool-style dialog with enhanced styling
-      QString msg = QString(
-          "<html><head><style>"
-          "body { font-family: 'Segoe UI', Arial, sans-serif; margin: 8px; }"
-          ".highlight { color: #3498db; font-weight: bold; }"
-          ".action { color: #27ae60; font-weight: bold; }"
-          ".warning { color: #e67e22; font-weight: bold; }"
-          "</style></head><body>"
+      // ─── 1) Store the new goal pose ───
+      geometry_msgs::msg::Pose p;
+      p.position = msg->point;
+      p.orientation.w = 1.0;
+      // goals_.push_back(p);
 
-          "<h3 style='color: #2c3e50; margin-bottom: 8px;'>Goal Assignment Guide</h3>"
+      // ─── 2) Compute a fresh 1-based goal ID ───
+      //    (max key in loaded_global_goals_ + 1, or 1 if empty)
+      // int newGID = goal_ids_.empty() ? 1 : (goal_ids_.back() + 1);
+      int newGID = loaded_global_goals_.empty()
+                       ? 1
+                       : (loaded_global_goals_.rbegin()->first + 1);
+      goal_ids_.push_back(newGID);
+      // Determine next available goal ID from existing global goals
+      // if (!loaded_global_goals_.empty())
+      //   newGID = loaded_global_goals_.rbegin()->first + 1;
+      loaded_global_goals_[newGID] = p.position;
 
-          "<p>You are about to <span class='highlight'>assign navigation goals</span> to your agents.</p>"
+      // ─── 3) Create & append the sphere marker ───
+      visualization_msgs::msg::Marker sphere;
+      sphere.header = msg->header; // reuse frame & stamp
+      sphere.ns = "goal_points";
+      sphere.id = newGID * 2; // even IDs
+      sphere.type = visualization_msgs::msg::Marker::SPHERE;
+      sphere.action = visualization_msgs::msg::Marker::ADD;
+      sphere.pose = p;
+      sphere.scale.x = sphere.scale.y = sphere.scale.z = 0.2;
+      sphere.color.r = 0.0f;
+      sphere.color.g = 0.7f;
+      sphere.color.b = 0.7f;
+      sphere.color.a = 1.0f;
+      goal_markers_.markers.push_back(sphere);
 
-          "<p><strong>Steps:</strong></p>"
-          "<ol style='margin-left: 16px;'>"
-          "<li>Select an agent from the dropdown</li>"
-          "<li>Pick goals from the <span class='action'>Available Goals</span> list</li>"
-          "<li>Use <span class='action'>▶</span> to assign or <span class='action'>◀</span> to remove goals</li>"
-          "<li>Click <span class='action'>Lock Selection</span> to confirm each agent's route</li>"
-          "<li>Click <span class='action'>Finish</span> when all assignments are complete</li>"
-          "</ol>"
+      // ─── 4) Create & append the text label marker ───
+      visualization_msgs::msg::Marker label;
+      label.header = msg->header;
+      label.ns = "goal_numbers";
+      label.id = newGID * 2 + 1; // odd IDs
+      label.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
+      label.action = visualization_msgs::msg::Marker::ADD;
+      label.pose = p;
+      label.pose.position.y += 0.5;
+      label.pose.position.z += 0.3;
+      label.scale.z = 0.7;
+      label.color.r = label.color.g = label.color.b = 1.0f;
+      label.color.a = 1.0f;
+      label.text = std::to_string(newGID);
+      goal_markers_.markers.push_back(label);
 
-          "<p><span class='warning'>⚠️ Navigation Tip:</span> Ensure goal connections have clear paths (no obstacles) for optimal navigation.</p>"
+      // ─── 5) Publish all goal markers together ───
+      goal_markers_pub_->publish(goal_markers_);
 
-          "</body></html>");
+      // ─── 6) Update the list widget with the same ID & coords ───
+      QString entry = QString("Goal %1: (%2, %3)")
+                          .arg(newGID)
+                          .arg(p.position.x, 0, 'f', 3)
+                          .arg(p.position.y, 0, 'f', 3);
+      goal_list_widget_->addItem(entry);
 
-      QMessageBox info_box(this);
-      info_box.setWindowTitle("Goal Assignment");
-      info_box.setText(msg);
-      info_box.setIcon(QMessageBox::Information);
-      info_box.setStyleSheet(
-          "QMessageBox {"
-          "  background-color: #f8f9fa;"
-          "  border: 2px solid #3498db;"
-          "  border-radius: 8px;"
-          "}"
-          "QMessageBox QLabel {"
-          "  color: #2c3e50;"
-          "  padding: 4px;"
-          "}");
-      info_box.exec();
+      // rebuildGoalListWidget();
+    }
 
-      // Create the main dialog with enhanced styling
-      QDialog dlg(this);
-      int panelWidth = this->width(); 
-      dlg.setFixedWidth(panelWidth); 
-      dlg.setWindowFlags(dlg.windowFlags() | Qt::Tool);
-      dlg.setWindowTitle("Assign Goals to Agents");
-      dlg.setStyleSheet(
-          "QDialog {"
-          // "  background-color: #f8f9fa;"
-          "  border: 2px solid #3498db;"
-          "  border-radius: 8px;"
-          "}"
-          "QLabel {"
-          "  color: #2c3e50;"
-          "  font-weight: bold;"
-          "  font-size: 13px;"
-          "}"
-          "QComboBox {"
-          "  padding: 6px 10px;"
-          "  border: 2px solid #bdc3c7;"
-          "  border-radius: 6px;"
-          // "  background-color: white;"
-          "  font-size: 14px;"
-          "  font-weight: bold;"
-          // "  min-height: 20px;"
-          "}"
-          "QComboBox:focus {"
-          "  border-color: #3498db;"
-          "}"
-          // "QComboBox::drop-down {"
-          // // "  width: 20px;"
-          // "  border-left: 2px solid #bdc3c7;"
-          // "  border-radius: 0 6px 6px 0;"
-          // "  background-color: #ecf0f1;"
-          // "  color:rgb(0, 0, 0);"
-          // "}"
-          // "QComboBox::down-arrow {"
-          // "  image: url(:/icons/down-arrow.svg);"
-          // "  border-left: 5px solid transparent;"
-          // "  border-right: 5px solid transparent;"
-          // "  border-top: 5px solid #7f8c8d;"
-          // "  margin-right: 5px;"
-          // "}"
-          "QListWidget {"
-          "  border: 2px solid #bdc3c7;"
-          "  border-radius: 6px;"
-          "  background-color: white;"
-          "  padding: 4px;"
-          "  font-size: 13px;"
-          "  selection-background-color: #3498db;"
-          "}"
-          "QListWidget::item {"
-          "  padding: 6px 8px;"
-          "  border-bottom: 1px solid #ecf0f1;"
-          "  border-radius: 4px;"
-          "  margin: 1px;"
-          "  color: #2c3e50;"
-          "}"
-          "QListWidget::item:hover {"
-          "  background-color: #ebf3fd;"
-          "}"
-          "QListWidget::item:selected {"
-          "  background-color: #3498db;"
-          "  color: white;"
-          "  font-weight: bold;"
-          "}"
-          "QPushButton {"
-          "  padding: 8px 12px;"
-          "  border: 2px solid #27ae60;"
-          "  border-radius: 6px;"
-          "  background-color: #d5f4e6;"
-          // "  color: #1e8449;"
-          "  font-weight: bold;"
-          "  font-size: 13px;"
-          // "  min-width: 80px;"
-          "}"
-          "QPushButton:hover:enabled {"
-          "  background-color: #a9dfbf;"
-          "  border-color: #1e8449;"
-          "}"
-          "QPushButton:pressed {"
-          "  background-color: #27ae60;"
-          "  color: white;"
-          "}"
-          "QPushButton:disabled {"
-          "  background-color: #f8f9fa;"
-          "  color: #aeb6bf;"
-          "  border-color: #d5dbdb;"
-          "}"
-          "QCheckBox {"
-          "  color: #2c3e50;"
-          "  font-weight: bold;"
-          "  font-size: 13px;"
-          "}"
-          "QCheckBox::indicator {"
-          // "  width: 18px;"
-          "  height: 18px;"
-          "  border: 2px solid #bdc3c7;"
-          "  border-radius: 4px;"
-          "  background-color: white;"
-          "}"
-          "QCheckBox::indicator:checked {"
-          "  background-color: #3498db;"
-          "  border-color: #3498db;"
-          "}"
-          "QCheckBox::indicator:checked::after {"
-          "  content: '✓';"
-          "  color: white;"
-          "  font-weight: bold;"
-          "}"
-          "QGroupBox {"
-          "  font-weight: bold;"
-          "  color:rgb(0, 0, 0);"
-          "  margin-top: 8px;"
-          "  padding-top: 4px;"
-          "  border: 2px solid #3498db;"
-          "  border-radius: 6px;"
-          "  background-color: #ebf3fd;"
-          "}"
-          "QGroupBox::title {"
-          "  subcontrol-origin: margin;"
-          "  subcontrol-position: top left;"
-          "  padding: 0 4px;"
-          "  background-color: #d6eaf8;"
-          "  border: 1px solid #3498db;"
-          "  border-radius: 4px;"
-          "}");
-
-      if (auto *lay = dlg.layout()) {
-        lay->setSizeConstraint(QLayout::SetMinimumSize);
-      }
-
-
-      // assign_goals_btn_->setDown(true);
-
-      if (!loaded_agent_goals_.empty())
+    if (auto *tm = getDisplayContext()->getToolManager())
+    {
+      for (int i = 0; i < tm->numTools(); ++i)
       {
-        agent_goals_ = loaded_agent_goals_;
-        num_actors_ = (int)loaded_agent_names_.size();
-        agent_colors_.clear();
-        for (int i = 0; i < num_actors_; ++i)
+        if (QString(tm->getTool(i)->getClassId()) == "rviz_default_plugins/PublishPoint")
         {
-          QColor c;
-          c.setHsvF(double(i) / num_actors_, 0.8, 0.9);
-          agent_colors_.push_back(c);
+          tm->setCurrentTool(tm->getTool(i));
+          break;
         }
       }
+    }
+  }
 
-      // 2) Main layout with enhanced spacing
-      auto *main_layout = new QVBoxLayout(&dlg);
-      // main_layout->setSpacing(4);
-      // main_layout->setContentsMargins(8, 8, 8, 8);
-      dlg.setLayout(main_layout);
-      main_layout->setSizeConstraint(QLayout::SetMinimumSize);
+  void ActorPanel::rebuildGoalListWidget()
+  {
+    goal_list_widget_->clear();
+    for (auto const &[gid, pos] : loaded_global_goals_)
+    {
+      goal_list_widget_->addItem(
+          QString("Goal %1: (%2, %3)")
+              .arg(gid)
+              .arg(pos.x, 0, 'f', 3)
+              .arg(pos.y, 0, 'f', 3));
+    }
+  }
 
-      // Header section with styled title
-      QLabel *header_label = new QLabel("Goal Assignment Manager");
-      header_label->setStyleSheet(
-          "QLabel {"
-          "  font-size: 16px;"
-          "  font-weight: bold;"
-          "  color:rgb(0, 0, 0);"
-          "  background-color: #ebf3fd;"
-          "  padding: 8px;"
-          "  border-radius: 6px;"
-          "  border: 2px solid #3498db;"
-          "}");
-      header_label->setAlignment(Qt::AlignCenter);
-      main_layout->addWidget(header_label);
+  void ActorPanel::onEnterGoalPickingMode()
+  {
+    goal_picking_mode_ = !goal_picking_mode_;
 
-      // Agent selector section in a group box
-      QGroupBox *agent_group = new QGroupBox("Agent Selection");
-      QVBoxLayout *agent_layout = new QVBoxLayout;
+    enter_goal_mode_btn_->setText(goal_picking_mode_
+                                      ? "Exit Goal-Picking Mode"
+                                      : "Enter Goal-Picking Mode");
+    if (!goal_picking_mode_)
+      enter_goal_mode_btn_->setDown(false);
+    else
+      enter_goal_mode_btn_->setDown(true);
 
-      QLabel *agent_label = new QLabel("Select agent to configure:");
-      auto *agent_sel = new QComboBox;
-      // agent_sel->setStyleSheet("QComboBox { font-size: 14px; font-weight: bold; }");
+    // only the first time, pop up instructions
+    if (!first_goal_picking_info_shown_)
+    {
+      first_goal_picking_info_shown_ = true;
 
-      for (int i = 0; i < int(agent_goals_.size()); ++i)
+      QString msg = QString(
+                        "<html>"
+                        "<b>Click on the map to set navigation goals</b>.<br>"
+                        "If you want to <b>modify</b> an already set goal, just <b>click on its marker</b>.<br><br>"
+                        "When you’re done, click <b><i>%1</i></b> and then <b><i>%2</i></b>."
+                        "</html>")
+                        .arg(enter_goal_mode_btn_->text())
+                        .arg(assign_goals_btn_->text());
+
+      QMessageBox::information(
+          this,
+          tr("Goal-Picking Mode"),
+          msg);
+    }
+
+    // ── Tool management - switch tools based on mode ──
+    if (auto *tm = getDisplayContext()->getToolManager())
+    {
+      if (goal_picking_mode_)
       {
-        QString label = QString("Agent %1").arg(i + 1);
-        agent_sel->addItem(label);
+        // Entering goal picking mode - switch to PublishPoint tool
+        for (int i = 0; i < tm->numTools(); ++i)
+        {
+          rviz_common::Tool *tool = tm->getTool(i);
+          if (QString(tool->getClassId()) == "rviz_default_plugins/PublishPoint")
+          {
+            tm->setCurrentTool(tool);
+            break;
+          }
+        }
       }
+      else
+      {
+        // exiting goal picking mode - switch to Interact tool
+        for (int i = 0; i < tm->numTools(); ++i)
+        {
+          rviz_common::Tool *tool = tm->getTool(i);
+          if (QString(tool->getClassId()) == "rviz_default_plugins/Interact")
+          {
+            tm->setCurrentTool(tool);
+            break;
+          }
+        }
+      }
+    }
 
-      agent_layout->addWidget(agent_label);
-      agent_layout->addWidget(agent_sel);
-      agent_group->setLayout(agent_layout);
-      main_layout->addWidget(agent_group);
+    bool anyGoals = !goal_ids_.empty();
+    assign_goals_btn_->setEnabled(!goal_picking_mode_ && anyGoals);
+  }
 
-      // Goals management section
-      QGroupBox *goals_group = new QGroupBox("Goal Management");
-      QVBoxLayout *goals_layout = new QVBoxLayout;
+  /**
+   * @brief Open dialog for assigning goals to specific agents
+   *
+   * Creates an interactive dialog that allows users to assign picked goals to individual agents.
+   * The dialog provides visual feedback with agent-specific colors and validates that all agents
+   * have at least one goal assigned before completion.
+   */
+  void ActorPanel::onAssignGoalsClicked()
+  {
+    // 1) Build and position a tool-style dialog with enhanced styling
+    QString msg = QString(
+        "<html><head><style>"
+        "body { font-family: 'Segoe UI', Arial, sans-serif; margin: 8px; }"
+        ".highlight { color: #3498db; font-weight: bold; }"
+        ".action { color: #27ae60; font-weight: bold; }"
+        ".warning { color: #e67e22; font-weight: bold; }"
+        "</style></head><body>"
 
-      // — Available vs Assigned lists + buttons with enhanced titles
-      auto *titles = new QHBoxLayout;
-      QLabel *avail_title = new QLabel("Available Goals");
-      QLabel *assigned_title = new QLabel("Assigned Goals");
-      avail_title->setStyleSheet("QLabel { color: #e67e22; font-size: 14px; }");
-      assigned_title->setStyleSheet("QLabel { color: #27ae60; font-size: 14px; }");
+        "<h3 style='color: #2c3e50; margin-bottom: 8px;'>Goal Assignment Guide</h3>"
 
-      titles->addWidget(avail_title);
-      titles->addStretch();
-      titles->addWidget(assigned_title);
-      goals_layout->addLayout(titles);
+        "<p>You are about to <span class='highlight'>assign navigation goals</span> to your agents.</p>"
 
-      auto *lists_layout = new QHBoxLayout;
-      auto *avail_list = new QListWidget;
-      auto *assigned_list = new QListWidget;
+        "<p><strong>Steps:</strong></p>"
+        "<ol style='margin-left: 16px;'>"
+        "<li>Select an agent from the dropdown</li>"
+        "<li>Pick goals from the <span class='action'>Available Goals</span> list</li>"
+        "<li>Use <span class='action'>▶</span> to assign or <span class='action'>◀</span> to remove goals</li>"
+        "<li>Click <span class='action'>Lock Selection</span> to confirm each agent's route</li>"
+        "<li>Click <span class='action'>Finish</span> when all assignments are complete</li>"
+        "</ol>"
 
-      // Enhanced button styling for arrow buttons
-      auto *btn_layout = new QVBoxLayout;
-      auto *add_btn = new QPushButton("▶ Assign");
-      auto *remove_btn = new QPushButton("◀ Remove");
+        "<p><span class='warning'>⚠️ Navigation Tip:</span> Ensure goal connections have clear paths (no obstacles) for optimal navigation.</p>"
 
-      add_btn->setStyleSheet(
-          "QPushButton {"
-          "  background-color: #d5f4e6;"
-          "  border-color: #27ae60;"
-          "  color: #1e8449;"
-          "  font-size: 14px;"
-          "  padding: 10px 16px;"
-          "}"
-          "QPushButton:hover:enabled {"
-          "  background-color: #a9dfbf;"
-          "  border-color: #1e8449;"
-          "}");
-      remove_btn->setStyleSheet(
-          "QPushButton {"
-          "  background-color: #fdf2f2;"
-          "  border-color: #e74c3c;"
-          "  color: #c0392b;"
-          "  font-size: 14px;"
-          "  padding: 10px 16px;"
-          "}"
-          "QPushButton:hover:enabled {"
-          "  background-color:rgb(233, 176, 166);"
-          "  border-color:rgb(228, 64, 46);"
-          "}");
+        "</body></html>");
 
-      btn_layout->addStretch();
-      btn_layout->addWidget(add_btn);
-      btn_layout->addSpacing(8);
-      btn_layout->addWidget(remove_btn);
-      btn_layout->addStretch();
+    QMessageBox info_box(this);
+    info_box.setWindowTitle("Goal Assignment");
+    info_box.setText(msg);
+    info_box.setIcon(QMessageBox::Information);
+    info_box.setStyleSheet(
+        "QMessageBox {"
+        "  background-color: #f8f9fa;"
+        "  border: 2px solid #3498db;"
+        "  border-radius: 8px;"
+        "}"
+        "QMessageBox QLabel {"
+        "  color: #2c3e50;"
+        "  padding: 4px;"
+        "}");
+    info_box.exec();
 
-      lists_layout->addWidget(avail_list);
-      lists_layout->addLayout(btn_layout);
-      lists_layout->addWidget(assigned_list);
-      goals_layout->addLayout(lists_layout);
-      goals_group->setLayout(goals_layout);
-      main_layout->addWidget(goals_group);
+    // Create the main dialog with enhanced styling
+    QDialog dlg(this);
+    int panelWidth = this->width();
+    dlg.setFixedWidth(panelWidth);
+    dlg.setWindowFlags(dlg.windowFlags() | Qt::Tool);
+    dlg.setWindowTitle("Assign Goals to Agents");
+    dlg.setStyleSheet(
+        "QDialog {"
+        // "  background-color: #f8f9fa;"
+        "  border: 2px solid #3498db;"
+        "  border-radius: 8px;"
+        "}"
+        "QLabel {"
+        "  color: #2c3e50;"
+        "  font-weight: bold;"
+        "  font-size: 13px;"
+        "}"
+        "QComboBox {"
+        "  padding: 6px 10px;"
+        "  border: 2px solid #bdc3c7;"
+        "  border-radius: 6px;"
+        // "  background-color: white;"
+        "  font-size: 14px;"
+        "  font-weight: bold;"
+        // "  min-height: 20px;"
+        "}"
+        "QComboBox:focus {"
+        "  border-color: #3498db;"
+        "}"
+        // "QComboBox::drop-down {"
+        // // "  width: 20px;"
+        // "  border-left: 2px solid #bdc3c7;"
+        // "  border-radius: 0 6px 6px 0;"
+        // "  background-color: #ecf0f1;"
+        // "  color:rgb(0, 0, 0);"
+        // "}"
+        // "QComboBox::down-arrow {"
+        // "  image: url(:/icons/down-arrow.svg);"
+        // "  border-left: 5px solid transparent;"
+        // "  border-right: 5px solid transparent;"
+        // "  border-top: 5px solid #7f8c8d;"
+        // "  margin-right: 5px;"
+        // "}"
+        "QListWidget {"
+        "  border: 2px solid #bdc3c7;"
+        "  border-radius: 6px;"
+        "  background-color: white;"
+        "  padding: 4px;"
+        "  font-size: 13px;"
+        "  selection-background-color: #3498db;"
+        "}"
+        "QListWidget::item {"
+        "  padding: 6px 8px;"
+        "  border-bottom: 1px solid #ecf0f1;"
+        "  border-radius: 4px;"
+        "  margin: 1px;"
+        "  color: #2c3e50;"
+        "}"
+        "QListWidget::item:hover {"
+        "  background-color: #ebf3fd;"
+        "}"
+        "QListWidget::item:selected {"
+        "  background-color: #3498db;"
+        "  color: white;"
+        "  font-weight: bold;"
+        "}"
+        "QPushButton {"
+        "  padding: 8px 12px;"
+        "  border: 2px solid #27ae60;"
+        "  border-radius: 6px;"
+        "  background-color: #d5f4e6;"
+        // "  color: #1e8449;"
+        "  font-weight: bold;"
+        "  font-size: 13px;"
+        // "  min-width: 80px;"
+        "}"
+        "QPushButton:hover:enabled {"
+        "  background-color: #a9dfbf;"
+        "  border-color: #1e8449;"
+        "}"
+        "QPushButton:pressed {"
+        "  background-color: #27ae60;"
+        "  color: white;"
+        "}"
+        "QPushButton:disabled {"
+        "  background-color: #f8f9fa;"
+        "  color: #aeb6bf;"
+        "  border-color: #d5dbdb;"
+        "}"
+        "QCheckBox {"
+        "  color: #2c3e50;"
+        "  font-weight: bold;"
+        "  font-size: 13px;"
+        "}"
+        "QCheckBox::indicator {"
+        // "  width: 18px;"
+        "  height: 18px;"
+        "  border: 2px solid #bdc3c7;"
+        "  border-radius: 4px;"
+        "  background-color: white;"
+        "}"
+        "QCheckBox::indicator:checked {"
+        "  background-color: #3498db;"
+        "  border-color: #3498db;"
+        "}"
+        "QCheckBox::indicator:checked::after {"
+        "  content: '✓';"
+        "  color: white;"
+        "  font-weight: bold;"
+        "}"
+        "QGroupBox {"
+        "  font-weight: bold;"
+        "  color:rgb(0, 0, 0);"
+        "  margin-top: 8px;"
+        "  padding-top: 4px;"
+        "  border: 2px solid #3498db;"
+        "  border-radius: 6px;"
+        "  background-color: #ebf3fd;"
+        "}"
+        "QGroupBox::title {"
+        "  subcontrol-origin: margin;"
+        "  subcontrol-position: top left;"
+        "  padding: 0 4px;"
+        "  background-color: #d6eaf8;"
+        "  border: 1px solid #3498db;"
+        "  border-radius: 4px;"
+        "}");
 
-      // Control buttons section
-      QGroupBox *control_group = new QGroupBox("Actions");
-      QVBoxLayout *control_layout = new QVBoxLayout;
+    if (auto *lay = dlg.layout())
+    {
+      lay->setSizeConstraint(QLayout::SetMinimumSize);
+    }
 
-      // — Lock Selection button with enhanced styling
-      auto *lock_btn = new QPushButton("Lock Agent Configuration");
-      lock_btn->setEnabled(false);
-      lock_btn->setStyleSheet(
-          "QPushButton {"
-          "  background-color: #fff3cd;"
-          "  border-color: #ffc107;"
-          // "  color: #856404;"
-          "  font-size: 14px;"
-          "  padding: 8px 16px;"
-          "}"
-          "QPushButton:hover:enabled {"
-          "  background-color: #ffeaa7;"
-          "  border-color: #f39c12;"
-          "}");
+    // assign_goals_btn_->setDown(true);
 
-      // — Show/Hide Arrows checkbox with enhanced styling
-      auto *show_arrows_checkbox = new QCheckBox("Show navigation arrows on map");
-      show_arrows_checkbox->setChecked(true);
-      show_arrows_checkbox->setToolTip("Toggle visibility of agent navigation arrows and route preview");
-      show_arrows_checkbox->setStyleSheet(
-          "QCheckBox {"
-          "  font-size: 14px;"
-          "  color: #2c3e50;"
-          "}");
+    if (!loaded_agent_goals_.empty())
+    {
+      agent_goals_ = loaded_agent_goals_;
+      num_actors_ = (int)loaded_agent_names_.size();
+      agent_colors_.clear();
+      for (int i = 0; i < num_actors_; ++i)
+      {
+        QColor c;
+        c.setHsvF(double(i) / num_actors_, 0.8, 0.9);
+        agent_colors_.push_back(c);
+      }
+    }
 
-      control_layout->addWidget(lock_btn);
-      control_layout->addWidget(show_arrows_checkbox);
-      control_group->setLayout(control_layout);
-      main_layout->addWidget(control_group);
+    // 2) Main layout with enhanced spacing
+    auto *main_layout = new QVBoxLayout(&dlg);
+    // main_layout->setSpacing(4);
+    // main_layout->setContentsMargins(8, 8, 8, 8);
+    dlg.setLayout(main_layout);
+    main_layout->setSizeConstraint(QLayout::SetMinimumSize);
 
-      // — Summary area for locked agents with enhanced styling
-      QGroupBox *summary_group = new QGroupBox("Assignment Summary");
-      summary_group->setStyleSheet(
-          "QGroupBox {"
-          "  background-color:rgb(229, 236, 234);"
-          "  border-color:rgb(39, 174, 122);"
-          "}");
-      auto *summary_area = new QVBoxLayout;
-      summary_group->setLayout(summary_area);
-      main_layout->addWidget(summary_group);
+    // Header section with styled title
+    QLabel *header_label = new QLabel("Goal Assignment Manager");
+    header_label->setStyleSheet(
+        "QLabel {"
+        "  font-size: 16px;"
+        "  font-weight: bold;"
+        "  color:rgb(0, 0, 0);"
+        "  background-color: #ebf3fd;"
+        "  padding: 8px;"
+        "  border-radius: 6px;"
+        "  border: 2px solid #3498db;"
+        "}");
+    header_label->setAlignment(Qt::AlignCenter);
+    main_layout->addWidget(header_label);
 
-      // keep track of which agents have been "locked"
-      QVector<bool> lockedFlags(num_actors_, false);
+    // Agent selector section in a group box
+    QGroupBox *agent_group = new QGroupBox("Agent Selection");
+    QVBoxLayout *agent_layout = new QVBoxLayout;
 
-      // Dialog buttons with enhanced styling
-      QDialogButtonBox *button_box = new QDialogButtonBox(&dlg);
-      button_box->setStyleSheet(
-          "QDialogButtonBox QPushButton {"
-          // "  min-width: 100px;"
-          "  padding: 10px 20px;"
-          "  font-size: 14px;"
-          "  font-weight: bold;"
-          "}");
+    QLabel *agent_label = new QLabel("Select agent to configure:");
+    auto *agent_sel = new QComboBox;
+    // agent_sel->setStyleSheet("QComboBox { font-size: 14px; font-weight: bold; }");
 
-      finishBtn_ = button_box->addButton("Finish Assignment", QDialogButtonBox::AcceptRole);
-      auto *cancelBtn = button_box->addButton("Cancel", QDialogButtonBox::RejectRole);
+    for (int i = 0; i < int(agent_goals_.size()); ++i)
+    {
+      QString label = QString("Agent %1").arg(i + 1);
+      agent_sel->addItem(label);
+    }
 
-      finishBtn_->setStyleSheet(
-          "QPushButton {"
-          "  background-color: #d5f4e6;"
-          "  border-color: #27ae60;"
-          // "  color: #1e8449;"
-          "}"
-          "QPushButton:hover:enabled {"
-          "  background-color: #a9dfbf;"
-          "  border-color: #1e8449;"
-          "}");
-      cancelBtn->setStyleSheet(
-          "QPushButton {"
-          "  background-color: #fdf2f2;"
-          "  border-color: #e74c3c;"
-          // "  color: #c0392b;"
-          "}"
-          "QPushButton:hover:enabled {"
-          "  background-color: #f8d7da;"
-          "  border-color: #e74c3c;"
-          "}");
+    agent_layout->addWidget(agent_label);
+    agent_layout->addWidget(agent_sel);
+    agent_group->setLayout(agent_layout);
+    main_layout->addWidget(agent_group);
 
-      main_layout->addWidget(button_box);
-      finishBtn_->setEnabled(false);
+    // Goals management section
+    QGroupBox *goals_group = new QGroupBox("Goal Management");
+    QVBoxLayout *goals_layout = new QVBoxLayout;
 
-      finishBtn_->setEnabled(panel_mode_ == EDIT_MODE);
+    // — Available vs Assigned lists + buttons with enhanced titles
+    auto *titles = new QHBoxLayout;
+    QLabel *avail_title = new QLabel("Available Goals");
+    QLabel *assigned_title = new QLabel("Assigned Goals");
+    avail_title->setStyleSheet("QLabel { color: #e67e22; font-size: 14px; }");
+    assigned_title->setStyleSheet("QLabel { color: #27ae60; font-size: 14px; }");
 
-      connect(finishBtn_, &QAbstractButton::clicked, this, [this]()
-              {
+    titles->addWidget(avail_title);
+    titles->addStretch();
+    titles->addWidget(assigned_title);
+    goals_layout->addLayout(titles);
+
+    auto *lists_layout = new QHBoxLayout;
+    auto *avail_list = new QListWidget;
+    auto *assigned_list = new QListWidget;
+
+    // Enhanced button styling for arrow buttons
+    auto *btn_layout = new QVBoxLayout;
+    auto *add_btn = new QPushButton("▶ Assign");
+    auto *remove_btn = new QPushButton("◀ Remove");
+
+    add_btn->setStyleSheet(
+        "QPushButton {"
+        "  background-color: #d5f4e6;"
+        "  border-color: #27ae60;"
+        "  color: #1e8449;"
+        "  font-size: 14px;"
+        "  padding: 10px 16px;"
+        "}"
+        "QPushButton:hover:enabled {"
+        "  background-color: #a9dfbf;"
+        "  border-color: #1e8449;"
+        "}");
+    remove_btn->setStyleSheet(
+        "QPushButton {"
+        "  background-color: #fdf2f2;"
+        "  border-color: #e74c3c;"
+        "  color: #c0392b;"
+        "  font-size: 14px;"
+        "  padding: 10px 16px;"
+        "}"
+        "QPushButton:hover:enabled {"
+        "  background-color:rgb(233, 176, 166);"
+        "  border-color:rgb(228, 64, 46);"
+        "}");
+
+    btn_layout->addStretch();
+    btn_layout->addWidget(add_btn);
+    btn_layout->addSpacing(8);
+    btn_layout->addWidget(remove_btn);
+    btn_layout->addStretch();
+
+    lists_layout->addWidget(avail_list);
+    lists_layout->addLayout(btn_layout);
+    lists_layout->addWidget(assigned_list);
+    goals_layout->addLayout(lists_layout);
+    goals_group->setLayout(goals_layout);
+    main_layout->addWidget(goals_group);
+
+    // Control buttons section
+    QGroupBox *control_group = new QGroupBox("Actions");
+    QVBoxLayout *control_layout = new QVBoxLayout;
+
+    // — Lock Selection button with enhanced styling
+    auto *lock_btn = new QPushButton("Lock Agent Configuration");
+    lock_btn->setEnabled(false);
+    lock_btn->setStyleSheet(
+        "QPushButton {"
+        "  background-color: #fff3cd;"
+        "  border-color: #ffc107;"
+        // "  color: #856404;"
+        "  font-size: 14px;"
+        "  padding: 8px 16px;"
+        "}"
+        "QPushButton:hover:enabled {"
+        "  background-color: #ffeaa7;"
+        "  border-color: #f39c12;"
+        "}");
+
+    // — Show/Hide Arrows checkbox with enhanced styling
+    auto *show_arrows_checkbox = new QCheckBox("Show navigation arrows on map");
+    show_arrows_checkbox->setChecked(true);
+    show_arrows_checkbox->setToolTip("Toggle visibility of agent navigation arrows and route preview");
+    show_arrows_checkbox->setStyleSheet(
+        "QCheckBox {"
+        "  font-size: 14px;"
+        "  color: #2c3e50;"
+        "}");
+
+    control_layout->addWidget(lock_btn);
+    control_layout->addWidget(show_arrows_checkbox);
+    control_group->setLayout(control_layout);
+    main_layout->addWidget(control_group);
+
+    // — Summary area for locked agents with enhanced styling
+    QGroupBox *summary_group = new QGroupBox("Assignment Summary");
+    summary_group->setStyleSheet(
+        "QGroupBox {"
+        "  background-color:rgb(229, 236, 234);"
+        "  border-color:rgb(39, 174, 122);"
+        "}");
+    auto *summary_area = new QVBoxLayout;
+    summary_group->setLayout(summary_area);
+    main_layout->addWidget(summary_group);
+
+    // keep track of which agents have been "locked"
+    QVector<bool> lockedFlags(num_actors_, false);
+
+    // Dialog buttons with enhanced styling
+    QDialogButtonBox *button_box = new QDialogButtonBox(&dlg);
+    button_box->setStyleSheet(
+        "QDialogButtonBox QPushButton {"
+        // "  min-width: 100px;"
+        "  padding: 10px 20px;"
+        "  font-size: 14px;"
+        "  font-weight: bold;"
+        "}");
+
+    finishBtn_ = button_box->addButton("Finish Assignment", QDialogButtonBox::AcceptRole);
+    auto *cancelBtn = button_box->addButton("Cancel", QDialogButtonBox::RejectRole);
+
+    finishBtn_->setStyleSheet(
+        "QPushButton {"
+        "  background-color: #d5f4e6;"
+        "  border-color: #27ae60;"
+        // "  color: #1e8449;"
+        "}"
+        "QPushButton:hover:enabled {"
+        "  background-color: #a9dfbf;"
+        "  border-color: #1e8449;"
+        "}");
+    cancelBtn->setStyleSheet(
+        "QPushButton {"
+        "  background-color: #fdf2f2;"
+        "  border-color: #e74c3c;"
+        // "  color: #c0392b;"
+        "}"
+        "QPushButton:hover:enabled {"
+        "  background-color: #f8d7da;"
+        "  border-color: #e74c3c;"
+        "}");
+
+    main_layout->addWidget(button_box);
+    finishBtn_->setEnabled(false);
+
+    finishBtn_->setEnabled(panel_mode_ == EDIT_MODE);
+
+    connect(finishBtn_, &QAbstractButton::clicked, this, [this]()
+            {
       resetGoalMarkerColors();
       goal_markers_pub_->publish(goal_markers_); });
 
-      // — Show/Hide arrows checkbox handler
-      bool arrows_visible = true; // Track arrow visibility state
+    // — Show/Hide arrows checkbox handler
+    bool arrows_visible = true; // Track arrow visibility state
 
-      // Function to create/update arrows for a specific agent
-      auto updateAgentArrows = [&](int agent_idx)
+    // Function to create/update arrows for a specific agent
+    auto updateAgentArrows = [&](int agent_idx)
+    {
+      if (agent_idx < 0 || agent_idx >= (int)loaded_agent_nodes_.size())
+        return;
+
+      // Clear existing arrows and goal cubes for this agent
+      auto delete_arrows = std::make_unique<visualization_msgs::msg::MarkerArray>();
+      visualization_msgs::msg::Marker delete_marker;
+      delete_marker.header.frame_id = "/map";
+      delete_marker.header.stamp = rclcpp::Clock().now();
+      delete_marker.ns = "agent_arrow";
+      delete_marker.action = visualization_msgs::msg::Marker::DELETEALL;
+      delete_arrows->markers.push_back(delete_marker);
+
+      // Also delete goal cubes
+      visualization_msgs::msg::Marker delete_cubes;
+      delete_cubes.header.frame_id = "/map";
+      delete_cubes.header.stamp = rclcpp::Clock().now();
+      delete_cubes.ns = "agent_goal";
+      delete_cubes.action = visualization_msgs::msg::Marker::DELETEALL;
+      delete_arrows->markers.push_back(delete_cubes);
+
+      initial_pose_publisher->publish(std::move(delete_arrows));
+
+      if (!arrows_visible || agent_goals_[agent_idx].empty())
+        return;
+
+      // Get agent's initial position
+      const YAML::Node &agentYAML = loaded_agent_nodes_[agent_idx];
+      if (!agentYAML["init_pose"])
+        return;
+
+      double init_x = agentYAML["init_pose"]["x"].as<double>();
+      double init_y = agentYAML["init_pose"]["y"].as<double>();
+
+      // Check if this agent has cyclic navigation enabled
+      bool is_cyclic = true;
+      if (agentYAML["cyclic_goals"])
       {
-        if (agent_idx < 0 || agent_idx >= (int)loaded_agent_nodes_.size())
-          return;
+        is_cyclic = agentYAML["cyclic_goals"].as<bool>();
+      }
 
-        // Clear existing arrows and goal cubes for this agent
-        auto delete_arrows = std::make_unique<visualization_msgs::msg::MarkerArray>();
-        visualization_msgs::msg::Marker delete_marker;
-        delete_marker.header.frame_id = "/map";
-        delete_marker.header.stamp = rclcpp::Clock().now();
-        delete_marker.ns = "agent_arrow";
-        delete_marker.action = visualization_msgs::msg::Marker::DELETEALL;
-        delete_arrows->markers.push_back(delete_marker);
+      // Get agent color
+      QColor agent_color = agent_colors_[agent_idx];
 
-        // Also delete goal cubes
-        visualization_msgs::msg::Marker delete_cubes;
-        delete_cubes.header.frame_id = "/map";
-        delete_cubes.header.stamp = rclcpp::Clock().now();
-        delete_cubes.ns = "agent_goal";
-        delete_cubes.action = visualization_msgs::msg::Marker::DELETEALL;
-        delete_arrows->markers.push_back(delete_cubes);
+      auto markers = std::make_unique<visualization_msgs::msg::MarkerArray>();
+      int marker_id = next_marker_id_ + 1000 + agent_idx * 100; // Unique ID range for arrows and cubes
 
-        initial_pose_publisher->publish(std::move(delete_arrows));
+      geometry_msgs::msg::Point prev_pt;
+      prev_pt.x = init_x;
+      prev_pt.y = init_y;
+      prev_pt.z = 0.0;
 
-        if (!arrows_visible || agent_goals_[agent_idx].empty())
-          return;
+      // Create arrows and cubes between consecutive goals
+      for (size_t i = 0; i < agent_goals_[agent_idx].size(); ++i)
+      {
+        int gid = agent_goals_[agent_idx][i];
+        auto it = loaded_global_goals_.find(gid);
+        if (it == loaded_global_goals_.end())
+          continue;
 
-        // Get agent's initial position
-        const YAML::Node &agentYAML = loaded_agent_nodes_[agent_idx];
-        if (!agentYAML["init_pose"])
-          return;
+        geometry_msgs::msg::Point goal_pt = it->second;
 
-        double init_x = agentYAML["init_pose"]["x"].as<double>();
-        double init_y = agentYAML["init_pose"]["y"].as<double>();
+        // Create small colored cube at goal_pt
+        visualization_msgs::msg::Marker goal_cube = createMarker(
+            goal_pt.x, goal_pt.y, marker_id++, "cube", "parser");
+        goal_cube.ns = "agent_goal";
+        goal_cube.color.r = agent_color.redF();
+        goal_cube.color.g = agent_color.greenF();
+        goal_cube.color.b = agent_color.blueF();
+        goal_cube.color.a = 1.0f;
+        markers->markers.push_back(goal_cube);
 
-        // Check if this agent has cyclic navigation enabled
-        bool is_cyclic = true;
-        if (agentYAML["cyclic_goals"])
+        // Create arrow from prev_pt to goal_pt
+        visualization_msgs::msg::Marker arrow = createArrowMarker(
+            prev_pt.x, prev_pt.y, goal_pt.x, goal_pt.y, marker_id++);
+        arrow.ns = "agent_arrow";
+        arrow.color.r = agent_color.redF();
+        arrow.color.g = agent_color.greenF();
+        arrow.color.b = agent_color.blueF();
+        arrow.color.a = 1.0f;
+        markers->markers.push_back(arrow);
+
+        prev_pt = goal_pt;
+      }
+
+      // Create closing arrow from last goal back to first goal (if more than 1 goal and cyclic_goals == true)
+      if (agent_goals_[agent_idx].size() > 1 && is_cyclic)
+      {
+        int first_gid = agent_goals_[agent_idx][0];
+        auto it_first = loaded_global_goals_.find(first_gid);
+        if (it_first != loaded_global_goals_.end())
         {
-          is_cyclic = agentYAML["cyclic_goals"].as<bool>();
+          const auto &first_pt = it_first->second;
+          visualization_msgs::msg::Marker closing_arrow = createArrowMarker(
+              prev_pt.x, prev_pt.y, first_pt.x, first_pt.y, marker_id++);
+          closing_arrow.ns = "agent_arrow";
+          closing_arrow.color.r = agent_color.redF();
+          closing_arrow.color.g = agent_color.greenF();
+          closing_arrow.color.b = agent_color.blueF();
+          closing_arrow.color.a = 1.0f;
+          markers->markers.push_back(closing_arrow);
         }
+      }
 
-        // Get agent color
-        QColor agent_color = agent_colors_[agent_idx];
+      if (!markers->markers.empty())
+      {
+        initial_pose_publisher->publish(std::move(markers));
+      }
+    };
 
-        auto markers = std::make_unique<visualization_msgs::msg::MarkerArray>();
-        int marker_id = next_marker_id_ + 1000 + agent_idx * 100; // Unique ID range for arrows and cubes
-
-        geometry_msgs::msg::Point prev_pt;
-        prev_pt.x = init_x;
-        prev_pt.y = init_y;
-        prev_pt.z = 0.0;
-
-        // Create arrows and cubes between consecutive goals
-        for (size_t i = 0; i < agent_goals_[agent_idx].size(); ++i)
-        {
-          int gid = agent_goals_[agent_idx][i];
-          auto it = loaded_global_goals_.find(gid);
-          if (it == loaded_global_goals_.end())
-            continue;
-
-          geometry_msgs::msg::Point goal_pt = it->second;
-
-          // Create small colored cube at goal_pt
-          visualization_msgs::msg::Marker goal_cube = createMarker(
-              goal_pt.x, goal_pt.y, marker_id++, "cube", "parser");
-          goal_cube.ns = "agent_goal";
-          goal_cube.color.r = agent_color.redF();
-          goal_cube.color.g = agent_color.greenF();
-          goal_cube.color.b = agent_color.blueF();
-          goal_cube.color.a = 1.0f;
-          markers->markers.push_back(goal_cube);
-
-          // Create arrow from prev_pt to goal_pt
-          visualization_msgs::msg::Marker arrow = createArrowMarker(
-              prev_pt.x, prev_pt.y, goal_pt.x, goal_pt.y, marker_id++);
-          arrow.ns = "agent_arrow";
-          arrow.color.r = agent_color.redF();
-          arrow.color.g = agent_color.greenF();
-          arrow.color.b = agent_color.blueF();
-          arrow.color.a = 1.0f;
-          markers->markers.push_back(arrow);
-
-          prev_pt = goal_pt;
-        }
-
-        // Create closing arrow from last goal back to first goal (if more than 1 goal and cyclic_goals == true)
-        if (agent_goals_[agent_idx].size() > 1 && is_cyclic)
-        {
-          int first_gid = agent_goals_[agent_idx][0];
-          auto it_first = loaded_global_goals_.find(first_gid);
-          if (it_first != loaded_global_goals_.end())
-          {
-            const auto &first_pt = it_first->second;
-            visualization_msgs::msg::Marker closing_arrow = createArrowMarker(
-                prev_pt.x, prev_pt.y, first_pt.x, first_pt.y, marker_id++);
-            closing_arrow.ns = "agent_arrow";
-            closing_arrow.color.r = agent_color.redF();
-            closing_arrow.color.g = agent_color.greenF();
-            closing_arrow.color.b = agent_color.blueF();
-            closing_arrow.color.a = 1.0f;
-            markers->markers.push_back(closing_arrow);
-          }
-        }
-
-        if (!markers->markers.empty())
-        {
-          initial_pose_publisher->publish(std::move(markers));
-        }
-      };
-
-      connect(show_arrows_checkbox, &QCheckBox::toggled, this, [&](bool show_arrows)
-              {
+    connect(show_arrows_checkbox, &QCheckBox::toggled, this, [&](bool show_arrows)
+            {
               arrows_visible = show_arrows;
               
               if (!show_arrows) {
@@ -3904,31 +4182,31 @@ namespace hunav_rviz2_panel
                 }
               } });
 
-      // — Refresh helper
-      auto refresh = [&]()
+    // — Refresh helper
+    auto refresh = [&]()
+    {
+      avail_list->clear();
+      assigned_list->clear();
+      int a = agent_sel->currentIndex();
+      QSet<int> assigned_set(agent_goals_[a].begin(), agent_goals_[a].end());
+      for (int gid : goal_ids_)
       {
-        avail_list->clear();
-        assigned_list->clear();
-        int a = agent_sel->currentIndex();
-        QSet<int> assigned_set(agent_goals_[a].begin(), agent_goals_[a].end());
-        for (int gid : goal_ids_)
+        if (!assigned_set.contains(gid))
         {
-          if (!assigned_set.contains(gid))
-          {
-            avail_list->addItem(QString("Goal %1").arg(gid));
-          }
+          avail_list->addItem(QString("Goal %1").arg(gid));
         }
-        for (int gid : agent_goals_[a])
-        {
-          assigned_list->addItem(QString("Goal %1").arg(gid));
-        }
-        lock_btn->setEnabled(!agent_goals_[a].empty());
-      };
+      }
+      for (int gid : agent_goals_[a])
+      {
+        assigned_list->addItem(QString("Goal %1").arg(gid));
+      }
+      lock_btn->setEnabled(!agent_goals_[a].empty());
+    };
 
-      // — Switch agent handler
-      connect(agent_sel, qOverload<int>(&QComboBox::currentIndexChanged),
-              this, [&](int new_agent_idx)
-              {
+    // — Switch agent handler
+    connect(agent_sel, qOverload<int>(&QComboBox::currentIndexChanged),
+            this, [&](int new_agent_idx)
+            {
             // 1) reset every goal marker back to default
             for (auto &m : goal_markers_.markers) {
               if (m.ns == "goal_points") {
@@ -3972,9 +4250,9 @@ namespace hunav_rviz2_panel
             if (panel_mode_ == CREATE_MODE)
               finishBtn_->setEnabled(false); });
 
-      // — Add goal to agent
-      connect(add_btn, &QPushButton::clicked, this, [&]()
-              {
+    // — Add goal to agent
+    connect(add_btn, &QPushButton::clicked, this, [&]()
+            {
             int a = agent_sel->currentIndex();
             for (auto* it : avail_list->selectedItems()) {
             int gid = it->text().split(' ').last().toInt();
@@ -3996,9 +4274,9 @@ namespace hunav_rviz2_panel
             updateAgentArrows(a);
             refresh(); });
 
-      // — Remove goal from agent
-      connect(remove_btn, &QPushButton::clicked, this, [&]()
-              {
+    // — Remove goal from agent
+    connect(remove_btn, &QPushButton::clicked, this, [&]()
+            {
     int a = agent_sel->currentIndex();
     auto &vec = agent_goals_[a];
 
@@ -4118,313 +4396,310 @@ namespace hunav_rviz2_panel
           bool allLocked = std::all_of(
             lockedFlags.begin(), lockedFlags.end(),
             [](bool v){ return v; });
-          finishBtn_->setEnabled(panel_mode_ == EDIT_MODE || allLocked); 
-        });
+          finishBtn_->setEnabled(panel_mode_ == EDIT_MODE || allLocked); });
 
-      // — Dialog buttons
-      connect(button_box, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
-      connect(button_box, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+    // — Dialog buttons
+    connect(button_box, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
+    connect(button_box, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
 
+    {
+      int a = agent_sel->currentIndex();
+      // reset all markers to default
+      for (auto &m : goal_markers_.markers)
       {
-        int a = agent_sel->currentIndex();
-        // reset all markers to default
+        if (m.ns == "goal_numbers")
+        {
+          m.color.r = m.color.g = m.color.b = 1.0f;
+          m.color.a = 1.0f;
+        }
+        else if (m.ns == "goal_points")
+        {
+          m.color.r = 0.0f;
+          m.color.g = 0.7f;
+          m.color.b = 0.7f;
+          m.color.a = 1.0f;
+        }
+      }
+      // now recolor just the assigned ones
+      for (int gid : agent_goals_[a])
+      {
+        // each goal has two markers: sphere (gid*2) and text (gid*2+1)
         for (auto &m : goal_markers_.markers)
         {
-          if (m.ns == "goal_numbers")
+          if ((m.ns == "goal_numbers" || m.ns == "goal_points") && (m.id == gid * 2 || m.id == gid * 2 + 1))
           {
-            m.color.r = m.color.g = m.color.b = 1.0f;
-            m.color.a = 1.0f;
-          }
-          else if (m.ns == "goal_points")
-          {
-            m.color.r = 0.0f;
-            m.color.g = 0.7f;
-            m.color.b = 0.7f;
+            QColor c = agent_colors_[a];
+            m.color.r = c.redF();
+            m.color.g = c.greenF();
+            m.color.b = c.blueF();
             m.color.a = 1.0f;
           }
         }
-        // now recolor just the assigned ones
-        for (int gid : agent_goals_[a])
-        {
-          // each goal has two markers: sphere (gid*2) and text (gid*2+1)
-          for (auto &m : goal_markers_.markers)
-          {
-            if ((m.ns == "goal_numbers" || m.ns == "goal_points") && (m.id == gid * 2 || m.id == gid * 2 + 1))
-            {
-              QColor c = agent_colors_[a];
-              m.color.r = c.redF();
-              m.color.g = c.greenF();
-              m.color.b = c.blueF();
-              m.color.a = 1.0f;
-            }
-          }
-        }
-        goal_markers_pub_->publish(goal_markers_);
-
-        // Update arrows for the initial agent
-        updateAgentArrows(a);
       }
+      goal_markers_pub_->publish(goal_markers_);
 
-      dlg.adjustSize();
-
-      QPoint panelTL = this->mapToGlobal(QPoint(0,0));
-      int x = panelTL.x() + (this->width()  - dlg.width())/2;
-      dlg.move(x, panelTL.y());
-
-      // Initial populate & execute
-      refresh();
-      dlg.exec();
-
-      if (dlg.result() != QDialog::Accepted)
-        return;
-
-        
-      // assign_goals_btn_->setDown(false);
-
-      if (panel_mode_ == CREATE_MODE)
-      {
-        // Sanity checks
-        if (goal_ids_.empty())
-        {
-          QMessageBox::warning(this, "No goals defined",
-                               "Pick at least one goal before generating files.");
-          return;
-        }
-        for (int i = 0; i < num_actors_; ++i)
-        {
-          if (agent_goals_[i].empty())
-          {
-            QMessageBox::warning(this, "Unassigned goal",
-                                 QString("Agent %1 has no goals assigned.").arg(i + 1));
-            return;
-          }
-        }
-
-        loaded_agent_goals_ = agent_goals_;
-        // assign_goals_btn_->setDown(false);
-        save_bt_btn_->setEnabled(true);
-        checkbox->setEnabled(true);
-        resetGoalMarkerColors();
-        goal_markers_pub_->publish(goal_markers_);
-
-        // Enhanced completion message
-        QMessageBox success_box(this);
-        success_box.setWindowTitle("Goal Assignment Complete");
-        success_box.setText(QString(
-                                "<html><head><style>"
-                                "body { font-family: 'Segoe UI', Arial, sans-serif; margin: 8px; }"
-                                ".highlight { color: #27ae60; font-weight: bold; }"
-                                "</style></head><body>"
-
-                                "<h3 style='color: #2c3e50; margin-bottom: 8px;'>Goals Successfully Assigned!</h3>"
-
-                                "<p>All agents now have their navigation goals configured.</p>"
-
-                                "<p>Next step: Click <span class='highlight'>%1</span> to generate the final configuration files and behavior trees.</p>"
-
-                                "</body></html>")
-                                .arg(save_bt_btn_->text()));
-        success_box.setIcon(QMessageBox::Information);
-        success_box.setStyleSheet(
-            "QMessageBox {"
-            "  background-color: #e8f5e8;"
-            "  border: 2px solid #27ae60;"
-            "  border-radius: 8px;"
-            "}"
-            "QMessageBox QLabel {"
-            "  color: #2c3e50;"
-            "  padding: 4px;"
-            "}");
-        success_box.exec();
-        
-      }
-      else
-      {
-        // EDIT: copy back from the dialog's temporary arrays
-        loaded_agent_goals_ = agent_goals_;
-        save_bt_btn_->setEnabled(true);
-        checkbox->setEnabled(true);
-
-        // Enhanced update message
-        QMessageBox update_box(this);
-        update_box.setWindowTitle("Goals Updated");
-        update_box.setText(QString(
-                               "<html><head><style>"
-                               "body { font-family: 'Segoe UI', Arial, sans-serif; margin: 8px; }"
-                               ".highlight { color: #27ae60; font-weight: bold; }"
-                               "</style></head><body>"
-
-                               "<h3 style='color: #2c3e50; margin-bottom: 8px;'>Goal Assignment Updated!</h3>"
-
-                               "<p>Your agent goal assignments have been successfully updated and saved in memory.</p>"
-
-                               "<p>To finalize the changes, click <span class='highlight'>%1</span> to write out the updated YAML and regenerate behavior trees.</p>"
-
-                               "</body></html>")
-                               .arg(save_bt_btn_->text()));
-        update_box.setIcon(QMessageBox::Information);
-        update_box.setStyleSheet(
-            "QMessageBox {"
-            "  background-color: #ebf3fd;"
-            "  border: 2px solid #3498db;"
-            "  border-radius: 8px;"
-            "}"
-            "QMessageBox QLabel {"
-            "  color: #2c3e50;"
-            "  padding: 4px;"
-            "}");
-        update_box.exec();
-      }
-
-      assign_goals_btn_->setDown(false);
-      assign_goals_btn_->setChecked(false);
+      // Update arrows for the initial agent
+      updateAgentArrows(a);
     }
 
-    void ActorPanel::onResetLoadedGoals()
+    dlg.adjustSize();
+
+    QPoint panelTL = this->mapToGlobal(QPoint(0, 0));
+    int x = panelTL.x() + (this->width() - dlg.width()) / 2;
+    dlg.move(x, panelTL.y());
+
+    // Initial populate & execute
+    refresh();
+    dlg.exec();
+
+    if (dlg.result() != QDialog::Accepted)
+      return;
+
+    // assign_goals_btn_->setDown(false);
+
+    if (panel_mode_ == CREATE_MODE)
     {
-      // 1) Clear the in‐memory maps/vectors
-      loaded_global_goals_.clear();
-      goal_ids_.clear();
-      // Each agent’s own “loaded goals” also needs clearing:
-      for (auto &vec : loaded_agent_goals_)
+      // Sanity checks
+      if (goal_ids_.empty())
+      {
+        QMessageBox::warning(this, "No goals defined",
+                             "Pick at least one goal before generating files.");
+        return;
+      }
+      for (int i = 0; i < num_actors_; ++i)
+      {
+        if (agent_goals_[i].empty())
+        {
+          QMessageBox::warning(this, "Unassigned goal",
+                               QString("Agent %1 has no goals assigned.").arg(i + 1));
+          return;
+        }
+      }
+
+      loaded_agent_goals_ = agent_goals_;
+      // assign_goals_btn_->setDown(false);
+      save_bt_btn_->setEnabled(true);
+      checkbox->setEnabled(true);
+      resetGoalMarkerColors();
+      goal_markers_pub_->publish(goal_markers_);
+
+      // Enhanced completion message
+      QMessageBox success_box(this);
+      success_box.setWindowTitle("Goal Assignment Complete");
+      success_box.setText(QString(
+                              "<html><head><style>"
+                              "body { font-family: 'Segoe UI', Arial, sans-serif; margin: 8px; }"
+                              ".highlight { color: #27ae60; font-weight: bold; }"
+                              "</style></head><body>"
+
+                              "<h3 style='color: #2c3e50; margin-bottom: 8px;'>Goals Successfully Assigned!</h3>"
+
+                              "<p>All agents now have their navigation goals configured.</p>"
+
+                              "<p>Next step: Click <span class='highlight'>%1</span> to generate the final configuration files and behavior trees.</p>"
+
+                              "</body></html>")
+                              .arg(save_bt_btn_->text()));
+      success_box.setIcon(QMessageBox::Information);
+      success_box.setStyleSheet(
+          "QMessageBox {"
+          "  background-color: #e8f5e8;"
+          "  border: 2px solid #27ae60;"
+          "  border-radius: 8px;"
+          "}"
+          "QMessageBox QLabel {"
+          "  color: #2c3e50;"
+          "  padding: 4px;"
+          "}");
+      success_box.exec();
+    }
+    else
+    {
+      // EDIT: copy back from the dialog's temporary arrays
+      loaded_agent_goals_ = agent_goals_;
+      save_bt_btn_->setEnabled(true);
+      checkbox->setEnabled(true);
+
+      // Enhanced update message
+      QMessageBox update_box(this);
+      update_box.setWindowTitle("Goals Updated");
+      update_box.setText(QString(
+                             "<html><head><style>"
+                             "body { font-family: 'Segoe UI', Arial, sans-serif; margin: 8px; }"
+                             ".highlight { color: #27ae60; font-weight: bold; }"
+                             "</style></head><body>"
+
+                             "<h3 style='color: #2c3e50; margin-bottom: 8px;'>Goal Assignment Updated!</h3>"
+
+                             "<p>Your agent goal assignments have been successfully updated and saved in memory.</p>"
+
+                             "<p>To finalize the changes, click <span class='highlight'>%1</span> to write out the updated YAML and regenerate behavior trees.</p>"
+
+                             "</body></html>")
+                             .arg(save_bt_btn_->text()));
+      update_box.setIcon(QMessageBox::Information);
+      update_box.setStyleSheet(
+          "QMessageBox {"
+          "  background-color: #ebf3fd;"
+          "  border: 2px solid #3498db;"
+          "  border-radius: 8px;"
+          "}"
+          "QMessageBox QLabel {"
+          "  color: #2c3e50;"
+          "  padding: 4px;"
+          "}");
+      update_box.exec();
+    }
+
+    assign_goals_btn_->setDown(false);
+    assign_goals_btn_->setChecked(false);
+  }
+
+  void ActorPanel::onResetLoadedGoals()
+  {
+    // 1) Clear the in‐memory maps/vectors
+    loaded_global_goals_.clear();
+    goal_ids_.clear();
+    // Each agent’s own “loaded goals” also needs clearing:
+    for (auto &vec : loaded_agent_goals_)
+    {
+      vec.clear();
+    }
+    if (!agent_goals_.empty())
+    {
+      for (auto &vec : agent_goals_)
       {
         vec.clear();
       }
-      if (!agent_goals_.empty())
-      {
-        for (auto &vec : agent_goals_)
-        {
-          vec.clear();
-        }
-      }
-
-      // 2) Delete all RViz markers under “goal_points” and “goal_numbers”
-      visualization_msgs::msg::Marker delete_all;
-      delete_all.header.frame_id = "/map";
-      delete_all.header.stamp = rclcpp::Clock().now();
-      delete_all.action = visualization_msgs::msg::Marker::DELETEALL;
-
-      {
-        auto arr = std::make_unique<visualization_msgs::msg::MarkerArray>();
-        delete_all.ns = "goal_points";
-        arr->markers.push_back(delete_all);
-        goal_markers_pub_->publish(std::move(arr));
-      }
-      {
-        auto arr = std::make_unique<visualization_msgs::msg::MarkerArray>();
-        delete_all.ns = "goal_numbers";
-        arr->markers.push_back(delete_all);
-        goal_markers_pub_->publish(std::move(arr));
-      }
-
-      {
-        auto arr = std::make_unique<visualization_msgs::msg::MarkerArray>();
-        delete_all.ns = "agent_arrow";
-        arr->markers.push_back(delete_all);
-        initial_pose_publisher->publish(std::move(arr));
-      }
-      {
-        auto arr = std::make_unique<visualization_msgs::msg::MarkerArray>();
-        delete_all.ns = "agent_goal";
-        arr->markers.push_back(delete_all);
-        initial_pose_publisher->publish(std::move(arr));
-      }
-
-      // Also clear our local copy of “goal_markers_” so future onGoalPicked() starts clean:
-      goal_markers_.markers.clear();
-
-      // 3) Clear the QListWidget
-      goal_list_widget_->clear();
-
-      // 4) Disable “Assign goals” and reset goal id tracking
-      moving_goal_id_ = -1; // Reset goal ID tracking
-      assign_goals_btn_->setEnabled(false);
-
-      QMessageBox::information(this,
-                               tr("Goals Reset"),
-                               tr("All previously-loaded goals have been cleared.\n"
-                                  "You may now pick new goals on the map."));
     }
 
-    void ActorPanel::onCreateOrEditAgents()
+    // 2) Delete all RViz markers under “goal_points” and “goal_numbers”
+    visualization_msgs::msg::Marker delete_all;
+    delete_all.header.frame_id = "/map";
+    delete_all.header.stamp = rclcpp::Clock().now();
+    delete_all.action = visualization_msgs::msg::Marker::DELETEALL;
+
     {
-      if (adding_new_agent_)
-      {
-        return;
-      }
-
-      actor_button_->setDown(true);
-      actor_button_->setChecked(true);
-
-      if (panel_mode_ == CREATE_MODE)
-      {
-        // Regular CREATE_MODE workflow
-        num_actors_ = actors->text().toInt();
-        initAgentColors(num_actors_);
-        agent_goals_.assign(num_actors_, {});
-        loaded_initial_marker_ids_.assign(num_actors_, -1);
-        next_marker_id_ = 0;
-
-        // Clear the loaded lists for fresh creation
-        loaded_agent_names_.clear();
-        loaded_agent_nodes_.clear();
-        loaded_agent_goals_.clear();
-
-        addAgent();
-        return;
-      }
-      else if (panel_mode_ == EDIT_MODE)
-      {
-        // Regular EDIT_MODE workflow - validate data first
-        if (loaded_agent_names_.empty())
-        {
-          QMessageBox::warning(this, "No Agents", "No agents loaded to edit.");
-          actor_button_->setDown(false);
-          actor_button_->setChecked(false);
-          return;
-        }
-
-        clearNonAgentMarkers();
-        publishAgentMarkers();
-        current_edit_idx_ = 0;
-        assign_goals_btn_->setEnabled(!loaded_global_goals_.empty());
-        addAgent();
-        return;
-      }
+      auto arr = std::make_unique<visualization_msgs::msg::MarkerArray>();
+      delete_all.ns = "goal_points";
+      arr->markers.push_back(delete_all);
+      goal_markers_pub_->publish(std::move(arr));
+    }
+    {
+      auto arr = std::make_unique<visualization_msgs::msg::MarkerArray>();
+      delete_all.ns = "goal_numbers";
+      arr->markers.push_back(delete_all);
+      goal_markers_pub_->publish(std::move(arr));
     }
 
-    /**
-     * @brief Parse and load agents configuration from YAML file
-     *
-     * This method handles loading existing agent configurations from a YAML file.
-     * It parses the file structure, loads agent data, goal information, and switches
-     * the panel to edit mode for modifying existing configurations.
-     */
-    void ActorPanel::parseYaml()
     {
-      // Remove any existing RViz markers
-      removeCurrentMarkers();
+      auto arr = std::make_unique<visualization_msgs::msg::MarkerArray>();
+      delete_all.ns = "agent_arrow";
+      arr->markers.push_back(delete_all);
+      initial_pose_publisher->publish(std::move(arr));
+    }
+    {
+      auto arr = std::make_unique<visualization_msgs::msg::MarkerArray>();
+      delete_all.ns = "agent_goal";
+      arr->markers.push_back(delete_all);
+      initial_pose_publisher->publish(std::move(arr));
+    }
 
-      // Let the user pick exactly one YAML file, starting inside the correct dir
-      QString simulatorName = simulator_combo_->currentText();
-      QString packageName;
+    // Also clear our local copy of “goal_markers_” so future onGoalPicked() starts clean:
+    goal_markers_.markers.clear();
 
-      if (simulatorName == "Gazebo Classic")
+    // 3) Clear the QListWidget
+    goal_list_widget_->clear();
+
+    // 4) Disable “Assign goals” and reset goal id tracking
+    moving_goal_id_ = -1; // Reset goal ID tracking
+    assign_goals_btn_->setEnabled(false);
+
+    QMessageBox::information(this,
+                             tr("Goals Reset"),
+                             tr("All previously-loaded goals have been cleared.\n"
+                                "You may now pick new goals on the map."));
+  }
+
+  void ActorPanel::onCreateOrEditAgents()
+  {
+    if (adding_new_agent_)
+    {
+      return;
+    }
+
+    actor_button_->setDown(true);
+    actor_button_->setChecked(true);
+
+    if (panel_mode_ == CREATE_MODE)
+    {
+      // Regular CREATE_MODE workflow
+      num_actors_ = actors->text().toInt();
+      initAgentColors(num_actors_);
+      agent_goals_.assign(num_actors_, {});
+      loaded_initial_marker_ids_.assign(num_actors_, -1);
+      next_marker_id_ = 0;
+
+      // Clear the loaded lists for fresh creation
+      loaded_agent_names_.clear();
+      loaded_agent_nodes_.clear();
+      loaded_agent_goals_.clear();
+
+      addAgent();
+      return;
+    }
+    else if (panel_mode_ == EDIT_MODE)
+    {
+      // Regular EDIT_MODE workflow - validate data first
+      if (loaded_agent_names_.empty())
       {
-        packageName = "hunav_gazebo_wrapper";
+        QMessageBox::warning(this, "No Agents", "No agents loaded to edit.");
+        actor_button_->setDown(false);
+        actor_button_->setChecked(false);
+        return;
       }
-      else if (simulatorName == "Gazebo Fortress")
-      {
-        packageName = "hunav_gazebo_fortress_wrapper";
-      }
-      else if (simulatorName == "Isaac Sim")
-      {
-        packageName = "hunav_isaac_wrapper";
-      }
-      else
-      { // Webots
-        packageName = "hunav_webots_wrapper";
-      }
+
+      clearNonAgentMarkers();
+      publishAgentMarkers();
+      current_edit_idx_ = 0;
+      assign_goals_btn_->setEnabled(!loaded_global_goals_.empty());
+      addAgent();
+      return;
+    }
+  }
+
+  /**
+   * @brief Parse and load agents configuration from YAML file
+   *
+   * This method handles loading existing agent configurations from a YAML file.
+   * It parses the file structure, loads agent data, goal information, and switches
+   * the panel to edit mode for modifying existing configurations.
+   */
+  void ActorPanel::parseYaml()
+  {
+    // Remove any existing RViz markers
+    removeCurrentMarkers();
+
+    // Let the user pick exactly one YAML file, starting inside the correct dir
+    QString simulatorName = simulator_combo_->currentText();
+    QString packageName;
+
+    if (simulatorName == "Gazebo Classic")
+    {
+      packageName = "hunav_gazebo_wrapper";
+    }
+    else if (simulatorName == "Gazebo Fortress")
+    {
+      packageName = "hunav_gazebo_fortress_wrapper";
+    }
+    else if (simulatorName == "Isaac Sim")
+    {
+      packageName = "hunav_isaac_wrapper";
+    }
+    else
+    { // Webots
+      packageName = "hunav_webots_wrapper";
+    }
 
       QString configDir, mapDir;
       try
@@ -4444,702 +4719,63 @@ namespace hunav_rviz2_panel
         mapDir = baseDir + "/maps";
       }
 
-      QString chosenFile = QFileDialog::getOpenFileName(
+    QString chosenFile = QFileDialog::getOpenFileName(
+        this,
+        "Load agents YAML",
+        configDir,
+        "YAML files (*.yaml *.yml)");
+    if (chosenFile.isEmpty())
+      return;
+
+    pkg_shared_tree_dir_ = chosenFile.toStdString();
+    orig_yaml_base_name_ = QFileInfo(chosenFile).baseName();
+    yaml_file_label_->setText(orig_yaml_base_name_);
+    yaml_file_label_->show();
+
+    RCLCPP_INFO(this->get_logger(), "Loading YAML from: %s", pkg_shared_tree_dir_.c_str());
+
+    YAML::Node yaml_file;
+    try
+    {
+      yaml_file = YAML::LoadFile(pkg_shared_tree_dir_);
+    }
+    catch (const YAML::Exception &ex)
+    {
+      QMessageBox::critical(
           this,
-          "Load agents YAML",
-          configDir,
-          "YAML files (*.yaml *.yml)");
-      if (chosenFile.isEmpty())
-        return;
-
-      pkg_shared_tree_dir_ = chosenFile.toStdString();
-      orig_yaml_base_name_ = QFileInfo(chosenFile).baseName();
-      yaml_file_label_->setText(orig_yaml_base_name_);
-      yaml_file_label_->show();
-
-      RCLCPP_INFO(this->get_logger(), "Loading YAML from: %s", pkg_shared_tree_dir_.c_str());
-
-      YAML::Node yaml_file;
-      try
-      {
-        yaml_file = YAML::LoadFile(pkg_shared_tree_dir_);
-      }
-      catch (const YAML::Exception &ex)
-      {
-        QMessageBox::critical(
-            this,
-            "YAML Load Error",
-            QString("Failed to load YAML file:\n%1\n\n%2")
-                .arg(QString::fromStdString(pkg_shared_tree_dir_))
-                .arg(QString::fromStdString(ex.what())));
-        return;
-      }
-
-      // Extract "hunav_loader/ros__parameters"
-      if (!yaml_file["hunav_loader"] ||
-          !yaml_file["hunav_loader"]["ros__parameters"])
-      {
-        QMessageBox::warning(
-            this,
-            "YAML Format Error",
-            "The file does not contain 'hunav_loader/ros__parameters'.");
-        return;
-      }
-      YAML::Node params = yaml_file["hunav_loader"]["ros__parameters"];
-      params_ = params;
-
-      if (params_["simulator"])
-      {
-        simulator_combo_->setCurrentText(
-            QString::fromStdString(params_["simulator"].as<std::string>()));
-      }
-
-      // Immediately load the map named under params["map"]
-      if (params["map"])
-      {
-        std::string mapName = params["map"].as<std::string>();
-        QString mapBasename = QString::fromStdString(mapName) + ".yaml";
-
-        // Determine the base maps directory using simplified ROS2 package logic
-        QString simulatorName = simulator_combo_->currentText();
-        QString packageName;
-
-        if (simulatorName == "Gazebo Classic")
-        {
-          packageName = "hunav_gazebo_wrapper";
-        }
-        else if (simulatorName == "Gazebo Fortress")
-        {
-          packageName = "hunav_gazebo_fortress_wrapper";
-        }
-        else if (simulatorName == "Isaac Sim")
-        {
-          packageName = "hunav_isaac_wrapper";
-        }
-        else
-        { // Webots
-          packageName = "hunav_webots_wrapper";
-        }
-
-        QString mapDir;
-        try
-        {
-          QString shareDir = QString::fromStdString(
-              ament_index_cpp::get_package_share_directory(packageName.toStdString()));
-          std::string srcDir = share_to_src_path(shareDir.toStdString());
-          mapDir = QString::fromStdString(srcDir + "/maps");
-          RCLCPP_INFO(get_logger(), "Found ROS2 package '%s', maps at: %s",
-                      packageName.toStdString().c_str(), mapDir.toStdString().c_str());
-        }
-        catch (const std::exception &e)
-        {
-          // Fallback to development paths only if package not found
-          RCLCPP_WARN(get_logger(), "ROS2 package '%s' not found, falling back to development paths",
-                      packageName.toStdString().c_str());
-
-          QString homePath = QDir::homePath() + "/" + packageName + "/maps";
-          QString dockerPath = "/workspace/hunav_isaac_ws/src/" + packageName + "/maps";
-
-          mapDir = QDir(dockerPath).exists() ? dockerPath : homePath;
-          RCLCPP_INFO(get_logger(), "Using fallback path: %s", mapDir.toStdString().c_str());
-        }
-
-        // try to locate it
-        QString candidatePath = mapDir + "/" + mapBasename;
-        if (!QFile::exists(candidatePath))
-        {
-          QMessageBox::critical(
-              this,
-              "Map Load Error",
-              QString("Could not locate '%1' in:\n  %2")
-                  .arg(mapBasename)
-                  .arg(mapDir));
-          return;
-        }
-
-        // 2) Call the map_server/load_map service
-        auto client = this->create_client<nav2_msgs::srv::LoadMap>("/map_server/load_map");
-        if (!client->wait_for_service(2s))
-        {
-          QMessageBox::warning(
-              this,
-              "Map Server",
-              "Timed out waiting for /map_server/load_map. Is map_server running?");
-          return;
-        }
-        auto req = std::make_shared<nav2_msgs::srv::LoadMap::Request>();
-        req->map_url = candidatePath.toStdString();
-
-        auto future = client->async_send_request(req);
-        if (rclcpp::spin_until_future_complete(this->get_node_base_interface(), future, 5s) != rclcpp::FutureReturnCode::SUCCESS)
-        {
-          QMessageBox::critical(
-              this,
-              "Map Server",
-              "Failed to call /map_server/load_map on:\n" + candidatePath);
-          return;
-        }
-      }
-      else
-      {
-        QMessageBox::warning(
-            this,
-            "YAML Format Error",
-            "Missing 'map' key under 'ros__parameters'.");
-        return;
-      }
-
-      // 6) Build a goal_map from params["global_goals"]
-      loaded_global_goals_.clear();
-      if (params["global_goals"] && params["global_goals"].IsMap())
-      {
-        for (const auto &it : params["global_goals"].as<YAML::Node>())
-        {
-          int goal_id = it.first.as<int>();
-          double gx = it.second["x"].as<double>();
-          double gy = it.second["y"].as<double>();
-
-          geometry_msgs::msg::Point pt;
-          pt.x = gx;
-          pt.y = gy;
-          pt.z = 0.0;
-          loaded_global_goals_[goal_id] = pt;
-          goal_ids_.push_back(goal_id);
-        }
-      }
-      else
-      {
-        QMessageBox::warning(
-            this,
-            "YAML Format Error",
-            "Missing or invalid 'global_goals' section in agents.yaml.");
-        return;
-      }
-
-      loaded_agent_names_.clear();
-      loaded_agent_nodes_.clear();
-      loaded_agent_goals_.clear();
-
-      // 7) Read the list of agent‐names from params["agents"]
-      std::vector<std::string> agents_list;
-      if (params["agents"] && params["agents"].IsSequence())
-      {
-        for (auto const &entry : params["agents"])
-        {
-          agents_list.push_back(entry.as<std::string>());
-
-          std::string agent_name = entry.as<std::string>();
-          loaded_agent_names_.push_back(agent_name);
-
-          YAML::Node sub = params[agent_name];
-          loaded_agent_nodes_.push_back(sub);
-
-          // pull out that agent’s “goals” array:
-          std::vector<int> this_goals;
-          if (sub["goals"] && sub["goals"].IsSequence())
-          {
-            for (auto const &g : sub["goals"])
-              this_goals.push_back(g.as<int>());
-          }
-          loaded_agent_goals_.push_back(this_goals);
-        }
-      }
-      else
-      {
-        QMessageBox::warning(
-            this,
-            "YAML Format Error",
-            "Missing or invalid 'agents' sequence in agents.yaml.");
-        return;
-      }
-
-      goal_markers_.markers.clear();
-      int base_id = 0;
-      for (auto const &it : loaded_global_goals_)
-      {
-        int gid = it.first;
-        auto pt = it.second;
-
-        // (a) Make a sphere marker
-        visualization_msgs::msg::Marker sphere;
-        sphere.header.frame_id = "/map";
-        sphere.header.stamp = rclcpp::Clock().now();
-        sphere.ns = "goal_points";
-        // sphere.id = base_id * 2; // even ID
-        sphere.id = gid * 2;
-        sphere.type = visualization_msgs::msg::Marker::SPHERE;
-        sphere.action = visualization_msgs::msg::Marker::ADD;
-        sphere.pose.position = pt;
-        sphere.scale.x = sphere.scale.y = sphere.scale.z = 0.2;
-        sphere.color.r = 0.0f;
-        sphere.color.g = 0.7f;
-        sphere.color.b = 0.7f;
-        sphere.color.a = 1.0f;
-        goal_markers_.markers.push_back(sphere);
-
-        // (b) Make a text label just above it
-        visualization_msgs::msg::Marker text;
-        text.header.frame_id = "/map";
-        text.header.stamp = rclcpp::Clock().now();
-        text.ns = "goal_numbers";
-        // text.id = base_id * 2 + 1; // odd ID
-        text.id = gid * 2 + 1;
-        text.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
-        text.action = visualization_msgs::msg::Marker::ADD;
-        text.pose = sphere.pose;
-        text.pose.position.y += 0.5;
-        text.pose.position.z += 0.3;
-        text.scale.z = 0.7;
-        text.color.r = text.color.g = text.color.b = 1.0f;
-        text.color.a = 1.0f;
-        text.text = std::to_string(gid);
-        goal_markers_.markers.push_back(text);
-
-        ++base_id;
-      }
-
-      goal_list_widget_->clear();
-      for (auto const &it : loaded_global_goals_)
-      {
-        int gid = it.first;
-        auto &pt = it.second;
-        QString label = QString("Goal %1: (%2, %3)")
-                            .arg(gid)
-                            .arg(QString::number(pt.x, 'f', 3))
-                            .arg(QString::number(pt.y, 'f', 3));
-        goal_list_widget_->addItem(label);
-      }
-
-      // 8) Prepare a fresh MarkerArray for visualization
-      auto marker_array = std::make_unique<visualization_msgs::msg::MarkerArray>();
-
-      // 9) Loop over agents, assign each a distinct color, draw initial‐pose + ID, then its goals + arrows
-      const size_t num_agents = agents_list.size();
-      loaded_initial_marker_ids_.assign(num_agents, -1);
-      int id_counter = 0;
-
-      for (size_t a = 0; a < num_agents; ++a)
-      {
-        const std::string &agent_name = agents_list[a];
-        YAML::Node agent_node = params[agent_name];
-        if (!agent_node || !agent_node["init_pose"] || !agent_node["goals"])
-        {
-          RCLCPP_WARN(
-              this->get_logger(),
-              "Skipping '%s' because it lacks 'init_pose' or 'goals'.",
-              agent_name.c_str());
-          continue;
-        }
-
-        // 9a) Agent initial‐pose (mesh or sphere)
-        double ipx = agent_node["init_pose"]["x"].as<double>();
-        double ipy = agent_node["init_pose"]["y"].as<double>();
-
-        // pull out the saved yaw ("h") if present
-        double yaw = 0.0;
-        if (agent_node["init_pose"]["h"])
-          yaw = agent_node["init_pose"]["h"].as<double>();
-
-        // Choose skin if present:
-        int raw_skin = 0;
-        if (agent_node["skin"])
-          raw_skin = agent_node["skin"].as<int>();
-        checkParserSkin(raw_skin);
-
-        int id = id_counter++;
-        loaded_initial_marker_ids_[a] = id;
-
-        visualization_msgs::msg::Marker agent_marker =
-            createMarker(ipx, ipy, id, "person", "parser");
-        agent_marker.ns = "agent_initial";
-        tf2::Quaternion q;
-        q.setRPY(0, 0, yaw);
-        agent_marker.pose.orientation = tf2::toMsg(q);
-        marker_array->markers.push_back(agent_marker);
-
-        // 9b) Floating text above the agent to show its ID (1-based index)
-        QColor qcol;
-        qcol.setHsvF(double(a) / double(num_agents), 0.8, 0.9);
-        visualization_msgs::msg::Marker id_text;
-        id_text.header.frame_id = agent_marker.header.frame_id;
-        id_text.header.stamp = rclcpp::Clock().now();
-        id_text.ns = "agent_id_text";
-        id_text.id = id;
-        id_text.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
-        id_text.action = visualization_msgs::msg::Marker::ADD;
-        id_text.pose.position.x = ipx;
-        id_text.pose.position.y = ipy + 0.7;
-        id_text.pose.position.z = 1.5; // float above the agent
-        id_text.scale.z = 0.8;         // text height
-        id_text.color.r = qcol.redF();
-        id_text.color.g = qcol.greenF();
-        id_text.color.b = qcol.blueF();
-        id_text.color.a = 1.0f;
-        id_text.text = std::to_string(int(a) + 1);
-        marker_array->markers.push_back(id_text);
-
-        // 9c) Read this agent’s assigned goal IDs
-        std::vector<int> assigned_goals;
-        for (const auto &gid_node : agent_node["goals"])
-        {
-          assigned_goals.push_back(gid_node.as<int>());
-        }
-
-        // 9d) Draw each goal cube + arrow from previous point
-        geometry_msgs::msg::Point prev_pt;
-        prev_pt.x = ipx;
-        prev_pt.y = ipy;
-        prev_pt.z = 0.0;
-
-        for (size_t idx = 0; idx < assigned_goals.size(); ++idx)
-        {
-          int gid = assigned_goals[idx];
-          auto it = loaded_global_goals_.find(gid);
-          if (it == loaded_global_goals_.end())
-          {
-            RCLCPP_WARN(
-                this->get_logger(),
-                "Goal ID %d not found in global_goals; skipping.", gid);
-            continue;
-          }
-
-          geometry_msgs::msg::Point goal_pt = it->second;
-
-          // small colored cube at goal_pt
-          visualization_msgs::msg::Marker goal_marker =
-              createMarker(goal_pt.x, goal_pt.y, id_counter++, "cube", "parser");
-          goal_marker.ns = "agent_goal";
-          goal_marker.color.r = qcol.redF();
-          goal_marker.color.g = qcol.greenF();
-          goal_marker.color.b = qcol.blueF();
-          goal_marker.color.a = 1.0f;
-          marker_array->markers.push_back(goal_marker);
-
-          visualization_msgs::msg::Marker text_marker;
-          text_marker.header = goal_marker.header; // same timestamp/frame
-          text_marker.ns = "goal_labels";
-          text_marker.id = id_counter++; // unique ID
-          text_marker.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
-          text_marker.action = visualization_msgs::msg::Marker::ADD;
-
-          // Copy the cube’s pose, but bump Z up a bit so the text floats above
-          text_marker.pose = goal_marker.pose;
-          text_marker.pose.position.z += 0.2;
-          text_marker.pose.position.y += 0.7;
-          // Text size (height)
-          text_marker.scale.z = 0.7;
-
-          // White (or any) color
-          text_marker.color.r = 1.0f;
-          text_marker.color.g = 1.0f;
-          text_marker.color.b = 1.0f;
-          text_marker.color.a = 1.0f;
-
-          // Show the goal’s integer ID
-          text_marker.text = std::to_string(gid);
-
-          marker_array->markers.push_back(text_marker);
-
-          // arrow from prev_pt → goal_pt (same color)
-          visualization_msgs::msg::Marker arrow_marker =
-              createArrowMarker(prev_pt.x, prev_pt.y, goal_pt.x, goal_pt.y, id_counter++);
-          arrow_marker.ns = "agent_arrow";
-          arrow_marker.color.r = qcol.redF();
-          arrow_marker.color.g = qcol.greenF();
-          arrow_marker.color.b = qcol.blueF();
-          arrow_marker.color.a = 1.0f;
-          marker_array->markers.push_back(arrow_marker);
-
-          prev_pt = goal_pt;
-        }
-
-        // 9e) Finally, draw an arrow from the last goal back to the first goal (only if cyclic)
-        if (!assigned_goals.empty())
-        {
-          // Check if this agent has cyclic navigation
-          bool is_cyclic = true;
-          if (agent_node["cyclic_goals"])
-          {
-            is_cyclic = agent_node["cyclic_goals"].as<bool>();
-          }
-
-          if (is_cyclic)
-          {
-            // get the first goal's coordinates
-            int first_gid = assigned_goals.front();
-            auto it_first = loaded_global_goals_.find(first_gid);
-            if (it_first != loaded_global_goals_.end())
-            {
-              const auto &first_pt = it_first->second;
-              visualization_msgs::msg::Marker closing_arrow =
-                  createArrowMarker(prev_pt.x, prev_pt.y,
-                                    first_pt.x, first_pt.y,
-                                    id_counter++);
-              closing_arrow.ns = "agent_arrow";
-              closing_arrow.color.r = qcol.redF();
-              closing_arrow.color.g = qcol.greenF();
-              closing_arrow.color.b = qcol.blueF();
-              closing_arrow.color.a = 1.0f;
-              marker_array->markers.push_back(closing_arrow);
-            }
-          }
-        }
-
-      } // end for(each agent)
-
-      next_marker_id_ = id_counter; // Update the next_marker_id_ to the last used ID
-
-      // 10) Publish all markers at once
-      initial_pose_publisher->publish(std::move(marker_array));
-      // 11) If there are any agents, switch to EDIT_MODE
-      if (!loaded_agent_nodes_.empty())
-      {
-        int n = static_cast<int>(loaded_agent_nodes_.size());
-        initAgentColors(n);
-        panel_mode_ = EDIT_MODE;
-        switchButtonLayout(EDIT_MODE);
-        current_edit_idx_ = 0;
-        actors->hide();
-        actor_button_->setText("Edit agents");
-        actor_button_->setEnabled(true);
-        edit_goals_button_->setVisible(true);
-        edit_goals_button_->setDown(false);
-        add_agent_button_->setVisible(true);
-        add_agent_button_->show();
-        add_agent_button_->setEnabled(true);
-
-        n_agents_label_->hide();
-        map_group->setTitle("Edit agents or navigation goal:");
-        map_group->setEnabled(false);
-        map_group->setVisible(false);
-        // goal_group_->setTitle("");
-        goal_group_->setEnabled(true);
-        goal_group_->show();
-        goal_group_->update();
-        map_select_btn_->hide();
-        current_map_label_->hide();
-        map_select_btn_->setVisible(false);
-
-        // *** ENABLE GOAL MANAGEMENT UI ELEMENTS ***
-        reset_goals_button_->setEnabled(true);
-        reset_goals_button_->setVisible(true);
-        reset_goals_button_->show();
-        reset_goals_button_->raise();
-        goal_list_widget_->setEnabled(true);
-        goal_list_widget_->setVisible(true);
-        goal_list_widget_->show();
-        goal_list_widget_->raise();
-
-        enter_goal_mode_btn_->hide();
-      }
-
-      // Create a rich completion message
-      QString completionTitle = tr("Agents Configuration Loaded");
-      QString completionMsg = QString(
-                                  "<html><head><style>"
-                                  "body { font-family: 'Segoe UI', Arial, sans-serif; margin: 8px; }"
-                                  ".header { color: #3498db; font-weight: bold; font-size: 14px; margin-bottom: 5px; }"
-                                  ".section { margin: 8px 0; }"
-                                  ".filename { background-color: #ecf0f1; padding: 2px 4px; border-radius: 4px; "
-                                  "           font-family: 'Consolas', monospace; color: #2c3e50; font-weight: bold; }"
-                                  ".summary { background-color: #e8f6ff; padding: 4px; border-radius: 6px; "
-                                  "          border-left: 4px solid #3498db; margin-top: 8px; }"
-                                  ".action { color: #27ae60; font-weight: bold; }"
-                                  "</style></head><body>"
-
-                                  "<div class='header'>Agent Configuration Successfully Loaded!</div>"
-
-                                  "<div class='section'>"
-                                  "<strong>Source:</strong> <span class='filename'>%1</span><br>"
-                                  "<strong>Agents:</strong> %2 agents loaded with complete configuration"
-                                  "</div>"
-
-                                  "<div class='summary'>"
-                                  "<strong>Steps:</strong><br>"
-                                  "• <span class='action'>Edit agent configurations</span> using the agent panel<br>"
-                                  "• <span class='action'>Modify navigation goals</span> by entering goal editing mode<br>"
-                                  "• <span class='action'>Save and generate</span> updated behavior trees when ready"
-                                  "</div>"
-
-                                  "</body></html>")
-                                  .arg(orig_yaml_base_name_)
-                                  .arg(loaded_agent_names_.size());
-
-      // Create and style the message box
-      QMessageBox msgBox(this);
-      msgBox.setWindowTitle(completionTitle);
-      msgBox.setText(completionMsg);
-      msgBox.setIcon(QMessageBox::Information);
-      msgBox.setStyleSheet(
-          "QMessageBox {"
-          "  background-color: #f8f9fa;"
-          "  border: 2px solid #3498db;"
-          "  border-radius: 8px;"
-          "}"
-          "QMessageBox QLabel {"
-          "  color: #2c3e50;"
-          "  padding: 4px;"
-          "}");
-      msgBox.exec();
+          "YAML Load Error",
+          QString("Failed to load YAML file:\n%1\n\n%2")
+              .arg(QString::fromStdString(pkg_shared_tree_dir_))
+              .arg(QString::fromStdString(ex.what())));
+      return;
     }
 
-    void ActorPanel::onAddAgent()
+    // Extract "hunav_loader/ros__parameters"
+    if (!yaml_file["hunav_loader"] ||
+        !yaml_file["hunav_loader"]["ros__parameters"])
     {
-      // Set the flag to indicate we're adding a new agent
-      adding_new_agent_ = true;
+      QMessageBox::warning(
+          this,
+          "YAML Format Error",
+          "The file does not contain 'hunav_loader/ros__parameters'.");
+      return;
+    }
+    YAML::Node params = yaml_file["hunav_loader"]["ros__parameters"];
+    params_ = params;
 
-      // Calculate what the new agent's index will be (after current agents)
-      current_edit_idx_ = static_cast<int>(loaded_agent_names_.size());
-
-      // Update num_agents to include the slot for the new agent
-      num_agents = current_edit_idx_ + 1;
-
-      // Ensure marker IDs array is large enough for the new agent
-      // loaded_initial_marker_ids_.resize(num_agents, -1);
-      if (loaded_initial_marker_ids_.size() < static_cast<size_t>(num_agents))
-      {
-        loaded_initial_marker_ids_.resize(num_agents, -1);
-      }
-
-      // Update agent colors for the new total count
-      initAgentColors(num_agents);
-
-      // Initialize pose tracking
-      initial_pose_set = false;
-
-      assign_goals_btn_->setEnabled(false);
-
-      // Pop up the agent configuration dialog
-      addAgent();
+    if (params_["simulator"])
+    {
+      simulator_combo_->setCurrentText(
+          QString::fromStdString(params_["simulator"].as<std::string>()));
     }
 
-    /**
-     * @brief Save agents configuration and generate behavior trees
-     *
-     * This method saves the complete agent configuration to a YAML file and generates
-     * corresponding behavior tree XML files for each agent. It handles both CREATE and
-     * EDIT modes, preserving existing data while updating modified elements.
-     */
-    void ActorPanel::saveAndGenerateAll()
+    // Immediately load the map named under params["map"]
+    if (params["map"])
     {
-      // 1) Ask for a filename
-      bool ok = false;
+      std::string mapName = params["map"].as<std::string>();
+      QString mapBasename = QString::fromStdString(mapName) + ".yaml";
 
-      if (panel_mode_ == EDIT_MODE)
-        defaultName_ = orig_yaml_base_name_;
-      else
-        defaultName_ = QFileInfo(map_file_).baseName() + "_agents_";
-
-      QString base;
-
-      // Create QInputDialog
-      QInputDialog dlg(this);
-      dlg.setWindowTitle("Output YAML Name");
-      dlg.setLabelText("Enter a name for the agents YAML file:");
-      dlg.setTextValue(defaultName_);
-      dlg.setOption(QInputDialog::NoButtons, false);
-
-      // Grab the embedded QLineEdit
-      QLineEdit *le = dlg.findChild<QLineEdit *>();
-      if (le)
-      {
-        QTimer::singleShot(0, this, [this, le]()
-                           {
-                           le->deselect();                              
-                           le->setCursorPosition(defaultName_.length()); });
-      }
-
-      // Exec it
-      if (dlg.exec() == QDialog::Accepted)
-      {
-        base = dlg.textValue();
-        ok = true;
-      }
-      else
-      {
-        ok = false;
-      }
-
-      if (!ok || base.trimmed().isEmpty())
-      {
-        QMessageBox::warning(this, "Missing file name",
-                             "Please enter a name for the output YAML file.");
-        return;
-      }
-      yaml_base_name_ = base.trimmed();
-
-      // 2) Build a fresh YAML::Node “root”:
-      YAML::Node root;
-      auto p = root["hunav_loader"]["ros__parameters"];
-
-      //  2a) write yaml basename, simulator and map name:
-      p["yaml_base_name"] = yaml_base_name_.toStdString();
-
-      p["simulator"] = simulator_combo_->currentText().toStdString();
-      std::string map_str;
-      if (panel_mode_ == EDIT_MODE && params_["map"])
-      {
-        map_str = params_["map"].as<std::string>();
-      }
-      else if (!map_file_.isEmpty())
-      {
-        map_str = QFileInfo(map_file_).baseName().toStdString();
-      }
-      else
-      {
-        // fallback
-        map_str = "warehouse";
-      }
-      p["map"] = map_str;
-
-      p["publish_people"] = true;
-
-      //  2b) write “global_goals”:
-      p["global_goals"] = YAML::Node(YAML::NodeType::Map);
-      for (auto const &it : loaded_global_goals_)
-      {
-        int gid = it.first;
-        // create a sub‐map with x,y (rounded to 3 decimals)
-        double x = it.second.x;
-        double y = it.second.y;
-
-        YAML::Node one;
-        one["x"] = QString::number(x, 'f', 3).toStdString();
-        one["y"] = QString::number(y, 'f', 3).toStdString();
-        p["global_goals"][gid] = one;
-      }
-
-      if (panel_mode_ == CREATE_MODE)
-      {
-        loaded_agent_names_.clear();
-        for (size_t i = 0; i < loaded_agent_nodes_.size(); ++i)
-        {
-          loaded_agent_names_.push_back("agent" + std::to_string(i + 1));
-        }
-      }
-
-      //  2c) write “agents:” sequence
-      p["agents"] = YAML::Node(YAML::NodeType::Sequence);
-      for (auto const &name : loaded_agent_names_)
-        p["agents"].push_back(name);
-
-      //  2d) For each agent, re‐insert its node but overwrite the “goals” block:
-      for (size_t i = 0; i < loaded_agent_names_.size(); ++i)
-      {
-        std::string agent_name = loaded_agent_names_[i];
-        YAML::Node agent_node = loaded_agent_nodes_[i];
-
-        // Overwrite or create a “goals” sequence with its updated IDs:
-        agent_node["goals"] = YAML::Node(YAML::NodeType::Sequence);
-        for (int gid : loaded_agent_goals_[i])
-          agent_node["goals"].push_back(gid);
-
-        p[agent_name] = agent_node;
-      }
-
-      // 3) Write the YAML to disk:
-
-      // Determine the simulator wrapper directories
+      // Determine the base maps directory using simplified ROS2 package logic
       QString simulatorName = simulator_combo_->currentText();
       QString packageName;
 
@@ -5160,6 +4796,1108 @@ namespace hunav_rviz2_panel
         packageName = "hunav_webots_wrapper";
       }
 
+        QString mapDir;
+        try
+        {
+          QString shareDir = QString::fromStdString(
+              ament_index_cpp::get_package_share_directory(packageName.toStdString()));
+          std::string srcDir = share_to_src_path(shareDir.toStdString());
+          mapDir = QString::fromStdString(srcDir + "/maps");
+          RCLCPP_INFO(get_logger(), "Found ROS2 package '%s', maps at: %s",
+                      packageName.toStdString().c_str(), mapDir.toStdString().c_str());
+        }
+        catch (const std::exception &e)
+        {
+          // Fallback to development paths only if package not found
+          RCLCPP_WARN(get_logger(), "ROS2 package '%s' not found, falling back to development paths",
+                      packageName.toStdString().c_str());
+
+        QString homePath = QDir::homePath() + "/" + packageName + "/maps";
+        QString dockerPath = "/workspace/hunav_isaac_ws/src/" + packageName + "/maps";
+
+        mapDir = QDir(dockerPath).exists() ? dockerPath : homePath;
+        RCLCPP_INFO(get_logger(), "Using fallback path: %s", mapDir.toStdString().c_str());
+      }
+
+      // try to locate it
+      QString candidatePath = mapDir + "/" + mapBasename;
+      if (!QFile::exists(candidatePath))
+      {
+        QMessageBox::critical(
+            this,
+            "Map Load Error",
+            QString("Could not locate '%1' in:\n  %2")
+                .arg(mapBasename)
+                .arg(mapDir));
+        return;
+      }
+
+      // 2) Call the map_server/load_map service
+      auto client = this->create_client<nav2_msgs::srv::LoadMap>("/map_server/load_map");
+      if (!client->wait_for_service(2s))
+      {
+        QMessageBox::warning(
+            this,
+            "Map Server",
+            "Timed out waiting for /map_server/load_map. Is map_server running?");
+        return;
+      }
+      auto req = std::make_shared<nav2_msgs::srv::LoadMap::Request>();
+      req->map_url = candidatePath.toStdString();
+
+      auto future = client->async_send_request(req);
+      if (rclcpp::spin_until_future_complete(this->get_node_base_interface(), future, 5s) != rclcpp::FutureReturnCode::SUCCESS)
+      {
+        QMessageBox::critical(
+            this,
+            "Map Server",
+            "Failed to call /map_server/load_map on:\n" + candidatePath);
+        return;
+      }
+    }
+    else
+    {
+      QMessageBox::warning(
+          this,
+          "YAML Format Error",
+          "Missing 'map' key under 'ros__parameters'.");
+      return;
+    }
+
+    // 6) Build a goal_map from params["global_goals"]
+    loaded_global_goals_.clear();
+    if (params["global_goals"] && params["global_goals"].IsMap())
+    {
+      for (const auto &it : params["global_goals"].as<YAML::Node>())
+      {
+        int goal_id = it.first.as<int>();
+        double gx = it.second["x"].as<double>();
+        double gy = it.second["y"].as<double>();
+
+        geometry_msgs::msg::Point pt;
+        pt.x = gx;
+        pt.y = gy;
+        pt.z = 0.0;
+        loaded_global_goals_[goal_id] = pt;
+        goal_ids_.push_back(goal_id);
+      }
+    }
+    else
+    {
+      QMessageBox::warning(
+          this,
+          "YAML Format Error",
+          "Missing or invalid 'global_goals' section in agents.yaml.");
+      return;
+    }
+
+    loaded_agent_names_.clear();
+    loaded_agent_nodes_.clear();
+    loaded_agent_goals_.clear();
+
+    // 7) Read the list of agent‐names from params["agents"]
+    std::vector<std::string> agents_list;
+    if (params["agents"] && params["agents"].IsSequence())
+    {
+      for (auto const &entry : params["agents"])
+      {
+        agents_list.push_back(entry.as<std::string>());
+
+        std::string agent_name = entry.as<std::string>();
+        loaded_agent_names_.push_back(agent_name);
+
+        YAML::Node sub = params[agent_name];
+        loaded_agent_nodes_.push_back(sub);
+
+        // pull out that agent’s “goals” array:
+        std::vector<int> this_goals;
+        if (sub["goals"] && sub["goals"].IsSequence())
+        {
+          for (auto const &g : sub["goals"])
+            this_goals.push_back(g.as<int>());
+        }
+        loaded_agent_goals_.push_back(this_goals);
+      }
+    }
+    else
+    {
+      QMessageBox::warning(
+          this,
+          "YAML Format Error",
+          "Missing or invalid 'agents' sequence in agents.yaml.");
+      return;
+    }
+
+    goal_markers_.markers.clear();
+    int base_id = 0;
+    for (auto const &it : loaded_global_goals_)
+    {
+      int gid = it.first;
+      auto pt = it.second;
+
+      // (a) Make a sphere marker
+      visualization_msgs::msg::Marker sphere;
+      sphere.header.frame_id = "/map";
+      sphere.header.stamp = rclcpp::Clock().now();
+      sphere.ns = "goal_points";
+      // sphere.id = base_id * 2; // even ID
+      sphere.id = gid * 2;
+      sphere.type = visualization_msgs::msg::Marker::SPHERE;
+      sphere.action = visualization_msgs::msg::Marker::ADD;
+      sphere.pose.position = pt;
+      sphere.scale.x = sphere.scale.y = sphere.scale.z = 0.2;
+      sphere.color.r = 0.0f;
+      sphere.color.g = 0.7f;
+      sphere.color.b = 0.7f;
+      sphere.color.a = 1.0f;
+      goal_markers_.markers.push_back(sphere);
+
+      // (b) Make a text label just above it
+      visualization_msgs::msg::Marker text;
+      text.header.frame_id = "/map";
+      text.header.stamp = rclcpp::Clock().now();
+      text.ns = "goal_numbers";
+      // text.id = base_id * 2 + 1; // odd ID
+      text.id = gid * 2 + 1;
+      text.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
+      text.action = visualization_msgs::msg::Marker::ADD;
+      text.pose = sphere.pose;
+      text.pose.position.y += 0.5;
+      text.pose.position.z += 0.3;
+      text.scale.z = 0.7;
+      text.color.r = text.color.g = text.color.b = 1.0f;
+      text.color.a = 1.0f;
+      text.text = std::to_string(gid);
+      goal_markers_.markers.push_back(text);
+
+      ++base_id;
+    }
+
+    goal_list_widget_->clear();
+    for (auto const &it : loaded_global_goals_)
+    {
+      int gid = it.first;
+      auto &pt = it.second;
+      QString label = QString("Goal %1: (%2, %3)")
+                          .arg(gid)
+                          .arg(QString::number(pt.x, 'f', 3))
+                          .arg(QString::number(pt.y, 'f', 3));
+      goal_list_widget_->addItem(label);
+    }
+
+    // 8) Prepare a fresh MarkerArray for visualization
+    auto marker_array = std::make_unique<visualization_msgs::msg::MarkerArray>();
+
+    // 9) Loop over agents, assign each a distinct color, draw initial‐pose + ID, then its goals + arrows
+    const size_t num_agents = agents_list.size();
+    loaded_initial_marker_ids_.assign(num_agents, -1);
+    int id_counter = 0;
+
+    for (size_t a = 0; a < num_agents; ++a)
+    {
+      const std::string &agent_name = agents_list[a];
+      YAML::Node agent_node = params[agent_name];
+      if (!agent_node || !agent_node["init_pose"] || !agent_node["goals"])
+      {
+        RCLCPP_WARN(
+            this->get_logger(),
+            "Skipping '%s' because it lacks 'init_pose' or 'goals'.",
+            agent_name.c_str());
+        continue;
+      }
+
+      // 9a) Agent initial‐pose (mesh or sphere)
+      double ipx = agent_node["init_pose"]["x"].as<double>();
+      double ipy = agent_node["init_pose"]["y"].as<double>();
+
+      // pull out the saved yaw ("h") if present
+      double yaw = 0.0;
+      if (agent_node["init_pose"]["h"])
+        yaw = agent_node["init_pose"]["h"].as<double>();
+
+      // Choose skin if present:
+      int raw_skin = 0;
+      if (agent_node["skin"])
+        raw_skin = agent_node["skin"].as<int>();
+      checkParserSkin(raw_skin);
+
+      int id = id_counter++;
+      loaded_initial_marker_ids_[a] = id;
+
+      visualization_msgs::msg::Marker agent_marker =
+          createMarker(ipx, ipy, id, "person", "parser");
+      agent_marker.ns = "agent_initial";
+      tf2::Quaternion q;
+      q.setRPY(0, 0, yaw);
+      agent_marker.pose.orientation = tf2::toMsg(q);
+      marker_array->markers.push_back(agent_marker);
+
+      // 9b) Floating text above the agent to show its ID (1-based index)
+      QColor qcol;
+      qcol.setHsvF(double(a) / double(num_agents), 0.8, 0.9);
+      visualization_msgs::msg::Marker id_text;
+      id_text.header.frame_id = agent_marker.header.frame_id;
+      id_text.header.stamp = rclcpp::Clock().now();
+      id_text.ns = "agent_id_text";
+      id_text.id = id;
+      id_text.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
+      id_text.action = visualization_msgs::msg::Marker::ADD;
+      id_text.pose.position.x = ipx;
+      id_text.pose.position.y = ipy + 0.7;
+      id_text.pose.position.z = 1.5; // float above the agent
+      id_text.scale.z = 0.8;         // text height
+      id_text.color.r = qcol.redF();
+      id_text.color.g = qcol.greenF();
+      id_text.color.b = qcol.blueF();
+      id_text.color.a = 1.0f;
+      id_text.text = std::to_string(int(a) + 1);
+      marker_array->markers.push_back(id_text);
+
+      // 9c) Read this agent’s assigned goal IDs
+      std::vector<int> assigned_goals;
+      for (const auto &gid_node : agent_node["goals"])
+      {
+        assigned_goals.push_back(gid_node.as<int>());
+      }
+
+      // 9d) Draw each goal cube + arrow from previous point
+      geometry_msgs::msg::Point prev_pt;
+      prev_pt.x = ipx;
+      prev_pt.y = ipy;
+      prev_pt.z = 0.0;
+
+      for (size_t idx = 0; idx < assigned_goals.size(); ++idx)
+      {
+        int gid = assigned_goals[idx];
+        auto it = loaded_global_goals_.find(gid);
+        if (it == loaded_global_goals_.end())
+        {
+          RCLCPP_WARN(
+              this->get_logger(),
+              "Goal ID %d not found in global_goals; skipping.", gid);
+          continue;
+        }
+
+        geometry_msgs::msg::Point goal_pt = it->second;
+
+        // small colored cube at goal_pt
+        visualization_msgs::msg::Marker goal_marker =
+            createMarker(goal_pt.x, goal_pt.y, id_counter++, "cube", "parser");
+        goal_marker.ns = "agent_goal";
+        goal_marker.color.r = qcol.redF();
+        goal_marker.color.g = qcol.greenF();
+        goal_marker.color.b = qcol.blueF();
+        goal_marker.color.a = 1.0f;
+        marker_array->markers.push_back(goal_marker);
+
+        visualization_msgs::msg::Marker text_marker;
+        text_marker.header = goal_marker.header; // same timestamp/frame
+        text_marker.ns = "goal_labels";
+        text_marker.id = id_counter++; // unique ID
+        text_marker.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
+        text_marker.action = visualization_msgs::msg::Marker::ADD;
+
+        // Copy the cube’s pose, but bump Z up a bit so the text floats above
+        text_marker.pose = goal_marker.pose;
+        text_marker.pose.position.z += 0.2;
+        text_marker.pose.position.y += 0.7;
+        // Text size (height)
+        text_marker.scale.z = 0.7;
+
+        // White (or any) color
+        text_marker.color.r = 1.0f;
+        text_marker.color.g = 1.0f;
+        text_marker.color.b = 1.0f;
+        text_marker.color.a = 1.0f;
+
+        // Show the goal’s integer ID
+        text_marker.text = std::to_string(gid);
+
+        marker_array->markers.push_back(text_marker);
+
+        // arrow from prev_pt → goal_pt (same color)
+        visualization_msgs::msg::Marker arrow_marker =
+            createArrowMarker(prev_pt.x, prev_pt.y, goal_pt.x, goal_pt.y, id_counter++);
+        arrow_marker.ns = "agent_arrow";
+        arrow_marker.color.r = qcol.redF();
+        arrow_marker.color.g = qcol.greenF();
+        arrow_marker.color.b = qcol.blueF();
+        arrow_marker.color.a = 1.0f;
+        marker_array->markers.push_back(arrow_marker);
+
+        prev_pt = goal_pt;
+      }
+
+      // 9e) Finally, draw an arrow from the last goal back to the first goal (only if cyclic)
+      if (!assigned_goals.empty())
+      {
+        // Check if this agent has cyclic navigation
+        bool is_cyclic = true;
+        if (agent_node["cyclic_goals"])
+        {
+          is_cyclic = agent_node["cyclic_goals"].as<bool>();
+        }
+
+        if (is_cyclic)
+        {
+          // get the first goal's coordinates
+          int first_gid = assigned_goals.front();
+          auto it_first = loaded_global_goals_.find(first_gid);
+          if (it_first != loaded_global_goals_.end())
+          {
+            const auto &first_pt = it_first->second;
+            visualization_msgs::msg::Marker closing_arrow =
+                createArrowMarker(prev_pt.x, prev_pt.y,
+                                  first_pt.x, first_pt.y,
+                                  id_counter++);
+            closing_arrow.ns = "agent_arrow";
+            closing_arrow.color.r = qcol.redF();
+            closing_arrow.color.g = qcol.greenF();
+            closing_arrow.color.b = qcol.blueF();
+            closing_arrow.color.a = 1.0f;
+            marker_array->markers.push_back(closing_arrow);
+          }
+        }
+      }
+
+    } // end for(each agent)
+
+    next_marker_id_ = id_counter; // Update the next_marker_id_ to the last used ID
+
+    // 10) Publish all markers at once
+    initial_pose_publisher->publish(std::move(marker_array));
+    // 11) If there are any agents, switch to EDIT_MODE
+    if (!loaded_agent_nodes_.empty())
+    {
+      int n = static_cast<int>(loaded_agent_nodes_.size());
+      initAgentColors(n);
+      panel_mode_ = EDIT_MODE;
+      switchButtonLayout(EDIT_MODE);
+      current_edit_idx_ = 0;
+      actors->hide();
+      actor_button_->setText("Edit agents");
+      actor_button_->setEnabled(true);
+      edit_goals_button_->setVisible(true);
+      edit_goals_button_->setDown(false);
+      add_agent_button_->setVisible(true);
+      add_agent_button_->show();
+      add_agent_button_->setEnabled(true);
+
+      n_agents_label_->hide();
+      map_group->setTitle("Edit agents or navigation goal:");
+      map_group->setEnabled(false);
+      map_group->setVisible(false);
+      // goal_group_->setTitle("");
+      goal_group_->setEnabled(true);
+      goal_group_->show();
+      goal_group_->update();
+      map_select_btn_->hide();
+      current_map_label_->hide();
+      map_select_btn_->setVisible(false);
+
+      // *** ENABLE GOAL MANAGEMENT UI ELEMENTS ***
+      reset_goals_button_->setEnabled(true);
+      reset_goals_button_->setVisible(true);
+      reset_goals_button_->show();
+      reset_goals_button_->raise();
+      goal_list_widget_->setEnabled(true);
+      goal_list_widget_->setVisible(true);
+      goal_list_widget_->show();
+      goal_list_widget_->raise();
+
+      enter_goal_mode_btn_->hide();
+    }
+
+    // Create a rich completion message
+    QString completionTitle = tr("Agents Configuration Loaded");
+    QString completionMsg = QString(
+                                "<html><head><style>"
+                                "body { font-family: 'Segoe UI', Arial, sans-serif; margin: 8px; }"
+                                ".header { color: #3498db; font-weight: bold; font-size: 14px; margin-bottom: 5px; }"
+                                ".section { margin: 8px 0; }"
+                                ".filename { background-color: #ecf0f1; padding: 2px 4px; border-radius: 4px; "
+                                "           font-family: 'Consolas', monospace; color: #2c3e50; font-weight: bold; }"
+                                ".summary { background-color: #e8f6ff; padding: 4px; border-radius: 6px; "
+                                "          border-left: 4px solid #3498db; margin-top: 8px; }"
+                                ".action { color: #27ae60; font-weight: bold; }"
+                                "</style></head><body>"
+
+                                "<div class='header'>Agent Configuration Successfully Loaded!</div>"
+
+                                "<div class='section'>"
+                                "<strong>Source:</strong> <span class='filename'>%1</span><br>"
+                                "<strong>Agents:</strong> %2 agents loaded with complete configuration"
+                                "</div>"
+
+                                "<div class='summary'>"
+                                "<strong>Steps:</strong><br>"
+                                "• <span class='action'>Edit agent configurations</span> using the agent panel<br>"
+                                "• <span class='action'>Modify navigation goals</span> by entering goal editing mode<br>"
+                                "• <span class='action'>Save and generate</span> updated behavior trees when ready"
+                                "</div>"
+
+                                "</body></html>")
+                                .arg(orig_yaml_base_name_)
+                                .arg(loaded_agent_names_.size());
+
+    // Create and style the message box
+    QMessageBox msgBox(this);
+    msgBox.setWindowTitle(completionTitle);
+    msgBox.setText(completionMsg);
+    msgBox.setIcon(QMessageBox::Information);
+    msgBox.setStyleSheet(
+        "QMessageBox {"
+        "  background-color: #f8f9fa;"
+        "  border: 2px solid #3498db;"
+        "  border-radius: 8px;"
+        "}"
+        "QMessageBox QLabel {"
+        "  color: #2c3e50;"
+        "  padding: 4px;"
+        "}");
+    msgBox.exec();
+  }
+
+  void ActorPanel::onAddAgent()
+  {
+    // Set the flag to indicate we're adding a new agent
+    adding_new_agent_ = true;
+
+    // Calculate what the new agent's index will be (after current agents)
+    current_edit_idx_ = static_cast<int>(loaded_agent_names_.size());
+
+    // Update num_agents to include the slot for the new agent
+    num_agents = current_edit_idx_ + 1;
+
+    // Ensure marker IDs array is large enough for the new agent
+    // loaded_initial_marker_ids_.resize(num_agents, -1);
+    if (loaded_initial_marker_ids_.size() < static_cast<size_t>(num_agents))
+    {
+      loaded_initial_marker_ids_.resize(num_agents, -1);
+    }
+
+    // Update agent colors for the new total count
+    initAgentColors(num_agents);
+
+    // Initialize pose tracking
+    initial_pose_set = false;
+
+    assign_goals_btn_->setEnabled(false);
+
+    // Pop up the agent configuration dialog
+    addAgent();
+  }
+
+  void ActorPanel::launchBTWizard()
+  {
+    if (loaded_agent_names_.empty())
+    {
+      QMessageBox::information(this, "No Agents Available",
+                               "Please create or load agents before configuring behavior trees.\n\n"
+                               "Use 'Generate Agents' or 'Edit Existing Configuration' first.");
+      return;
+    }
+
+    BTConfigDialog wizard(this);
+
+    // Set up agent data
+    QStringList agentNames, behaviorTypes;
+    for (size_t i = 0; i < loaded_agent_names_.size(); ++i)
+    {
+      agentNames << QString::fromStdString(loaded_agent_names_[i]);
+
+      QString bt = "Regular";
+      try
+      {
+        if (i < loaded_agent_nodes_.size() &&
+            loaded_agent_nodes_[i]["behavior"] &&
+            loaded_agent_nodes_[i]["behavior"]["type"])
+        {
+          bt = QString::fromStdString(loaded_agent_nodes_[i]["behavior"]["type"].as<std::string>());
+        }
+      }
+      catch (...)
+      {
+        // Use default
+      }
+      behaviorTypes << bt;
+    }
+
+    wizard.setAgentList(agentNames, behaviorTypes);
+
+    // Pass available goal IDs to the wizard
+    QList<int> goalIds;
+    for (int goalId : goal_ids_)
+    {
+      goalIds.append(goalId);
+    }
+    wizard.setAvailableGoals(goalIds);
+    
+    // Try to load existing BT configuration from XML files
+    QString scenarioName = panel_mode_ == EDIT_MODE ? orig_yaml_base_name_ : yaml_base_name_;
+    QString simulator = simulator_combo_->currentText();
+    QStringList btPaths = BTConfigDialog::generateBTPathsForScenario(
+        scenarioName, simulator, loaded_agent_names_.size());
+    
+    // Attempt to load existing configuration if files exist
+    bool configLoaded = wizard.loadExistingConfiguration(btPaths);
+    if (configLoaded) {
+      qDebug() << "Loaded existing BT configuration from XML files";
+    } else {
+      qDebug() << "Starting with fresh BT configuration (no existing files or failed to parse)";
+    }
+
+    if (wizard.exec() == QDialog::Accepted)
+    {
+      auto config = wizard.getConfig();
+
+      // Use BTConfigDialog's static validation method
+      if (!BTConfigDialog::validateWizardConfig(config, loaded_agent_names_.size()))
+      {
+        QMessageBox::warning(this, "Invalid Configuration",
+                             "The behavior tree configuration is invalid. Please check your settings.");
+        return;
+      }
+
+      // Generate BT file paths using BTConfigDialog's method
+      QString scenarioName = panel_mode_ == EDIT_MODE ? orig_yaml_base_name_ : yaml_base_name_;
+      QString simulator = simulator_combo_->currentText();
+      QStringList btPaths = BTConfigDialog::generateBTPathsForScenario(
+          scenarioName, simulator, loaded_agent_names_.size());
+
+      // Apply configuration using BTConfigDialog's method
+      if (BTConfigDialog::patchAllAgentBTFiles(btPaths, config))
+      {
+        save_bt_btn_->setEnabled(true);
+        QMessageBox::information(this, "Configuration Complete",
+                                 "Behavior tree configuration has been successfully applied to all agents.");
+      }
+      else
+      {
+        QMessageBox::warning(this, "Configuration Error",
+                             "Some behavior tree files could not be updated. Check the console for details.");
+      }
+    }
+  }
+
+  void ActorPanel::launchLLMBTGenerator()
+  {
+    // Check if agents are loaded
+    if (loaded_agent_names_.empty())
+    {
+      QMessageBox::warning(
+          this,
+          "No Agents Loaded",
+          "Please load agents from a YAML file before generating behavior trees.");
+      return;
+    }
+
+    // Determine the YAML file path based on panel mode
+    QString yamlFilePath;
+
+    if (panel_mode_ == EDIT_MODE)
+    {
+      // In EDIT mode, use the loaded file path
+      if (pkg_shared_tree_dir_.empty())
+      {
+        QMessageBox::warning(
+            this,
+            "No Scenario File",
+            "No scenario YAML file is currently loaded. Please load a scenario first.");
+        return;
+      }
+      yamlFilePath = QString::fromStdString(pkg_shared_tree_dir_);
+    }
+    else if (panel_mode_ == CREATE_MODE)
+    {
+      // In CREATE mode, construct the path from yaml_base_name_
+      if (yaml_base_name_.isEmpty())
+      {
+        QMessageBox::warning(
+            this,
+            "No Scenario Saved",
+            "Please save your scenario configuration before generating behavior trees.\n"
+            "Use the 'Save agents & generate BTs' button first.");
+        return;
+      }
+
+      // Determine the simulator wrapper package
+      QString simulatorName = simulator_combo_->currentText();
+      QString packageName;
+
+      if (simulatorName == "Gazebo Classic")
+      {
+        packageName = "hunav_gazebo_wrapper";
+      }
+      else if (simulatorName == "Gazebo Fortress")
+      {
+        packageName = "hunav_gazebo_fortress_wrapper";
+      }
+      else if (simulatorName == "Isaac Sim")
+      {
+        packageName = "hunav_isaac_wrapper";
+      }
+      else
+      { // Webots
+        packageName = "hunav_webots_wrapper";
+      }
+
+      // Get the config directory
+      QString configDir;
+      try
+      {
+        QString shareDir = QString::fromStdString(
+            ament_index_cpp::get_package_share_directory(packageName.toStdString()));
+        configDir = shareDir + "/scenarios";
+      }
+      catch (const std::exception &e)
+      {
+        QString homePath = QDir::homePath() + "/" + packageName;
+        QString dockerPath = "/workspace/hunav_isaac_ws/src/" + packageName;
+        QString baseDir = QDir(dockerPath).exists() ? dockerPath : homePath;
+        configDir = baseDir + "/scenarios";
+      }
+
+      yamlFilePath = configDir + "/" + yaml_base_name_ + ".yaml";
+    }
+    else
+    {
+      QMessageBox::warning(
+          this,
+          "Invalid Mode",
+          "Cannot determine panel mode. Please load or create a scenario first.");
+      return;
+    }
+
+    // Verify the YAML file exists
+    if (!QFile::exists(yamlFilePath))
+    {
+      QMessageBox::critical(
+          this,
+          "File Not Found",
+          QString("The scenario YAML file does not exist:\n%1\n\n"
+                  "Please save your scenario configuration before generating behavior trees.")
+              .arg(yamlFilePath));
+      return;
+    }
+
+    RCLCPP_INFO(get_logger(), "Launching LLM BT Generator for scenario: %s",
+                yamlFilePath.toStdString().c_str());
+
+    // Create the ROS2 command
+    QStringList arguments;
+    arguments << "run"
+              << "hunav_behavior_tree_generator"
+              << "generator_cli"
+              << "--mode"
+              << "scenario"
+              << "--yaml-file"
+              << yamlFilePath;
+
+    // Execute the command
+    QProcess *process = new QProcess(this);
+    process->setProcessChannelMode(QProcess::MergedChannels);
+
+    // Connect signals for output handling
+    connect(process, &QProcess::readyReadStandardOutput, this, [process, this]()
+            {
+      QString output = QString::fromUtf8(process->readAllStandardOutput());
+      if (!output.trimmed().isEmpty())
+      {
+        RCLCPP_INFO(get_logger(), "[LLM BT Generator] %s", output.trimmed().toStdString().c_str());
+      } });
+
+    connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+            this, [process, this](int exitCode, QProcess::ExitStatus exitStatus)
+            {
+              if (exitStatus == QProcess::NormalExit && exitCode == 0)
+              {
+                RCLCPP_INFO(get_logger(), "LLM BT Generator completed successfully");
+                QMessageBox::information(
+                    this,
+                    "Generation Complete",
+                    "Behavior trees have been successfully generated.\n"
+                    "You can now view them in the behavior trees directory.");
+              }
+              else
+              {
+                QString errorOutput = QString::fromUtf8(process->readAll());
+                RCLCPP_ERROR(get_logger(), "LLM BT Generator failed with exit code %d: %s",
+                             exitCode, errorOutput.toStdString().c_str());
+                QMessageBox::critical(
+                    this,
+                    "Generation Failed",
+                    QString("Behavior tree generation failed with exit code %1\n\n%2")
+                        .arg(exitCode)
+                        .arg(errorOutput.isEmpty() ? "No error output available" : errorOutput));
+              }
+              process->deleteLater();
+            });
+
+    connect(process, &QProcess::errorOccurred, this, [process, this](QProcess::ProcessError error)
+            {
+              QString errorMsg;
+              switch (error)
+              {
+              case QProcess::FailedToStart:
+                errorMsg = "Failed to start ros2 command. Make sure ROS2 is properly installed and sourced, "
+                           "and the hunav_behavior_tree_generator package is available.";
+                break;
+              case QProcess::Crashed:
+                errorMsg = "The process crashed unexpectedly.";
+                break;
+              case QProcess::Timedout:
+                errorMsg = "The process timed out.";
+                break;
+              case QProcess::ReadError:
+                errorMsg = "An error occurred reading from the process.";
+                break;
+              case QProcess::WriteError:
+                errorMsg = "An error occurred writing to the process.";
+                break;
+              case QProcess::UnknownError:
+                errorMsg = "An unknown error occurred.";
+                break;
+              }
+
+              RCLCPP_ERROR(get_logger(), "LLM BT Generator process error: %s", errorMsg.toStdString().c_str());
+              QMessageBox::critical(
+                  this,
+                  "Process Error",
+                  QString("Failed to execute LLM BT Generator:\n\n%1").arg(errorMsg));
+              process->deleteLater();
+            });
+
+    // Show information dialog before starting
+    QMessageBox::information(
+        this,
+        "Generating Behavior Trees",
+        QString("Starting LLM-based behavior tree generation CLI for:\n%1\n\n")
+            .arg(QFileInfo(yamlFilePath).fileName()));
+
+    // Start the process
+    process->start("ros2", arguments);
+  }
+  
+
+  void ActorPanel::resetBTConfiguration(const QStringList &btPaths)
+  {
+    // Validate that agents are loaded
+    if (loaded_agent_names_.empty())
+    {
+      QMessageBox::warning(this, "No Agents Loaded",
+                           "No agents are currently loaded. Please load or create agents first.");
+      return;
+    }
+
+    // Confirm with user
+    QMessageBox::StandardButton reply = QMessageBox::question(
+        this,
+        "Reset Behavior Trees",
+        QString("This will reset all %1 agent behavior trees to their predefined configurations.\n\n"
+                "Any current custom BT configurations made will be lost.\n\n"
+                "Do you want to continue?")
+            .arg(loaded_agent_names_.size()),
+        QMessageBox::Yes | QMessageBox::No,
+        QMessageBox::No);
+
+    if (reply != QMessageBox::Yes)
+    {
+      return;
+    }
+
+    try
+    {
+      int successCount = 0;
+      int failCount = 0;
+      QStringList errors;
+
+      // Use provided paths or generate them if not provided
+      QStringList filePaths = btPaths;
+      if (filePaths.isEmpty())
+      {
+        QString scenarioName = panel_mode_ == EDIT_MODE ? orig_yaml_base_name_ : yaml_base_name_;
+        QString simulator = simulator_combo_->currentText();
+        
+        if (scenarioName.isEmpty())
+        {
+          QMessageBox::warning(this, "Invalid Configuration",
+                               "No scenario name available. Please save your configuration first.");
+          return;
+        }
+        
+        filePaths = BTConfigDialog::generateBTPathsForScenario(
+            scenarioName, simulator, loaded_agent_names_.size());
+      }
+
+      // Reset each agent's BT to its predefined configuration
+      for (size_t i = 0; i < loaded_agent_names_.size() && i < loaded_agent_nodes_.size(); ++i)
+      {
+        // Determine the behavior type for this agent
+        QString behaviorType = "Regular"; // Default
+        try
+        {
+          if (loaded_agent_nodes_[i]["behavior"] &&
+              loaded_agent_nodes_[i]["behavior"]["type"])
+          {
+            behaviorType = QString::fromStdString(
+                loaded_agent_nodes_[i]["behavior"]["type"].as<std::string>());
+          }
+        }
+        catch (...)
+        {
+          // Use default
+        }
+
+        // Generate the predefined BT for this agent
+        QString btContent = generateDefaultBTForAgent(i);
+        
+        if (btContent.isEmpty())
+        {
+          QString error = QString("Agent %1: Failed to generate predefined BT for behavior '%2'")
+                              .arg(i + 1)
+                              .arg(behaviorType);
+          errors.append(error);
+          failCount++;
+          continue;
+        }
+
+        // Use the pre-computed file path
+        QString btFilePath = (static_cast<int>(i) < filePaths.size()) ? filePaths[i] : QString();
+        if (btFilePath.isEmpty())
+        {
+          QString error = QString("Agent %1: No file path available").arg(i + 1);
+          errors.append(error);
+          failCount++;
+          continue;
+        }
+        
+        // Ensure the directory exists
+        QFileInfo fileInfo(btFilePath);
+        QDir dir = fileInfo.absoluteDir();
+        if (!dir.exists())
+        {
+          if (!dir.mkpath("."))
+          {
+            QString error = QString("Agent %1: Failed to create directory: %2")
+                                .arg(i + 1)
+                                .arg(dir.absolutePath());
+            errors.append(error);
+            failCount++;
+            continue;
+          }
+        }
+
+        // Write the BT file
+        QFile file(btFilePath);
+        if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
+        {
+          QString error = QString("Agent %1: Failed to write BT file: %2")
+                              .arg(i + 1)
+                              .arg(btFilePath);
+          errors.append(error);
+          failCount++;
+          continue;
+        }
+
+        QTextStream out(&file);
+        out << btContent;
+        file.close();
+
+        RCLCPP_INFO(this->get_logger(),
+                    "Reset BT for agent %zu (%s) to predefined behavior '%s'",
+                    i + 1,
+                    loaded_agent_names_[i].c_str(),
+                    behaviorType.toStdString().c_str());
+        successCount++;
+      }
+
+      // Clear any cached wizard configuration
+      agentBTConfig_.clear();
+      lastWizardConfig_ = BTConfigDialog::Config();
+
+      // Show results to user
+      QString message;
+      if (failCount == 0)
+      {
+        message = QString("Successfully reset all %1 agent behavior trees to their predefined configurations.")
+                      .arg(successCount);
+        QMessageBox::information(this, "Reset Complete", message);
+      }
+      else if (successCount > 0)
+      {
+        message = QString("Reset %1 agent(s) successfully, but %2 failed.\n\nErrors:\n%3")
+                      .arg(successCount)
+                      .arg(failCount)
+                      .arg(errors.join("\n"));
+        QMessageBox::warning(this, "Partial Reset", message);
+      }
+      else
+      {
+        message = QString("Failed to reset behavior trees.\n\nErrors:\n%1")
+                      .arg(errors.join("\n"));
+        QMessageBox::critical(this, "Reset Failed", message);
+      }
+
+      RCLCPP_INFO(this->get_logger(),
+                  "Reset BT configuration: %d succeeded, %d failed",
+                  successCount, failCount);
+    }
+    catch (const std::exception &e)
+    {
+      QString errorMsg = QString("Exception during BT reset: %1").arg(e.what());
+      QMessageBox::critical(this, "Reset Error", errorMsg);
+      RCLCPP_ERROR(this->get_logger(), "%s", errorMsg.toStdString().c_str());
+    }
+  }
+
+  /**
+   * @brief Save agents configuration and generate behavior trees
+   *
+   * This method saves the complete agent configuration to a YAML file and generates
+   * corresponding behavior tree XML files for each agent. It handles both CREATE and
+   * EDIT modes, preserving existing data while updating modified elements.
+   */
+  void ActorPanel::saveAndGenerateAll()
+  {
+    // 1) Ask for a filename
+    bool ok = false;
+
+    if (panel_mode_ == EDIT_MODE)
+      defaultName_ = orig_yaml_base_name_;
+    else
+      defaultName_ = QFileInfo(map_file_).baseName() + "_agents_";
+
+    QString base;
+
+    // Create QInputDialog
+    QInputDialog dlg(this);
+    dlg.setWindowTitle("Output YAML Name");
+    dlg.setLabelText("Enter a name for the agents YAML file:");
+    dlg.setTextValue(defaultName_);
+    dlg.setOption(QInputDialog::NoButtons, false);
+
+    // Grab the embedded QLineEdit
+    QLineEdit *le = dlg.findChild<QLineEdit *>();
+    if (le)
+    {
+      QTimer::singleShot(0, this, [this, le]()
+                         {
+                           le->deselect();                              
+                           le->setCursorPosition(defaultName_.length()); });
+    }
+
+    // Exec it
+    if (dlg.exec() == QDialog::Accepted)
+    {
+      base = dlg.textValue();
+      ok = true;
+    }
+    else
+    {
+      ok = false;
+    }
+
+    if (!ok || base.trimmed().isEmpty())
+    {
+      QMessageBox::warning(this, "Missing file name",
+                           "Please enter a name for the output YAML file.");
+      return;
+    }
+    yaml_base_name_ = base.trimmed();
+
+    // 2) Build a fresh YAML::Node “root”:
+    YAML::Node root;
+    auto p = root["hunav_loader"]["ros__parameters"];
+
+    //  2a) write yaml basename, simulator and map name:
+    p["yaml_base_name"] = yaml_base_name_.toStdString();
+
+    p["simulator"] = simulator_combo_->currentText().toStdString();
+    std::string map_str;
+    if (panel_mode_ == EDIT_MODE && params_["map"])
+    {
+      map_str = params_["map"].as<std::string>();
+    }
+    else if (!map_file_.isEmpty())
+    {
+      map_str = QFileInfo(map_file_).baseName().toStdString();
+    }
+    else
+    {
+      // fallback
+      map_str = "warehouse";
+    }
+    p["map"] = map_str;
+
+    p["publish_people"] = true;
+
+    //  2b) write “global_goals”:
+    p["global_goals"] = YAML::Node(YAML::NodeType::Map);
+    for (auto const &it : loaded_global_goals_)
+    {
+      int gid = it.first;
+      // create a sub‐map with x,y (rounded to 3 decimals)
+      double x = it.second.x;
+      double y = it.second.y;
+
+      YAML::Node one;
+      one["x"] = QString::number(x, 'f', 3).toStdString();
+      one["y"] = QString::number(y, 'f', 3).toStdString();
+      p["global_goals"][gid] = one;
+    }
+
+    if (panel_mode_ == CREATE_MODE)
+    {
+      loaded_agent_names_.clear();
+      for (size_t i = 0; i < loaded_agent_nodes_.size(); ++i)
+      {
+        loaded_agent_names_.push_back("agent" + std::to_string(i + 1));
+      }
+    }
+
+    //  2c) write “agents:” sequence
+    p["agents"] = YAML::Node(YAML::NodeType::Sequence);
+    for (auto const &name : loaded_agent_names_)
+      p["agents"].push_back(name);
+
+    //  2d) For each agent, re‐insert its node but overwrite the “goals” block:
+    for (size_t i = 0; i < loaded_agent_names_.size(); ++i)
+    {
+      std::string agent_name = loaded_agent_names_[i];
+      YAML::Node agent_node = loaded_agent_nodes_[i];
+
+      // Overwrite or create a “goals” sequence with its updated IDs:
+      agent_node["goals"] = YAML::Node(YAML::NodeType::Sequence);
+      for (int gid : loaded_agent_goals_[i])
+        agent_node["goals"].push_back(gid);
+
+      p[agent_name] = agent_node;
+    }
+
+    // 3) Write the YAML to disk:
+
+    // Determine the simulator wrapper directories
+    QString simulatorName = simulator_combo_->currentText();
+    QString packageName;
+
+    if (simulatorName == "Gazebo Classic")
+    {
+      packageName = "hunav_gazebo_wrapper";
+    }
+    else if (simulatorName == "Gazebo Fortress")
+    {
+      packageName = "hunav_gazebo_fortress_wrapper";
+    }
+    else if (simulatorName == "Isaac Sim")
+    {
+      packageName = "hunav_isaac_wrapper";
+    }
+    else
+    { // Webots
+      packageName = "hunav_webots_wrapper";
+    }
+
       QString configDir, btDir;
       try
       {
@@ -5178,622 +5916,554 @@ namespace hunav_rviz2_panel
         btDir = baseDir + "/behavior_trees";
       }
 
-      QDir().mkpath(configDir);
-      QDir().mkpath(btDir);
-      QString outName = QString("%1.yaml").arg(yaml_base_name_);
-      QString fullpath = configDir + "/" + outName;
+    QDir().mkpath(configDir);
+    QDir().mkpath(btDir);
+    QString outName = QString("%1.yaml").arg(yaml_base_name_);
+    QString fullpath = configDir + "/" + outName;
 
-      std::ofstream ofs(fullpath.toStdString());
-      if (!ofs.is_open())
+    std::ofstream ofs(fullpath.toStdString());
+    if (!ofs.is_open())
+    {
+      QMessageBox::critical(this, "Write Error",
+                            "Cannot open file:\n" + fullpath);
+      return;
+    }
+    ofs << root;
+    ofs.close();
+
+    RCLCPP_INFO(this->get_logger(),
+                "Wrote agents yaml file to %s",
+                fullpath.toStdString().c_str());
+
+    // Generate BT for each agent
+    agentBtPaths_.clear();
+
+    for (int i = 0; i < (int)loaded_agent_names_.size(); ++i)
+    {
+      // 4a) Generate default/template BT
+      QString outXml = generateDefaultBTForAgent(i);
+
+      // 4b) Write to disk
+      QString fname = btDir + QString("/%1__agent_%2_bt.xml")
+                                  .arg(yaml_base_name_)
+                                  .arg(i + 1);
+      agentBtPaths_.push_back(fname);
+
+      QFile file(fname);
+      if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate))
       {
-        QMessageBox::critical(this, "Write Error",
-                              "Cannot open file:\n" + fullpath);
-        return;
+        QMessageBox::warning(this, "Write Error",
+                             "Could not write file:\n" + fname);
+        continue;
       }
-      ofs << root;
-      ofs.close();
+      file.write(outXml.toUtf8());
+      file.close();
+    }
 
-      RCLCPP_INFO(this->get_logger(),
-                  "Wrote agents yaml file to %s",
-                  fullpath.toStdString().c_str());
+    // Log the BT generation
+    QString title;
+    QString verbYaml;
+    QString verbBT;
+    if (panel_mode_ == CREATE_MODE)
+    {
+      title = tr("Agents Configuration Complete");
+      verbYaml = tr("Created new agents YAML");
+      verbBT = tr("generated");
+    }
+    else
+    {
+      title = tr("Agents Configuration Updated");
+      verbYaml = tr("Updated agents YAML");
+      verbBT = tr("re-generated");
+    }
 
-      // 4) Now regenerate each agent’s BT:
-      QString mapName = QString::fromStdString(p["map"].as<std::string>());
-      QString pkg = QString::fromStdString(
-          ament_index_cpp::get_package_share_directory("hunav_agent_manager"));
+    // Create a rich, informative completion message
+    QString msg = QString(
+                      "<html><head><style>"
+                      "body { font-family: 'Segoe UI', Arial, sans-serif; margin: 8px; }"
+                      ".header { color: #27ae60; font-weight: bold; font-size: 14px; margin-bottom: 2px; }"
+                      ".section { margin: 8px 0; }"
+                      ".filename { background-color: #ecf0f1; padding: 4px 8px; border-radius: 4px; "
+                      "           font-family: 'Consolas', monospace; color: #2c3e50; font-weight: bold; }"
+                      ".path { font-size: 13px; color:rgb(139, 141, 141); margin-top: 2px; }"
+                      ".summary { background-color: #e8f5e8; padding: 4px; border-radius: 6px; "
+                      "          border-left: 4px solid #27ae60; margin-top: 2px; }"
+                      "</style></head><body>"
 
-      // reload TreeNodesModel.xml:
-      QString modelPath = pkg + "/behavior_trees/TreeNodesModel.xml";
-      QString modelXml = loadFile(modelPath);
-      if (modelXml.isEmpty())
+                      "<div class='header'>%1 Successfully!</div>"
+
+                      "<div class='section'>"
+                      "<strong>YAML Configuration:</strong><br>"
+                      "<span class='filename'>%2</span>"
+                      "<div class='path'>%3</div>"
+                      "</div>"
+
+                      "<div class='section'>"
+                      "<strong>Behavior Trees:</strong><br>"
+                      "%4 <strong>%5 BT files</strong> for individual agent behaviors"
+                      "<div class='path'>%6</div>"
+                      "</div>"
+
+                      "<div class='summary'>"
+                      "Configuration ready for <strong>%7 agents</strong><br>"
+                      "You can now launch your simulation with the %8 simulator!"
+                      "</div>"
+
+                      "</body></html>")
+                      .arg(verbYaml.contains("new") ? "Configuration Created" : "Configuration Updated")
+                      .arg(outName)
+                      .arg(configDir)
+                      .arg(verbBT.at(0).toUpper() + verbBT.mid(1)) // Capitalize first letter
+                      .arg(loaded_agent_names_.size())
+                      .arg(btDir)
+                      .arg(loaded_agent_names_.size())
+                      .arg(simulator_combo_->currentText());
+
+    // Create and style the message box
+    QMessageBox msgBox(this);
+    msgBox.setWindowTitle(title);
+    msgBox.setText(msg);
+    msgBox.setIcon(QMessageBox::Information);
+    msgBox.setStyleSheet(
+        "QMessageBox {"
+        "  background-color: #f8f9fa;"
+        "  border: 2px solid #27ae60;"
+        "  border-radius: 8px;"
+        "}"
+        "QMessageBox QLabel {"
+        "  color: #2c3e50;"
+        "  padding: 4px;"
+        "}");
+    msgBox.exec();
+    bt_group_->setEnabled(true);
+  }
+
+  QString ActorPanel::generateDefaultBTForAgent(int agentIndex)
+  {
+    // 0) sanity check
+    if (agentIndex < 0 || agentIndex >= (int)loaded_agent_nodes_.size())
+    {
+      RCLCPP_ERROR(this->get_logger(), "Invalid agent index: %d", agentIndex);
+      return {};
+    }
+
+    // 1) Load TreeNodesModel.xml
+    QString pkg = QString::fromStdString(
+        ament_index_cpp::get_package_share_directory("hunav_agent_manager"));
+    QString modelPath = pkg + "/behavior_trees/TreeNodesModel.xml";
+    QString modelXml = loadFile(modelPath);
+    if (modelXml.isEmpty())
+    {
+      RCLCPP_ERROR(this->get_logger(), "Cannot open TreeNodesModel: %s",
+                   modelPath.toStdString().c_str());
+      return {};
+    }
+
+    // 2) Pick the right .xml template to include and determine tree name
+    static const QMap<QString, QString> templateMap = {
+        {"Regular", "BTRegularNav.xml"},
+        {"Impassive", "BTRegularNav.xml"},
+        {"Scared", "BTScaredNav.xml"},
+        {"Surprised", "BTSurprisedNav.xml"},
+        {"Curious", "BTCuriousNav.xml"},
+        {"Threatening", "BTThreateningNav.xml"}};
+
+    // Map template files to their corresponding tree names
+    static const QMap<QString, QString> treeNameMap = {
+        {"BTRegularNav.xml", "RegularNavTree"},
+        {"BTScaredNav.xml", "ScaredNavTree"},
+        {"BTSurprisedNav.xml", "SurprisedNavTree"},
+        {"BTCuriousNav.xml", "CuriousNavTree"},
+        {"BTThreateningNav.xml", "ThreateningNavTree"}};
+
+    auto behNode = loaded_agent_nodes_[agentIndex]["behavior"];
+    QString type = behNode["type"]
+                       ? QString::fromStdString(behNode["type"].as<std::string>())
+                       : "Regular";
+    QString tmpl = templateMap.value(type, "BTRegularNav.xml");
+    QString treeName = treeNameMap.value(tmpl, "DefaultTree");
+
+    // 3) Update the main_tree_to_execute attribute in TreeNodesModel.xml
+    QString rootPattern = "<root main_tree_to_execute=\"DefaultTree\" BTCPP_format=\"4\">";
+    QString newRootTag = QString("<root main_tree_to_execute=\"%1\" BTCPP_format=\"4\">").arg(treeName);
+    modelXml.replace(rootPattern, newRootTag);
+
+    const QString closingTag = "</TreeNodesModel>";
+    int insertPos = modelXml.indexOf(closingTag);
+    if (insertPos < 0)
+    {
+      RCLCPP_ERROR(this->get_logger(),
+                   "TreeNodesModel.xml missing closing tag");
+      return {};
+    }
+    insertPos += closingTag.length();
+
+    QString includeLine = QString("  <include path=\"BTRegularNav.xml\" />\n\n");
+    QString goalsBlock = buildGoalSequence(agentIndex);
+
+    // 4) Gather all placeholder substitutions
+    QMap<QString, QString> subs = {
+        {"{GOAL_SEQUENCE}", goalsBlock},
+        // common
+        {"{dist}", behNode["dist"] ? QString::number(behNode["dist"].as<double>()) : "5"},
+        {"{duration}", behNode["duration"] ? QString::number(behNode["duration"].as<double>()) : "40"},
+        {"{once}", behNode["once"] ? (behNode["once"].as<bool>() ? "true" : "false") : "false"},
+        // extras
+        {"{maxvel}", loaded_agent_nodes_[agentIndex]["max_vel"]
+                         ? QString::number(loaded_agent_nodes_[agentIndex]["max_vel"].as<double>())
+                         : "2.0"},
+        {"{forcefactor}", behNode["other_force_factor"]
+                              ? QString::number(behNode["other_force_factor"].as<double>())
+                              : "20"},
+        {"{stopdist}", behNode["stop_dist"]
+                           ? QString::number(behNode["stop_dist"].as<double>())
+                           : "1.5"},
+        {"{frontdist}", behNode["front_dist"]
+                            ? QString::number(behNode["front_dist"].as<double>())
+                            : "1.5"},
+        {"{safe_distance}", behNode["safe_distance"]
+                            ? QString::number(behNode["safe_distance"].as<double>())
+                            : "5.0"}};
+
+    // 5) Now build the <BehaviorTree> snippet from the selected template file
+    QString templateContent = loadFile(pkg + "/behavior_trees/" + tmpl);
+    if (templateContent.isEmpty())
+    {
+      RCLCPP_WARN(this->get_logger(),
+                  "Could not load specific BT template: %s", tmpl.toStdString().c_str());
+      return {};
+    }
+
+    int btPos = templateContent.indexOf("<BehaviorTree");
+    if (btPos >= 0)
+    {
+      templateContent = templateContent.mid(btPos);
+    }
+
+    // substitute placeholders
+    for (auto it = subs.constBegin(); it != subs.constEnd(); ++it)
+    {
+      templateContent.replace(it.key(), it.value());
+    }
+
+    // 6) Stitch everything back into the Model:
+    QString result =
+        modelXml.left(insertPos) + "\n" +
+        includeLine +
+        + "    " + templateContent;
+        // templateContent + "\n" +
+        // modelXml.mid(insertPos);
+
+    RCLCPP_INFO(this->get_logger(),
+                "Generated BT for agent %d with behavior '%s', template '%s', tree name '%s'",
+                agentIndex + 1, type.toStdString().c_str(),
+                tmpl.toStdString().c_str(), treeName.toStdString().c_str());
+
+    return result;
+  }
+
+  QString ActorPanel::buildGoalSequence(int agentIndex)
+  {
+      const auto &goals = loaded_agent_goals_[agentIndex];
+      
+      QString xml;
+      xml += "<Sequence name=\"SetGoals\">\n";
+      
+      if (goals.empty())
       {
-        QMessageBox::critical(this, "Error",
-                              "Failed to load TreeNodesModel from:\n" + modelPath);
-        return;
-      }
-
-      // Find insertion point:
-      const QString closingTag = "</TreeNodesModel>";
-      int insertPos = modelXml.indexOf(closingTag);
-      if (insertPos < 0)
-      {
-        QMessageBox::critical(this, "Error",
-                              "Template missing </TreeNodesModel> tag!");
-        return;
-      }
-      insertPos += closingTag.length();
-
-      // For each agent i:
-      for (int i = 0; i < (int)loaded_agent_names_.size(); ++i)
-      {
-        // 1) Select template upon behavior “type”
-        std::string bt = loaded_agent_nodes_[i]["behavior"]["type"].as<std::string>();
-        int beh_type = hunav_msgs::msg::AgentBehavior::BEH_REGULAR;
-        if (bt == "Regular")
-          beh_type = hunav_msgs::msg::AgentBehavior::BEH_REGULAR;
-        else if (bt == "Impassive")
-          beh_type = hunav_msgs::msg::AgentBehavior::BEH_IMPASSIVE;
-        else if (bt == "Surprised")
-          beh_type = hunav_msgs::msg::AgentBehavior::BEH_SURPRISED;
-        else if (bt == "Scared")
-          beh_type = hunav_msgs::msg::AgentBehavior::BEH_SCARED;
-        else if (bt == "Curious")
-          beh_type = hunav_msgs::msg::AgentBehavior::BEH_CURIOUS;
-        else if (bt == "Threatening")
-          beh_type = hunav_msgs::msg::AgentBehavior::BEH_THREATENING;
-
-        // helper to pull in the Regular‐nav include
-        auto includeCommon = [&]()
-        {
-          return QString("<include path=\"BTRegularNav.xml\" />\n\n");
-        };
-        auto buildGoalSequence = [&](int agent_idx)
-        {
-          auto const &indices = loaded_agent_goals_[agent_idx];
-          QString seq;
-          for (int j = 0; j + 1 < (int)indices.size(); ++j)
-          {
-            seq += QString(
-                       "        <RunOnce>\n"
-                       "          <SetGoal agent_id=\"{id}\" goal_id=\"%1\"/>\n"
-                       "        </RunOnce>\n")
-                       .arg(indices[j]);
-          }
-          if (!indices.empty())
-          {
-            seq += QString(
-                       "        <Inverter>\n"
-                       "          <RunOnce>\n"
-                       "            <SetGoal agent_id=\"{id}\" goal_id=\"%1\"/>\n"
-                       "          </RunOnce>\n"
-                       "        </Inverter>\n")
-                       .arg(indices.back());
-          }
-          return seq;
-        };
-
-        // Generate behavior tree for current agent based on its behavior type
-        switch (beh_type)
-        {
-        case hunav_msgs::msg::AgentBehavior::BEH_SCARED:
-        {
-          double dist = loaded_agent_nodes_[i]["behavior"]["dist"].as<double>();
-          double duration = loaded_agent_nodes_[i]["behavior"]["duration"].as<double>();
-          bool once = loaded_agent_nodes_[i]["behavior"]["once"].as<bool>();
-          double maxvel = loaded_agent_nodes_[i]["max_vel"].as<double>();
-          double force = loaded_agent_nodes_[i]["behavior"]["other_force_factor"].as<double>();
-
-          btBlock_ = QString(R"(
-%1
-<BehaviorTree ID="ScaredNavTree">
-  <Fallback name="ScaredFallback">
-    <!-- Goal setting Sequence -->
-    <Sequence name="SetGoals">
-%2
-    </Sequence>
-    <Sequence name="ScaNav">
-      <IsRobotVisible agent_id="{id}" distance="%3"/>
-      <Inverter>
-        <TimeExpiredCondition seconds="%4" ts="{dt}" only_once="%5"/>
-      </Inverter>
-      <ScaredNav agent_id="{id}" time_step="{dt}" runaway_vel="%6" scary_force_factor="%7"/>
-    </Sequence>
-    <!-- then fallback to regular nav -->
-    <Sequence name="RegNav">
-      <SetBlackboard output_key="agentid" value="{id}"/>
-      <SetBlackboard output_key="timestep" value="{dt}"/>
-      <SubTree ID="RegularNavTree" id="{agentid}" dt="{timestep}"/>
-    </Sequence>
-  </Fallback>
-</BehaviorTree>
-)")
-                         .arg(includeCommon())
-                         .arg(buildGoalSequence(i))
-                         .arg(dist)
-                         .arg(duration)
-                         .arg(once ? "true" : "false")
-                         .arg(maxvel)
-                         .arg(force);
-        }
-        break;
-
-        case hunav_msgs::msg::AgentBehavior::BEH_SURPRISED:
-        {
-          double dist = loaded_agent_nodes_[i]["behavior"]["dist"].as<double>();
-          double duration = loaded_agent_nodes_[i]["behavior"]["duration"].as<double>();
-          bool once = loaded_agent_nodes_[i]["behavior"]["once"].as<bool>();
-
-          btBlock_ = QString(R"(
-%1
-<BehaviorTree ID="SurprisedNavTree">
-  <Fallback name="SurprisedFallback">
-    <!-- Goal setting Sequence -->
-    <Sequence name="SetGoals">
-%2
-    </Sequence>
-    <Sequence name="SurNav">
-      <IsRobotVisible agent_id="{id}" distance="%3"/>
-      <Inverter>
-        <TimeExpiredCondition seconds="%4" ts="{dt}" only_once="%5"/>
-      </Inverter>
-      <SurprisedNav agent_id="{id}" time_step="{dt}"/>
-    </Sequence>
-    <Sequence name="RegNav">
-      <SetBlackboard output_key="agentid" value="{id}"/>
-      <SetBlackboard output_key="timestep" value="{dt}"/>
-      <SubTree ID="RegularNavTree" id="{agentid}" dt="{timestep}"/>
-    </Sequence>
-  </Fallback>
-</BehaviorTree>
-)")
-                         .arg(includeCommon())
-                         .arg(buildGoalSequence(i))
-                         .arg(dist)
-                         .arg(duration)
-                         .arg(once ? "true" : "false");
-        }
-        break;
-
-        case hunav_msgs::msg::AgentBehavior::BEH_CURIOUS:
-        {
-          double dist = loaded_agent_nodes_[i]["behavior"]["dist"].as<double>();
-          double duration = loaded_agent_nodes_[i]["behavior"]["duration"].as<double>();
-          bool once = loaded_agent_nodes_[i]["behavior"]["once"].as<bool>();
-          double stopdist = loaded_agent_nodes_[i]["behavior"]["stop_dist"].as<double>();
-          double maxvel = loaded_agent_nodes_[i]["behavior"]["vel"].as<double>();
-
-          btBlock_ = QString(R"(
-%1
-<BehaviorTree ID="CuriousNavTree">
-  <Fallback name="CuriousFallback">
-    <!-- Goal setting Sequence -->
-    <Sequence name="SetGoals">
-%2
-    </Sequence>
-    <Sequence name="CurNav">
-      <IsRobotVisible agent_id="{id}" distance="%3"/>
-      <Inverter>
-        <TimeExpiredCondition seconds="%4" ts="{dt}" only_once="%5"/>
-      </Inverter>
-      <CuriousNav agent_id="{id}" time_step="{dt}" stop_distance="%6" agent_vel="%7"/>
-    </Sequence>
-    <Sequence name="RegNav">
-      <SetBlackboard output_key="agentid" value="{id}"/>
-      <SetBlackboard output_key="timestep" value="{dt}"/>
-      <SubTree ID="RegularNavTree" id="{agentid}" dt="{timestep}"/>
-    </Sequence>
-  </Fallback>
-</BehaviorTree>
-)")
-                         .arg(includeCommon())
-                         .arg(buildGoalSequence(i))
-                         .arg(dist)
-                         .arg(duration)
-                         .arg(once ? "true" : "false")
-                         .arg(stopdist)
-                         .arg(maxvel);
-        }
-        break;
-
-        case hunav_msgs::msg::AgentBehavior::BEH_THREATENING:
-        {
-          double dist = loaded_agent_nodes_[i]["behavior"]["dist"].as<double>();
-          double duration = loaded_agent_nodes_[i]["behavior"]["duration"].as<double>();
-          bool once = loaded_agent_nodes_[i]["behavior"]["once"].as<bool>();
-          double frontdist = loaded_agent_nodes_[i]["behavior"]["front_dist"].as<double>();
-
-          btBlock_ = QString(R"(
-%1
-<BehaviorTree ID="ThreateningNavTree">
-  <Fallback name="ThreateningFallback">
-    <!-- Goal setting Sequence -->
-    <Sequence name="SetGoals">
-%2
-    </Sequence>
-    <Sequence name="ThreatNav">
-      <IsRobotVisible agent_id="{id}" distance="%3"/>
-      <Sequence name="ThreatTimerNav">
-        <Inverter>
-          <TimeExpiredCondition seconds="%4" ts="{dt}" only_once="%5"/>
-        </Inverter>
-        <ThreateningNav agent_id="{id}" time_step="{dt}" goal_dist="%6"/>
-      </Sequence>
-    </Sequence>
-    <Sequence name="RegNav">
-      <SetBlackboard output_key="agentid" value="{id}"/>
-      <SetBlackboard output_key="timestep" value="{dt}"/>
-      <SubTree ID="RegularNavTree" id="{agentid}" dt="{timestep}"/>
-    </Sequence>
-  </Fallback>
-</BehaviorTree>
-)")
-                         .arg(includeCommon())
-                         .arg(buildGoalSequence(i))
-                         .arg(dist)
-                         .arg(duration)
-                         .arg(once ? "true" : "false")
-                         .arg(frontdist);
-        }
-        break;
-
-        default: // Regular & Impassive
-          btBlock_ = QString(R"(
-%1
-<BehaviorTree ID="DefaultTree">
-  <Fallback name="MainFallback">
-    <!-- Goal setting Sequence -->
-    <Sequence name="SetGoals">
-%2
-    </Sequence>
-    <!-- Navigation loop -->
-    <Sequence name="RegularNavigation">
-      <Inverter>
-        <IsGoalReached agent_id="{id}"/>
-      </Inverter>
-      <RegularNav agent_id="{id}" time_step="{dt}"/>
-    </Sequence>
-    <!-- Update Goal -->
-    <UpdateGoal agent_id="{id}"/>
-  </Fallback>
-</BehaviorTree>
-)")
-                         .arg(includeCommon())
-                         .arg(buildGoalSequence(i));
-          break;
-        }
-
-        QString fullXml = modelXml.left(insertPos) + "\n" + btBlock_ + "\n" + modelXml.mid(insertPos);
-
-        QString fname = btDir + QString("/%1__agent_%2_bt.xml")
-                                    .arg(yaml_base_name_)
-                                    .arg(i + 1);
-
-        QFile out(fname);
-        if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate))
-        {
-          QMessageBox::warning(this, "Write Error",
-                               "Could not write file:\n" + fname);
-          continue;
-        }
-        out.write(fullXml.toUtf8());
-        out.close();
-      }
-
-      QString title;
-      QString verbYaml;
-      QString verbBT;
-      if (panel_mode_ == CREATE_MODE)
-      {
-        title = tr("Agents Configuration Complete");
-        verbYaml = tr("Created new agents YAML");
-        verbBT = tr("generated");
+          // Fallback single goal
+          xml += "            <!-- no goals, defaulting to goal 1 -->\n";
+          xml += "            <RunOnce>\n";
+          xml += "              <SetGoal agent_id=\"{id}\" goal_id=\"1\"/>\n";
+          xml += "            </RunOnce>\n";
       }
       else
       {
-        title = tr("Agents Configuration Updated");
-        verbYaml = tr("Updated agents YAML");
-        verbBT = tr("re-generated");
+          // Process each goal
+          for (size_t j = 0; j < goals.size(); ++j)
+          {
+              int gid = goals[j];
+              
+              if (j + 1 < goals.size())
+              {
+                  // Intermediate goals: just RunOnce
+                  xml += "                <RunOnce>\n";
+                  xml += QString("                    <SetGoal agent_id=\"{id}\" goal_id=\"%1\"/>\n").arg(gid);
+                  xml += "                </RunOnce>\n";
+              }
+              else
+              {
+                  // Final goal: wrapped in Inverter
+                  xml += "                <Inverter>\n";
+                  xml += "                    <RunOnce>\n";
+                  xml += QString("                        <SetGoal agent_id=\"{id}\" goal_id=\"%1\"/>\n").arg(gid);
+                  xml += "                    </RunOnce>\n";
+                  xml += "                </Inverter>\n";
+              }
+          }
       }
+      
+      xml += "            </Sequence>";
+      
+      return xml;
+  }
 
-      // Create a rich, informative completion message
-      QString msg = QString(
-                        "<html><head><style>"
-                        "body { font-family: 'Segoe UI', Arial, sans-serif; margin: 8px; }"
-                        ".header { color: #27ae60; font-weight: bold; font-size: 14px; margin-bottom: 2px; }"
-                        ".section { margin: 8px 0; }"
-                        ".filename { background-color: #ecf0f1; padding: 4px 8px; border-radius: 4px; "
-                        "           font-family: 'Consolas', monospace; color: #2c3e50; font-weight: bold; }"
-                        ".path { font-size: 13px; color:rgb(139, 141, 141); margin-top: 2px; }"
-                        ".summary { background-color: #e8f5e8; padding: 4px; border-radius: 6px; "
-                        "          border-left: 4px solid #27ae60; margin-top: 2px; }"
-                        "</style></head><body>"
+  int ActorPanel::checkComboBox()
+  {
+    std::string aux = behavior_type_combobox->currentText().toStdString();
 
-                        "<div class='header'>%1 Successfully!</div>"
+    // First, hide all specific behavior parameters
+    dur->setVisible(false);
+    beh_duration->setVisible(false);
+    once->setVisible(false);
+    beh_once->setVisible(false);
+    vel->setVisible(false);
+    beh_vel->setVisible(false);
+    dist->setVisible(false);
+    beh_dist->setVisible(false);
+    other->setVisible(false);
+    beh_otherff->setVisible(false);
+    front->setVisible(false);
+    beh_front_dist->setVisible(false);
+    safe_dist->setVisible(false);
+    beh_safe_distance->setVisible(false);
+    stop->setVisible(false);
+    beh_stop_dist->setVisible(false);
 
-                        "<div class='section'>"
-                        "<strong>YAML Configuration:</strong><br>"
-                        "<span class='filename'>%2</span>"
-                        "<div class='path'>%3</div>"
-                        "</div>"
+    // All behaviors show basic force parameters
+    gff->setVisible(true);
+    beh_gff->setVisible(true);
+    off->setVisible(true);
+    beh_off->setVisible(true);
+    sff->setVisible(true);
+    beh_sff->setVisible(true);
 
-                        "<div class='section'>"
-                        "<strong>Behavior Trees:</strong><br>"
-                        "%4 <strong>%5 BT files</strong> for individual agent behaviors"
-                        "<div class='path'>%6</div>"
-                        "</div>"
-
-                        "<div class='summary'>"
-                        "Configuration ready for <strong>%7 agents</strong><br>"
-                        "You can now launch your simulation with the %8 simulator!"
-                        "</div>"
-
-                        "</body></html>")
-                        .arg(verbYaml.contains("new") ? "Configuration Created" : "Configuration Updated")
-                        .arg(outName)
-                        .arg(configDir)
-                        .arg(verbBT.at(0).toUpper() + verbBT.mid(1)) // Capitalize first letter
-                        .arg(loaded_agent_names_.size())
-                        .arg(btDir)
-                        .arg(loaded_agent_names_.size())
-                        .arg(simulator_combo_->currentText());
-
-      // Create and style the message box
-      QMessageBox msgBox(this);
-      msgBox.setWindowTitle(title);
-      msgBox.setText(msg);
-      msgBox.setIcon(QMessageBox::Information);
-      msgBox.setStyleSheet(
-          "QMessageBox {"
-          "  background-color: #f8f9fa;"
-          "  border: 2px solid #27ae60;"
-          "  border-radius: 8px;"
-          "}"
-          "QMessageBox QLabel {"
-          "  color: #2c3e50;"
-          "  padding: 4px;"
-          "}");
-      msgBox.exec();
-    }
-
-    int ActorPanel::checkComboBox()
+    if (aux.compare("Regular") == 0)
     {
-      std::string aux = behavior_type_combobox->currentText().toStdString();
-
-      if (aux.compare("Regular") == 0)
+      // Regular behavior: only basic force parameters (already set above)
+      
+      // Trigger window resize after widget visibility changes
+      if (window && window->isVisible())
       {
-        dur->setVisible(false);
-        beh_duration->setVisible(false);
-        once->setVisible(false);
-        beh_once->setVisible(false);
-        vel->setVisible(false);
-        beh_vel->setVisible(false);
-        dist->setVisible(false);
-        beh_dist->setVisible(false);
-        gff->setVisible(true);
-        beh_gff->setVisible(true);
-        off->setVisible(true);
-        beh_off->setVisible(true);
-        sff->setVisible(true);
-        beh_sff->setVisible(true);
-        other->setVisible(false);
-        beh_otherff->setVisible(false);
-
-        // Trigger window resize after widget visibility changes
-        if (window && window->isVisible())
-        {
-          QTimer::singleShot(0, this, [this]()
-                             {
+        QTimer::singleShot(0, this, [this]()
+                           {
               window->adjustSize();
               window->updateGeometry(); });
-        }
-
-        return hunav_msgs::msg::AgentBehavior::BEH_REGULAR;
       }
-      else if (aux.compare("Impassive") == 0)
-      {
-        dur->setVisible(false);
-        beh_duration->setVisible(false);
-        once->setVisible(false);
-        beh_once->setVisible(false);
-        vel->setVisible(false);
-        beh_vel->setVisible(false);
-        dist->setVisible(false);
-        beh_dist->setVisible(false);
-        gff->setVisible(true);
-        beh_gff->setVisible(true);
-        off->setVisible(true);
-        beh_off->setVisible(true);
-        sff->setVisible(true);
-        beh_sff->setVisible(true);
-        other->setVisible(false);
-        beh_otherff->setVisible(false);
 
-        if (window && window->isVisible())
-        {
-          QTimer::singleShot(0, this, [this]()
-                             {
-              window->adjustSize();
-              window->updateGeometry(); });
-        }
-        return hunav_msgs::msg::AgentBehavior::BEH_IMPASSIVE;
-      }
-      else if (aux.compare("Surprised") == 0)
-      {
-        dur->setVisible(true);
-        beh_duration->setVisible(true);
-        once->setVisible(true);
-        beh_once->setVisible(true);
-        vel->setVisible(false);
-        beh_vel->setVisible(false);
-        dist->setVisible(false);
-        beh_dist->setVisible(false);
-        gff->setVisible(true);
-        beh_gff->setVisible(true);
-        off->setVisible(true);
-        beh_off->setVisible(true);
-        sff->setVisible(true);
-        beh_sff->setVisible(true);
-        other->setVisible(false);
-        beh_otherff->setVisible(false);
-
-        if (window && window->isVisible())
-        {
-          QTimer::singleShot(0, this, [this]()
-                             {
-              window->adjustSize();
-              window->updateGeometry(); });
-        }
-
-        return hunav_msgs::msg::AgentBehavior::BEH_SURPRISED;
-      }
-      else if (aux.compare("Scared") == 0)
-      {
-        dur->setVisible(true);
-        beh_duration->setVisible(true);
-        once->setVisible(true);
-        beh_once->setVisible(true);
-        vel->setVisible(true);
-        beh_vel->setVisible(true);
-        dist->setVisible(false);
-        beh_dist->setVisible(false);
-        gff->setVisible(true);
-        beh_gff->setVisible(true);
-        off->setVisible(true);
-        beh_off->setVisible(true);
-        sff->setVisible(true);
-        beh_sff->setVisible(true);
-        other->setVisible(true);
-        beh_otherff->setVisible(true);
-
-        if (window && window->isVisible())
-        {
-          QTimer::singleShot(0, this, [this]()
-                             {
-              window->adjustSize();
-              window->updateGeometry(); });
-        }
-
-        return hunav_msgs::msg::AgentBehavior::BEH_SCARED;
-      }
-      else if (aux.compare("Curious") == 0)
-      {
-        dur->setVisible(true);
-        beh_duration->setVisible(true);
-        once->setVisible(true);
-        beh_once->setVisible(true);
-        vel->setVisible(true);
-        beh_vel->setVisible(true);
-        dist->setVisible(true);
-        beh_dist->setVisible(true);
-        gff->setVisible(true);
-        beh_gff->setVisible(true);
-        off->setVisible(true);
-        beh_off->setVisible(true);
-        sff->setVisible(true);
-        beh_sff->setVisible(true);
-        other->setVisible(false);
-        beh_otherff->setVisible(false);
-        stop->setVisible(true);
-        beh_stop_dist->setVisible(true);
-
-
-        if (window && window->isVisible())
-        {
-          QTimer::singleShot(0, this, [this]()
-                             {
-              window->adjustSize();
-              window->updateGeometry(); });
-        }
-
-        return hunav_msgs::msg::AgentBehavior::BEH_CURIOUS;
-      }
-      else
-      {
-        dur->setVisible(true);
-        beh_duration->setVisible(true);
-        once->setVisible(true);
-        beh_once->setVisible(true);
-        vel->setVisible(false);
-        beh_vel->setVisible(false);
-        dist->setVisible(true);
-        beh_dist->setVisible(true);
-        gff->setVisible(true);
-        beh_gff->setVisible(true);
-        off->setVisible(true);
-        beh_off->setVisible(true);
-        sff->setVisible(true);
-        beh_sff->setVisible(true);
-        other->setVisible(false);
-        beh_otherff->setVisible(false);
-        front->setVisible(true);
-        beh_front_dist->setVisible(true);
-
-        if (window && window->isVisible())
-        {
-          QTimer::singleShot(0, this, [this]()
-                             {
-              window->adjustSize();
-              window->updateGeometry(); });
-        }
-
-        return hunav_msgs::msg::AgentBehavior::BEH_THREATENING;
-      }
+      return hunav_msgs::msg::AgentBehavior::BEH_REGULAR;
     }
-
-    void ActorPanel::checkComboBoxConf()
+    else if (aux.compare("Impassive") == 0)
     {
-      int beh = checkComboBox();
-      std::string conf = behavior_conf_combobox->currentText().toStdString();
+      // Impassive behavior: same as regular, only basic force parameters
 
-      if (conf == "Default")
+      if (window && window->isVisible())
+      {
+        QTimer::singleShot(0, this, [this]()
+                           {
+              window->adjustSize();
+              window->updateGeometry(); });
+      }
+      return hunav_msgs::msg::AgentBehavior::BEH_IMPASSIVE;
+    }
+    else if (aux.compare("Surprised") == 0)
+    {
+      // Surprised behavior: duration, once, distance (for IsRobotVisible)
+      dur->setVisible(true);
+      beh_duration->setVisible(true);
+      once->setVisible(true);
+      beh_once->setVisible(true);
+      dist->setVisible(true);
+      beh_dist->setVisible(true);
+
+      if (window && window->isVisible())
+      {
+        QTimer::singleShot(0, this, [this]()
+                           {
+              window->adjustSize();
+              window->updateGeometry(); });
+      }
+
+      return hunav_msgs::msg::AgentBehavior::BEH_SURPRISED;
+    }
+    else if (aux.compare("Scared") == 0)
+    {
+      // Scared behavior: duration, maxvel, safe_distance (for AvoidRobot), distance (for IsRobotVisible)
+      dur->setVisible(true);
+      beh_duration->setVisible(true);
+      vel->setVisible(true);
+      beh_vel->setVisible(true);
+      safe_dist->setVisible(true);
+      beh_safe_distance->setVisible(true);
+      dist->setVisible(true);
+      beh_dist->setVisible(true);
+
+      if (window && window->isVisible())
+      {
+        QTimer::singleShot(0, this, [this]()
+                           {
+              window->adjustSize();
+              window->updateGeometry(); });
+      }
+
+      return hunav_msgs::msg::AgentBehavior::BEH_SCARED;
+    }
+    else if (aux.compare("Curious") == 0)
+    {
+      // Curious behavior: duration, maxvel, distance, stop_distance (for ApproachRobot)
+      dur->setVisible(true);
+      beh_duration->setVisible(true);
+      vel->setVisible(true);
+      beh_vel->setVisible(true);
+      dist->setVisible(true);
+      beh_dist->setVisible(true);
+      stop->setVisible(true);
+      beh_stop_dist->setVisible(true);
+
+      if (window && window->isVisible())
+      {
+        QTimer::singleShot(0, this, [this]()
+                           {
+              window->adjustSize();
+              window->updateGeometry(); });
+      }
+
+      return hunav_msgs::msg::AgentBehavior::BEH_CURIOUS;
+    }
+    else
+    {
+      // Threatening behavior: duration, distance, front_distance (for BlockRobot)
+      dur->setVisible(true);
+      beh_duration->setVisible(true);
+      dist->setVisible(true);
+      beh_dist->setVisible(true);
+      front->setVisible(true);
+      beh_front_dist->setVisible(true);
+
+      if (window && window->isVisible())
+      {
+        QTimer::singleShot(0, this, [this]()
+                           {
+              window->adjustSize();
+              window->updateGeometry(); });
+      }
+
+      return hunav_msgs::msg::AgentBehavior::BEH_THREATENING;
+    }
+  }
+
+  void ActorPanel::checkComboBoxConf()
+  {
+    int beh = checkComboBox();
+    std::string conf = behavior_conf_combobox->currentText().toStdString();
+
+    if (conf == "Default")
+    {
+      // Set default values for basic force parameters (common to all behaviors)
+      if (simulator_combo_->currentText() == "Isaac Sim")
+      {
+        beh_gff->setText(QString::number(10.0));
+        beh_off->setText(QString::number(2.0));
+      }
+      else // Gazebo Classic, Gazebo Fortress, or Webots
+      {
+        beh_gff->setText(QString::number(2.0));
+        beh_off->setText(QString::number(10.0));
+      }
+      beh_gff->setEnabled(false);
+      beh_off->setEnabled(false);
+      beh_sff->setText(QString::number(5.0));
+      beh_sff->setEnabled(false);
+
+      // Set behavior-specific default values
+      if (beh == hunav_msgs::msg::AgentBehavior::BEH_SURPRISED) // surprised
+      {
+        beh_duration->setText(QString::number(30.0));
+        beh_duration->setEnabled(false);
+        beh_dist->setText(QString::number(4.0));
+        beh_dist->setEnabled(false);
+      }
+      else if (beh == hunav_msgs::msg::AgentBehavior::BEH_SCARED) // scared
       {
         beh_duration->setText(QString::number(40.0));
         beh_duration->setEnabled(false);
-        beh_once->setText(QString("true"));
-        beh_once->setEnabled(false);
-        if (simulator_combo_->currentText() == "Isaac Sim")
-        {
-          beh_gff->setText(QString::number(10.0));
-          beh_off->setText(QString::number(2.0));
-        }
-        else // Gazebo Classic, Gazebo Fortress, or Webots
-        {
-          beh_gff->setText(QString::number(2.0));
-          beh_off->setText(QString::number(10.0));
-        }
-        beh_gff->setEnabled(false);
-        beh_off->setEnabled(false);
-        beh_sff->setText(QString::number(5.0));
-        beh_sff->setEnabled(false);
-        beh_otherff->setText(QString::number(20.0));
-        beh_otherff->setEnabled(false);
+        beh_vel->setText(QString::number(0.6));
+        beh_vel->setEnabled(false);
+        beh_safe_distance->setText(QString::number(5.0));
+        beh_safe_distance->setEnabled(false);
+        beh_dist->setText(QString::number(4.0));
+        beh_dist->setEnabled(false);
+      }
+      else if (beh == hunav_msgs::msg::AgentBehavior::BEH_CURIOUS) // curious
+      {
+        beh_duration->setText(QString::number(40.0));
+        beh_duration->setEnabled(false);
         beh_vel->setText(QString::number(1.0));
         beh_vel->setEnabled(false);
         beh_dist->setText(QString::number(10.0));
         beh_dist->setEnabled(false);
-
-        if (beh == hunav_msgs::msg::AgentBehavior::BEH_SURPRISED) // surprised
-        {
-          beh_duration->setText(QString::number(30.0));
-          beh_dist->setText(QString::number(4.0));
-        }
-        if (beh == hunav_msgs::msg::AgentBehavior::BEH_SCARED) // scared
-        {
-          beh_vel->setText(QString::number(0.6));
-          beh_dist->setText(QString::number(3.0));
-        }
-        else if (beh == hunav_msgs::msg::AgentBehavior::BEH_CURIOUS) // curious
-        {
-          beh_vel->setText(QString::number(1.0));
-          beh_dist->setText(QString::number(10.0));
-          beh_stop_dist->setText(QString::number(1.5));
-        }
-        else
-        { // threatening
-          beh_dist->setText(QString::number(1.4));
-        }
+        beh_stop_dist->setText(QString::number(1.5));
+        beh_stop_dist->setEnabled(false);
       }
-      else if (conf == "Custom")
+      else if (beh == hunav_msgs::msg::AgentBehavior::BEH_THREATENING) // threatening
+      {
+        beh_duration->setText(QString::number(40.0));
+        beh_duration->setEnabled(false);
+        beh_dist->setText(QString::number(4.0));
+        beh_dist->setEnabled(false);
+        beh_front_dist->setText(QString::number(1.4));
+        beh_front_dist->setEnabled(false);
+      }
+    }
+    else if (conf == "Custom")
+    {
+      // Enable and set placeholders for basic force parameters (common to all behaviors)
+      beh_gff->setEnabled(true);
+      beh_gff->setText("");
+      if (simulator_combo_->currentText() == "Isaac Sim")
+      {
+        beh_gff->setPlaceholderText("[5.0 - 10.0]");
+      }
+      else
+      {
+        beh_gff->setPlaceholderText("[2.0 - 5.0]");
+      }
+      beh_gff->setStyleSheet(R"(
+                        QLineEdit::placeholder {
+                          font-style: italic;
+                          color: gray;
+                        }
+                      )");
+
+      beh_off->setEnabled(true);
+      beh_off->setText("");
+      if (simulator_combo_->currentText() == "Isaac Sim")
+      {
+        beh_off->setPlaceholderText("[0.5 - 5.0]");
+      }
+      else
+      {
+        beh_off->setPlaceholderText("[2.0 - 50.0]");
+      }
+      beh_off->setStyleSheet(R"(
+                        QLineEdit::placeholder {
+                          font-style: italic;
+                          color: gray;
+                        }
+                      )");
+
+      beh_sff->setEnabled(true);
+      beh_sff->setText("");
+      beh_sff->setPlaceholderText("[5.0 - 20.0]");
+      beh_sff->setStyleSheet(R"(
+                        QLineEdit::placeholder {
+                          font-style: italic;
+                          color: gray;
+                        }
+                      )");
+
+      // Set behavior-specific custom placeholders based on visible parameters
+      if (beh == hunav_msgs::msg::AgentBehavior::BEH_SURPRISED) // surprised
       {
         beh_duration->setEnabled(true);
         beh_duration->setText("");
@@ -5805,64 +6475,64 @@ namespace hunav_rviz2_panel
                         }
                       )");
 
-        beh_once->setEnabled(true);
-        beh_once->setText("");
-        beh_once->setPlaceholderText("[true or false]");
-        beh_once->setStyleSheet(R"(
+        beh_dist->setEnabled(true);
+        beh_dist->setText("");
+        beh_dist->setPlaceholderText("[0.5 - 15.0]");
+        beh_dist->setStyleSheet(R"(
+                        QLineEdit::placeholder {
+                          font-style: italic;
+                          color: gray;
+                        }
+                      )");
+      }
+      else if (beh == hunav_msgs::msg::AgentBehavior::BEH_SCARED) // scared
+      {
+        beh_duration->setEnabled(true);
+        beh_duration->setText("");
+        beh_duration->setPlaceholderText("[10.0 - 80.0]");
+        beh_duration->setStyleSheet(R"(
                         QLineEdit::placeholder {
                           font-style: italic;
                           color: gray;
                         }
                       )");
 
-        beh_gff->setEnabled(true);
-        beh_gff->setText("");
-        if (simulator_combo_->currentText() == "Isaac Sim")
-        {
-          beh_gff->setPlaceholderText("[5.0 - 10.0]");
-        }
-        else
-        {
-          beh_gff->setPlaceholderText("[2.0 - 5.0]");
-        }
-        beh_gff->setStyleSheet(R"(
+        beh_vel->setEnabled(true);
+        beh_vel->setText("");
+        beh_vel->setPlaceholderText("[0.4 - 1.8]");
+        beh_vel->setStyleSheet(R"(
                         QLineEdit::placeholder {
                           font-style: italic;
                           color: gray;
                         }
                       )");
 
-        beh_off->setEnabled(true);
-        beh_off->setText("");
-        if (simulator_combo_->currentText() == "Isaac Sim")
-        {
-          beh_off->setPlaceholderText("[0.5 - 5.0]");
-        }
-        else
-        {
-          beh_off->setPlaceholderText("[2.0 - 50.0]");
-        }
-        beh_off->setStyleSheet(R"(
+        beh_safe_distance->setEnabled(true);
+        beh_safe_distance->setText("");
+        beh_safe_distance->setPlaceholderText("[2.0 - 10.0]");
+        beh_safe_distance->setStyleSheet(R"(
                         QLineEdit::placeholder {
                           font-style: italic;
                           color: gray;
                         }
                       )");
 
-        beh_sff->setEnabled(true);
-        beh_sff->setText("");
-        beh_sff->setPlaceholderText("[5.0 - 20.0]");
-        beh_sff->setStyleSheet(R"(
+        beh_dist->setEnabled(true);
+        beh_dist->setText("");
+        beh_dist->setPlaceholderText("[0.5 - 15.0]");
+        beh_dist->setStyleSheet(R"(
                         QLineEdit::placeholder {
                           font-style: italic;
                           color: gray;
                         }
                       )");
-
-        beh_otherff->setEnabled(true);
-        beh_otherff->setText("");
-        beh_otherff->setPlaceholderText("[0.0 - 25.0]");
-        beh_otherff->setStyleSheet(R"(
+      }
+      else if (beh == hunav_msgs::msg::AgentBehavior::BEH_CURIOUS) // curious
+      {
+        beh_duration->setEnabled(true);
+        beh_duration->setText("");
+        beh_duration->setPlaceholderText("[10.0 - 80.0]");
+        beh_duration->setStyleSheet(R"(
                         QLineEdit::placeholder {
                           font-style: italic;
                           color: gray;
@@ -5888,786 +6558,879 @@ namespace hunav_rviz2_panel
                           color: gray;
                         }
                       )");
+
+        beh_stop_dist->setEnabled(true);
+        beh_stop_dist->setText("");
+        beh_stop_dist->setPlaceholderText("[0.5 - 3.0]");
+        beh_stop_dist->setStyleSheet(R"(
+                        QLineEdit::placeholder {
+                          font-style: italic;
+                          color: gray;
+                        }
+                      )");
       }
-
-      else if (conf == "Random-normal distribution")
+      else if (beh == hunav_msgs::msg::AgentBehavior::BEH_THREATENING) // threatening
       {
-        // Generate random values (normal distribution)
-        std::random_device rd;
-        std::mt19937 gen(rd());
-        if (simulator_combo_->currentText() == "Isaac Sim")
-        {
-          std::normal_distribution<> dis_gff{5.0, 1.5};
-          double facGoal = dis_gff(gen);
-          facGoal = (facGoal < 5.0) ? 5.0 : facGoal;
-          beh_gff->setText(QString::number(facGoal));
-          beh_gff->setEnabled(false);
+        beh_duration->setEnabled(true);
+        beh_duration->setText("");
+        beh_duration->setPlaceholderText("[10.0 - 80.0]");
+        beh_duration->setStyleSheet(R"(
+                        QLineEdit::placeholder {
+                          font-style: italic;
+                          color: gray;
+                        }
+                      )");
 
-          std::normal_distribution<> dis_off{2.0, 4.0};
-          double facObstacle = dis_off(gen);
-          facObstacle = (facObstacle < 0.5) ? 0.5 : facObstacle;
-          beh_off->setText(QString::number(facObstacle));
-          beh_off->setEnabled(false);
-        }
-        else
-        {
-          // Gazebo or Webots
-          std::normal_distribution<> dis_gff{2.0, 1.5};
-          double facGoal = dis_gff(gen);
-          facGoal = (facGoal < 2.0) ? 2.0 : facGoal;
-          beh_gff->setText(QString::number(facGoal));
-          beh_gff->setEnabled(false);
+        beh_dist->setEnabled(true);
+        beh_dist->setText("");
+        beh_dist->setPlaceholderText("[0.5 - 15.0]");
+        beh_dist->setStyleSheet(R"(
+                        QLineEdit::placeholder {
+                          font-style: italic;
+                          color: gray;
+                        }
+                      )");
 
-          std::normal_distribution<> dis_off{10.0, 4.0};
-          double facObstacle = dis_off(gen);
-          facObstacle = (facObstacle < 2.0) ? 2.0 : facObstacle;
-          beh_off->setText(QString::number(facObstacle));
-          beh_off->setEnabled(false);
-        }
-        std::normal_distribution<> dis_sff{4.0, 3.5};
-        double facSocial = dis_sff(gen);
-        facSocial = (facSocial < 3.0) ? 3.0 : facSocial;
-        beh_sff->setText(QString::number(facSocial));
-        beh_sff->setEnabled(false);
+        beh_front_dist->setEnabled(true);
+        beh_front_dist->setText("");
+        beh_front_dist->setPlaceholderText("[0.5 - 2.0]");
+        beh_front_dist->setStyleSheet(R"(
+                        QLineEdit::placeholder {
+                          font-style: italic;
+                          color: gray;
+                        }
+                      )");
+      }
+    }
 
-        std::normal_distribution<> dis_dur(40.0, 15.0);       // duration
-        std::normal_distribution<> dis_vel(0.8, 0.35);        // agent max vel
-        std::normal_distribution<> dis_detect_dist(4.5, 2.5); // distance to detect the robot
-        double duration = dis_dur(gen);
-        double vel = dis_vel(gen);
+    else if (conf == "Random-normal distribution")
+    {
+      // Generate random values (normal distribution)
+      std::random_device rd;
+      std::mt19937 gen(rd());
+      
+      // Set basic force parameters (common to all behaviors)
+      if (simulator_combo_->currentText() == "Isaac Sim")
+      {
+        std::normal_distribution<> dis_gff{5.0, 1.5};
+        double facGoal = dis_gff(gen);
+        facGoal = (facGoal < 5.0) ? 5.0 : facGoal;
+        beh_gff->setText(QString::number(facGoal));
+        beh_gff->setEnabled(false);
 
-        if (beh == hunav_msgs::msg::AgentBehavior::BEH_CURIOUS) // curious
-        {
-          duration = dis_dur(gen);
-          beh_duration->setText(QString::number(duration));
-          beh_duration->setEnabled(false);
-          vel = (vel < 0.4) ? 0.4 : vel;
-          beh_vel->setText(QString::number(vel));
-          beh_vel->setEnabled(false);
-          double detection_distance = dis_detect_dist(gen);
-          detection_distance = (detection_distance < 1.5) ? 1.5 : detection_distance;
-          beh_dist->setText(QString::number(detection_distance));
-          beh_dist->setEnabled(false);
-          std::normal_distribution<> dis_stop_dist(1.5, 0.3);
-          beh_stop_dist->setText(QString::number(dis_stop_dist(gen)));
-          beh_stop_dist->setEnabled(false);
-        }
-        else if (beh == hunav_msgs::msg::AgentBehavior::BEH_SURPRISED) // surprised
-        {
-          duration = dis_dur(gen);
-          beh_duration->setText(QString::number(duration));
-          beh_duration->setEnabled(false);
-          double dist = dis_detect_dist(gen);
-          dist = (dist < 1.5) ? 1.5 : dist;
-          beh_dist->setText(QString::number(dist));
-          beh_dist->setEnabled(false);
-        }
-        else if (beh == hunav_msgs::msg::AgentBehavior::BEH_SCARED) // scared
-        {
-          duration = dis_dur(gen);
-          beh_duration->setText(QString::number(duration));
-          beh_duration->setEnabled(false);
-          vel = dis_vel(gen);
-          vel = (vel < 0.4) ? 0.4 : vel;
-          beh_vel->setText(QString::number(vel));
-          beh_vel->setEnabled(false);
-          double dist = dis_detect_dist(gen);
-          dist = (dist < 1.5) ? 1.5 : dist;
-          beh_dist->setText(QString::number(dist));
-          beh_dist->setEnabled(false);
-          std::normal_distribution<> dis_force(20.0, 6.0); // repulsive factor from the robot
-          beh_otherff->setText(QString::number(dis_force(gen)));
-          beh_otherff->setEnabled(false);
-        }
-        else if (beh == hunav_msgs::msg::AgentBehavior::BEH_THREATENING) // threatening
-        {
-          duration = dis_dur(gen);
-          beh_duration->setText(QString::number(duration));
-          beh_duration->setEnabled(false);
-          // distance in front of the robot to put the robot goal
-          std::normal_distribution<> dis_goal_dist(1.4, 0.3);
-          double dist = dis_goal_dist(gen);
-          beh_dist->setText(QString::number(dist));
-          beh_dist->setEnabled(false);
-          std::normal_distribution<> dis_front(0.8, 0.3); // distance in front of the robot
-          front->setText(QString::number(dis_front(gen)));
-          front->setEnabled(false);
-        }
+        std::normal_distribution<> dis_off{2.0, 4.0};
+        double facObstacle = dis_off(gen);
+        facObstacle = (facObstacle < 0.5) ? 0.5 : facObstacle;
+        beh_off->setText(QString::number(facObstacle));
+        beh_off->setEnabled(false);
       }
       else
       {
-        // Generate random values (uniform distribution)
-        std::random_device rd;
-        std::mt19937 gen(rd());
-        std::uniform_real_distribution<> dis_gff(2.0, 5.0);
+        // Gazebo or Webots
+        std::normal_distribution<> dis_gff{2.0, 1.5};
         double facGoal = dis_gff(gen);
         facGoal = (facGoal < 2.0) ? 2.0 : facGoal;
         beh_gff->setText(QString::number(facGoal));
         beh_gff->setEnabled(false);
 
-        std::uniform_real_distribution<> dis_off(2.0, 50.0);
+        std::normal_distribution<> dis_off{10.0, 4.0};
         double facObstacle = dis_off(gen);
-        facObstacle = (facObstacle < 02.0) ? 2.0 : facObstacle;
+        facObstacle = (facObstacle < 2.0) ? 2.0 : facObstacle;
         beh_off->setText(QString::number(facObstacle));
         beh_off->setEnabled(false);
-
-        std::uniform_real_distribution<> dis_sff(4.0, 20.0);
-        double facSocial = dis_sff(gen);
-        facSocial = (facSocial < 4.0) ? 4.0 : facSocial;
-        beh_sff->setText(QString::number(facSocial));
-        beh_sff->setEnabled(false);
-
-        std::uniform_real_distribution<> dis_dur(25.0, 60.0);       // duration
-        std::uniform_real_distribution<> dis_vel(0.6, 1.2);         // agent max vel
-        std::uniform_real_distribution<> dis_detect_dist(2.0, 6.0); // distance to detect the robot
-
-        if (beh == hunav_msgs::msg::AgentBehavior::BEH_CURIOUS) // curious
-        {
-          beh_duration->setText(QString::number(dis_dur(gen)));
-          beh_duration->setEnabled(false);
-          double vel = dis_vel(gen);
-          vel = (vel < 0.4) ? 0.4 : vel;
-          beh_vel->setText(QString::number(vel));
-          beh_vel->setEnabled(false);
-          double detection_distance = dis_detect_dist(gen);
-          detection_distance = (detection_distance < 1.5) ? 1.5 : detection_distance;
-          beh_dist->setText(QString::number(detection_distance));
-          beh_dist->setEnabled(false);
-          std::uniform_real_distribution<> dis_stop_dist(1.0, 2.5);
-          beh_stop_dist->setText(QString::number(dis_stop_dist(gen)));
-          beh_stop_dist->setEnabled(false);
-        }
-        else if (beh == hunav_msgs::msg::AgentBehavior::BEH_SURPRISED)
-        {
-          beh_duration->setText(QString::number(dis_dur(gen)));
-          beh_duration->setEnabled(false);
-          double dist = dis_detect_dist(gen);
-          dist = (dist < 1.5) ? 1.5 : dist;
-          beh_dist->setText(QString::number(dist));
-          beh_dist->setEnabled(false);
-        }
-        else if (beh == hunav_msgs::msg::AgentBehavior::BEH_SCARED)
-        {
-          beh_duration->setText(QString::number(dis_dur(gen)));
-          beh_duration->setEnabled(false);
-          double vel = dis_vel(gen);
-          vel = (vel < 0.4) ? 0.4 : vel;
-          beh_vel->setText(QString::number(vel));
-          beh_vel->setEnabled(false);
-          double dist = dis_detect_dist(gen);
-          dist = (dist < 1.5) ? 1.5 : dist;
-          beh_dist->setText(QString::number(dist));
-          beh_dist->setEnabled(false);
-          std::uniform_real_distribution<> dis_force(10.0, 25.0); // repulsive factor from the robot
-          beh_otherff->setText(QString::number(dis_force(gen)));
-          beh_otherff->setEnabled(false);
-        }
-        else if (beh == hunav_msgs::msg::AgentBehavior::BEH_THREATENING)
-        {
-          beh_duration->setText(QString::number(dis_dur(gen)));
-          beh_duration->setEnabled(false);
-          // distance in front of the robot to put the robot goal
-          std::uniform_real_distribution<> dis_goal_dist(0.8, 1.9);
-          beh_dist->setText(QString::number(dis_goal_dist(gen)));
-          beh_dist->setEnabled(false);
-          std::uniform_real_distribution<> dis_front(0.5, 1.2); // distance in front of the robot
-          front->setText(QString::number(dis_front(gen)));
-          front->setEnabled(false);
-        }
       }
-      if (window && window->isVisible())
+      std::normal_distribution<> dis_sff{4.0, 3.5};
+      double facSocial = dis_sff(gen);
+      facSocial = (facSocial < 3.0) ? 3.0 : facSocial;
+      beh_sff->setText(QString::number(facSocial));
+      beh_sff->setEnabled(false);
+
+      // Set behavior-specific random values
+      if (beh == hunav_msgs::msg::AgentBehavior::BEH_SURPRISED) // surprised
       {
-        // Force the layout to recalculate and resize the window
-        QTimer::singleShot(0, this, [this]()
-                           {
-            window->adjustSize();
-            window->updateGeometry(); });
+        std::normal_distribution<> dis_dur(30.0, 15.0);
+        double duration = dis_dur(gen);
+        duration = (duration < 10.0) ? 10.0 : duration;
+        beh_duration->setText(QString::number(duration));
+        beh_duration->setEnabled(false);
+        
+        std::normal_distribution<> dis_detect_dist(4.0, 2.0);
+        double dist = dis_detect_dist(gen);
+        dist = (dist < 1.5) ? 1.5 : dist;
+        beh_dist->setText(QString::number(dist));
+        beh_dist->setEnabled(false);
+      }
+      else if (beh == hunav_msgs::msg::AgentBehavior::BEH_SCARED) // scared
+      {
+        std::normal_distribution<> dis_dur(40.0, 15.0);
+        double duration = dis_dur(gen);
+        duration = (duration < 10.0) ? 10.0 : duration;
+        beh_duration->setText(QString::number(duration));
+        beh_duration->setEnabled(false);
+        
+        std::normal_distribution<> dis_vel(0.6, 0.2);
+        double vel = dis_vel(gen);
+        vel = (vel < 0.4) ? 0.4 : vel;
+        beh_vel->setText(QString::number(vel));
+        beh_vel->setEnabled(false);
+        
+        std::normal_distribution<> dis_safe_distance(5.0, 1.5);
+        double safe_distance = dis_safe_distance(gen);
+        safe_distance = (safe_distance < 2.0) ? 2.0 : safe_distance;
+        beh_safe_distance->setText(QString::number(safe_distance));
+        beh_safe_distance->setEnabled(false);
+
+        std::normal_distribution<> dis_detect_dist(4.0, 2.0);
+        double dist = dis_detect_dist(gen);
+        dist = (dist < 1.5) ? 1.5 : dist;
+        beh_dist->setText(QString::number(dist));
+        beh_dist->setEnabled(false);
+      }
+      else if (beh == hunav_msgs::msg::AgentBehavior::BEH_CURIOUS) // curious
+      {
+        std::normal_distribution<> dis_dur(40.0, 15.0);
+        double duration = dis_dur(gen);
+        duration = (duration < 10.0) ? 10.0 : duration;
+        beh_duration->setText(QString::number(duration));
+        beh_duration->setEnabled(false);
+        
+        std::normal_distribution<> dis_vel(1.0, 0.3);
+        double vel = dis_vel(gen);
+        vel = (vel < 0.4) ? 0.4 : vel;
+        beh_vel->setText(QString::number(vel));
+        beh_vel->setEnabled(false);
+        
+        std::normal_distribution<> dis_detect_dist(10.0, 3.0);
+        double detection_distance = dis_detect_dist(gen);
+        detection_distance = (detection_distance < 1.5) ? 1.5 : detection_distance;
+        beh_dist->setText(QString::number(detection_distance));
+        beh_dist->setEnabled(false);
+        
+        std::normal_distribution<> dis_stop_dist(1.5, 0.3);
+        double stop_dist = dis_stop_dist(gen);
+        stop_dist = (stop_dist < 0.5) ? 0.5 : stop_dist;
+        beh_stop_dist->setText(QString::number(stop_dist));
+        beh_stop_dist->setEnabled(false);
+      }
+      else if (beh == hunav_msgs::msg::AgentBehavior::BEH_THREATENING) // threatening
+      {
+        std::normal_distribution<> dis_dur(40.0, 15.0);
+        double duration = dis_dur(gen);
+        duration = (duration < 10.0) ? 10.0 : duration;
+        beh_duration->setText(QString::number(duration));
+        beh_duration->setEnabled(false);
+        
+        std::normal_distribution<> dis_detect_dist(4.0, 2.0);
+        double dist = dis_detect_dist(gen);
+        dist = (dist < 1.5) ? 1.5 : dist;
+        beh_dist->setText(QString::number(dist));
+        beh_dist->setEnabled(false);
+        
+        std::normal_distribution<> dis_front(1.4, 0.3);
+        double front_dist = dis_front(gen);
+        front_dist = (front_dist < 0.5) ? 0.5 : front_dist;
+        beh_front_dist->setText(QString::number(front_dist));
+        beh_front_dist->setEnabled(false);
       }
     }
-
-    int ActorPanel::checkComboBoxSkin()
+    else
     {
-      QString currentSim = simulator_combo_->currentText();
-      std::string skinName = skin_combobox->currentText().toStdString();
-      int skinIndex = skin_combobox->currentIndex();
+      // Generate random values (uniform distribution)
+      std::random_device rd;
+      std::mt19937 gen(rd());
+      
+      // Set basic force parameters (common to all behaviors)
+      std::uniform_real_distribution<> dis_gff(2.0, 5.0);
+      double facGoal = dis_gff(gen);
+      facGoal = (facGoal < 2.0) ? 2.0 : facGoal;
+      beh_gff->setText(QString::number(facGoal));
+      beh_gff->setEnabled(false);
 
-      if (currentSim == "Gazebo Classic" || currentSim == "Gazebo Fortress")
-      {
-        // Gazebo skin mapping (unchanged)
-        if (skinName == "Elegant man")
-        {
-          person_skin = "package://hunav_rviz2_panel/meshes/elegant_man.dae";
-          return 0;
-        }
-        else if (skinName == "Casual man")
-        {
-          person_skin = "package://hunav_rviz2_panel/meshes/casual_man.dae";
-          return 1;
-        }
-        else if (skinName == "Elegant woman")
-        {
-          person_skin = "package://hunav_rviz2_panel/meshes/elegant_woman.dae";
-          return 2;
-        }
-        else if (skinName == "Regular man")
-        {
-          person_skin = "package://hunav_rviz2_panel/meshes/regular_man.dae";
-          return 3;
-        }
-        else if (skinName == "Worker man")
-        {
-          person_skin = "package://hunav_rviz2_panel/meshes/worker_man.dae";
-          return 4;
-        }
-        else if (skinName == "Blue jeans")
-        {
-          person_skin = "package://hunav_rviz2_panel/meshes/walk.dae";
-          return 5;
-        }
-        else if (skinName == "Green t-shirt")
-        {
-          person_skin = "package://hunav_rviz2_panel/meshes/walk.dae";
-          return 6;
-        }
-        else if (skinName == "Blue t-shirt")
-        {
-          person_skin = "package://hunav_rviz2_panel/meshes/walk.dae";
-          return 7;
-        }
-        else if (skinName == "Red t-shirt")
-        {
-          person_skin = "package://hunav_rviz2_panel/meshes/walk.dae";
-          return 8;
-        }
-      }
-      else if (currentSim == "Isaac Sim")
-      {
-        // Isaac Sim skin mapping - use generic mesh for RViz display
-        person_skin = "package://hunav_rviz2_panel/meshes/elegant_man.dae";
+      std::uniform_real_distribution<> dis_off(2.0, 50.0);
+      double facObstacle = dis_off(gen);
+      facObstacle = (facObstacle < 2.0) ? 2.0 : facObstacle;
+      beh_off->setText(QString::number(facObstacle));
+      beh_off->setEnabled(false);
 
-        return skinIndex;
-      }
-      else if (currentSim == "Webots")
-      {
-        // Webots skin mapping - use generic mesh for RViz display
-        person_skin = "package://hunav_rviz2_panel/meshes/elegant_man.dae";
+      std::uniform_real_distribution<> dis_sff(4.0, 20.0);
+      double facSocial = dis_sff(gen);
+      facSocial = (facSocial < 4.0) ? 4.0 : facSocial;
+      beh_sff->setText(QString::number(facSocial));
+      beh_sff->setEnabled(false);
 
-        return skinIndex;
-      }
-      else
+      // Set behavior-specific random values
+      if (beh == hunav_msgs::msg::AgentBehavior::BEH_SURPRISED) // surprised
       {
-        // Default fallback
+        std::uniform_real_distribution<> dis_dur(25.0, 60.0);
+        beh_duration->setText(QString::number(dis_dur(gen)));
+        beh_duration->setEnabled(false);
+        
+        std::uniform_real_distribution<> dis_detect_dist(2.0, 6.0);
+        double dist = dis_detect_dist(gen);
+        dist = (dist < 1.5) ? 1.5 : dist;
+        beh_dist->setText(QString::number(dist));
+        beh_dist->setEnabled(false);
+      }
+      else if (beh == hunav_msgs::msg::AgentBehavior::BEH_SCARED) // scared
+      {
+        std::uniform_real_distribution<> dis_dur(25.0, 60.0);
+        beh_duration->setText(QString::number(dis_dur(gen)));
+        beh_duration->setEnabled(false);
+        
+        std::uniform_real_distribution<> dis_vel(0.4, 1.0);
+        double vel = dis_vel(gen);
+        vel = (vel < 0.4) ? 0.4 : vel;
+        beh_vel->setText(QString::number(vel));
+        beh_vel->setEnabled(false);
+        
+        std::uniform_real_distribution<> dis_safe_distance(3.0, 8.0);
+        double safe_distance = dis_safe_distance(gen);
+        safe_distance = (safe_distance < 2.0) ? 2.0 : safe_distance;
+        beh_safe_distance->setText(QString::number(safe_distance));
+        beh_safe_distance->setEnabled(false);
+
+        std::uniform_real_distribution<> dis_detect_dist(2.0, 6.0);
+        double dist = dis_detect_dist(gen);
+        dist = (dist < 1.5) ? 1.5 : dist;
+        beh_dist->setText(QString::number(dist));
+        beh_dist->setEnabled(false);
+      }
+      else if (beh == hunav_msgs::msg::AgentBehavior::BEH_CURIOUS) // curious
+      {
+        std::uniform_real_distribution<> dis_dur(25.0, 60.0);
+        beh_duration->setText(QString::number(dis_dur(gen)));
+        beh_duration->setEnabled(false);
+        
+        std::uniform_real_distribution<> dis_vel(0.6, 1.2);
+        double vel = dis_vel(gen);
+        vel = (vel < 0.4) ? 0.4 : vel;
+        beh_vel->setText(QString::number(vel));
+        beh_vel->setEnabled(false);
+        
+        std::uniform_real_distribution<> dis_detect_dist(5.0, 15.0);
+        double detection_distance = dis_detect_dist(gen);
+        detection_distance = (detection_distance < 1.5) ? 1.5 : detection_distance;
+        beh_dist->setText(QString::number(detection_distance));
+        beh_dist->setEnabled(false);
+        
+        std::uniform_real_distribution<> dis_stop_dist(1.0, 2.5);
+        double stop_dist = dis_stop_dist(gen);
+        stop_dist = (stop_dist < 0.5) ? 0.5 : stop_dist;
+        beh_stop_dist->setText(QString::number(stop_dist));
+        beh_stop_dist->setEnabled(false);
+      }
+      else if (beh == hunav_msgs::msg::AgentBehavior::BEH_THREATENING) // threatening
+      {
+        std::uniform_real_distribution<> dis_dur(25.0, 60.0);
+        beh_duration->setText(QString::number(dis_dur(gen)));
+        beh_duration->setEnabled(false);
+        
+        std::uniform_real_distribution<> dis_detect_dist(2.0, 6.0);
+        double dist = dis_detect_dist(gen);
+        dist = (dist < 1.5) ? 1.5 : dist;
+        beh_dist->setText(QString::number(dist));
+        beh_dist->setEnabled(false);
+        
+        std::uniform_real_distribution<> dis_front(0.5, 2.0);
+        double front_dist = dis_front(gen);
+        front_dist = (front_dist < 0.5) ? 0.5 : front_dist;
+        beh_front_dist->setText(QString::number(front_dist));
+        beh_front_dist->setEnabled(false);
+      }
+    }
+    if (window && window->isVisible())
+    {
+      // Force the layout to recalculate and resize the window
+      QTimer::singleShot(0, this, [this]()
+                         {
+            window->adjustSize();
+            window->updateGeometry(); });
+    }
+  }
+
+  int ActorPanel::checkComboBoxSkin()
+  {
+    QString currentSim = simulator_combo_->currentText();
+    std::string skinName = skin_combobox->currentText().toStdString();
+    int skinIndex = skin_combobox->currentIndex();
+
+    if (currentSim == "Gazebo Classic" || currentSim == "Gazebo Fortress")
+    {
+      // Gazebo skin mapping (unchanged)
+      if (skinName == "Elegant man")
+      {
         person_skin = "package://hunav_rviz2_panel/meshes/elegant_man.dae";
         return 0;
       }
+      else if (skinName == "Casual man")
+      {
+        person_skin = "package://hunav_rviz2_panel/meshes/casual_man.dae";
+        return 1;
+      }
+      else if (skinName == "Elegant woman")
+      {
+        person_skin = "package://hunav_rviz2_panel/meshes/elegant_woman.dae";
+        return 2;
+      }
+      else if (skinName == "Regular man")
+      {
+        person_skin = "package://hunav_rviz2_panel/meshes/regular_man.dae";
+        return 3;
+      }
+      else if (skinName == "Worker man")
+      {
+        person_skin = "package://hunav_rviz2_panel/meshes/worker_man.dae";
+        return 4;
+      }
+      else if (skinName == "Blue jeans")
+      {
+        person_skin = "package://hunav_rviz2_panel/meshes/walk.dae";
+        return 5;
+      }
+      else if (skinName == "Green t-shirt")
+      {
+        person_skin = "package://hunav_rviz2_panel/meshes/walk.dae";
+        return 6;
+      }
+      else if (skinName == "Blue t-shirt")
+      {
+        person_skin = "package://hunav_rviz2_panel/meshes/walk.dae";
+        return 7;
+      }
+      else if (skinName == "Red t-shirt")
+      {
+        person_skin = "package://hunav_rviz2_panel/meshes/walk.dae";
+        return 8;
+      }
+    }
+    else if (currentSim == "Isaac Sim")
+    {
+      // Isaac Sim skin mapping - use generic mesh for RViz display
+      person_skin = "package://hunav_rviz2_panel/meshes/elegant_man.dae";
 
-      // Default return
+      return skinIndex;
+    }
+    else if (currentSim == "Webots")
+    {
+      // Webots skin mapping - use generic mesh for RViz display
+      person_skin = "package://hunav_rviz2_panel/meshes/elegant_man.dae";
+
+      return skinIndex;
+    }
+    else
+    {
+      // Default fallback
+      person_skin = "package://hunav_rviz2_panel/meshes/elegant_man.dae";
       return 0;
     }
 
-    void ActorPanel::checkParserSkin(int skin)
-    {
-      QString currentSim = simulator_combo_->currentText();
+    // Default return
+    return 0;
+  }
 
-      if (currentSim == "Gazebo Classic" || currentSim == "Gazebo Fortress")
-      {
-        // Gazebo skin mapping (unchanged)
-        if (skin == 0)
-          person_skin = "package://hunav_rviz2_panel/meshes/elegant_man.dae";
-        else if (skin == 1)
-          person_skin = "package://hunav_rviz2_panel/meshes/casual_man.dae";
-        else if (skin == 2)
-          person_skin = "package://hunav_rviz2_panel/meshes/elegant_woman.dae";
-        else if (skin == 3)
-          person_skin = "package://hunav_rviz2_panel/meshes/regular_man.dae";
-        else if (skin == 4)
-          person_skin = "package://hunav_rviz2_panel/meshes/worker_man.dae";
-        else
-          person_skin = "package://hunav_rviz2_panel/meshes/walk.dae";
-      }
-      else if (currentSim == "Isaac Sim" || currentSim == "Webots")
-      {
-        // For Isaac Sim and Webots, use generic mesh for RViz display
-        // The actual skin index is stored in YAML and will be used by the simulator
+  void ActorPanel::checkParserSkin(int skin)
+  {
+    QString currentSim = simulator_combo_->currentText();
+
+    if (currentSim == "Gazebo Classic" || currentSim == "Gazebo Fortress")
+    {
+      // Gazebo skin mapping (unchanged)
+      if (skin == 0)
         person_skin = "package://hunav_rviz2_panel/meshes/elegant_man.dae";
-      }
+      else if (skin == 1)
+        person_skin = "package://hunav_rviz2_panel/meshes/casual_man.dae";
+      else if (skin == 2)
+        person_skin = "package://hunav_rviz2_panel/meshes/elegant_woman.dae";
+      else if (skin == 3)
+        person_skin = "package://hunav_rviz2_panel/meshes/regular_man.dae";
+      else if (skin == 4)
+        person_skin = "package://hunav_rviz2_panel/meshes/worker_man.dae";
       else
+        person_skin = "package://hunav_rviz2_panel/meshes/walk.dae";
+    }
+    else if (currentSim == "Isaac Sim" || currentSim == "Webots")
+    {
+      // For Isaac Sim and Webots, use generic mesh for RViz display
+      // The actual skin index is stored in YAML and will be used by the simulator
+      person_skin = "package://hunav_rviz2_panel/meshes/elegant_man.dae";
+    }
+    else
+    {
+      // Default fallback
+      person_skin = "package://hunav_rviz2_panel/meshes/elegant_man.dae";
+    }
+  }
+
+  void ActorPanel::initAgentColors(int num_agents)
+  {
+    agent_colors_.clear();
+    agent_colors_.reserve(num_agents);
+    for (int i = 0; i < num_agents; ++i)
+    {
+      QColor c;
+      c.setHsvF(double(i) / double(num_agents), 0.8, 0.9);
+      agent_colors_.push_back(c);
+    }
+  }
+
+  visualization_msgs::msg::Marker ActorPanel::createAgentLabel(
+      double x, double y, int id, const std::string &frame_id)
+  {
+    visualization_msgs::msg::Marker text;
+    text.header.frame_id = frame_id;
+    text.header.stamp = rclcpp::Clock().now();
+    text.ns = "agent_labels";
+    text.id = id; // same ID as the mesh
+    text.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
+    text.action = visualization_msgs::msg::Marker::ADD;
+    text.pose.position.x = x;
+    text.pose.position.y = y + 0.7;
+    text.pose.position.z = 1.5; // float it above the agent
+    text.scale.z = 0.8;         // text height
+    text.color.r = 0.0f;
+    text.color.g = 0.0f;
+    text.color.b = 1.0f;
+    text.color.a = 1.0f;
+    text.text = std::to_string(id);
+    return text;
+  }
+
+  visualization_msgs::msg::Marker ActorPanel::createMarker(double point1_x, double point1_y, double ids,
+                                                           std::string marker_shape, std::string create_or_parser)
+  {
+    visualization_msgs::msg::Marker marker;
+    uint32_t shape;
+    float scale;
+
+    if (marker_shape.compare("person") == 0)
+    {
+      // The variable create_or_parser is used to know from where we are calling the createMarker function
+      // If the function is being called from the creation of agents, we need to check which skin is selected in the
+      // combobox If the function is being called from the parser, we already know which skin it has by reading the yaml
+      // file.
+      if (create_or_parser.compare("create") == 0)
       {
-        // Default fallback
-        person_skin = "package://hunav_rviz2_panel/meshes/elegant_man.dae";
+        // Check which skin is selected
+        checkComboBoxSkin();
       }
+
+      shape = visualization_msgs::msg::Marker::MESH_RESOURCE;
+      marker.mesh_resource = person_skin;
+      scale = 1;
+      marker.pose.position.z = 0.0;
+    }
+    else
+    {
+      scale = 0.3;
+      shape = visualization_msgs::msg::Marker::CUBE;
+      // marker.mesh_resource = "package://hunav_rviz2_panel/meshes/ring.dae";
+      marker.color.r = rgb[red];
+      marker.color.g = rgb[green];
+      marker.color.b = rgb[blue];
+      marker.color.a = 1.0; // alpha has to be non-zero
+      marker.pose.position.z = 0.5;
     }
 
-    void ActorPanel::initAgentColors(int num_agents)
+    marker.header.frame_id = "/map";
+    // marker.header.stamp = rclcpp::Node::now();
+    marker.ns = "basic_shapes";
+    marker.id = ids;
+    marker.type = shape;
+    marker.action = visualization_msgs::msg::Marker::ADD;
+
+    marker.mesh_use_embedded_materials = true;
+
+    marker.pose.position.x = point1_x;
+    marker.pose.position.y = point1_y;
+
+    marker.scale.x = scale;
+    marker.scale.y = scale;
+    marker.scale.z = scale;
+
+    markers_array_to_remove.push_back(marker);
+
+    return marker;
+  }
+
+  visualization_msgs::msg::Marker ActorPanel::createArrowMarker(double point1_x, double point1_y, double point2_x,
+                                                                double point2_y, double ids)
+  {
+    visualization_msgs::msg::Marker arrow_marker;
+
+    arrow_marker.header.frame_id = "/map";
+    // arrow_marker.header.stamp = rclcpp::Node::now();
+    arrow_marker.id = ids;
+    arrow_marker.type = visualization_msgs::msg::Marker::ARROW;
+    arrow_marker.action = visualization_msgs::msg::Marker::ADD;
+
+    geometry_msgs::msg::Point point1;
+    point1.x = point1_x;
+    point1.y = point1_y;
+    point1.z = 0.5;
+
+    geometry_msgs::msg::Point point2;
+    point2.x = point2_x;
+    point2.y = point2_y;
+    point2.z = 0.5;
+
+    arrow_marker.points.push_back(point1);
+    arrow_marker.points.push_back(point2);
+
+    arrow_marker.scale.x = 0.1;
+    arrow_marker.scale.y = 0.3;
+    arrow_marker.scale.z = 0.3;
+
+    arrow_marker.color.r = rgb[red];
+    arrow_marker.color.g = rgb[green];
+    arrow_marker.color.b = rgb[blue];
+    arrow_marker.color.a = 1.0f;
+
+    arrow_marker.lifetime = rclcpp::Duration(0, 0);
+    arrow_marker.frame_locked = false;
+
+    markers_array_to_remove.push_back(arrow_marker);
+
+    return arrow_marker;
+  }
+
+  void ActorPanel::randomRGB()
+  {
+    red = rand() % 256;
+    green = rand() % 256;
+    blue = rand() % 256;
+  }
+
+  void ActorPanel::resetGoalMarkerColors()
+  {
+    for (auto &m : goal_markers_.markers)
     {
-      agent_colors_.clear();
-      agent_colors_.reserve(num_agents);
-      for (int i = 0; i < num_agents; ++i)
+      if (m.ns == "goal_points")
       {
-        QColor c;
-        c.setHsvF(double(i) / double(num_agents), 0.8, 0.9);
-        agent_colors_.push_back(c);
+        m.color.r = 0.0f;
+        m.color.g = 0.7f;
+        m.color.b = 0.7f;
+        m.color.a = 1.0f;
+      }
+      if (m.ns == "goal_numbers")
+      {
+        m.color.r = 1.0f;
+        m.color.g = 1.0f;
+        m.color.b = 1.0f;
+        m.color.a = 1.0f;
       }
     }
+  }
 
-    visualization_msgs::msg::Marker ActorPanel::createAgentLabel(
-        double x, double y, int id, const std::string &frame_id)
+  void ActorPanel::publishAgentMarkers()
+  {
+    // 1) First, clear everything out
+    removeCurrentMarkers();
+
+    // 2) Build a MarkerArray on the stack
+    auto arr1 = std::make_unique<visualization_msgs::msg::MarkerArray>();
+    int next_id = 0;
+
+    // 3) For each loaded agent…
+    const size_t N = loaded_agent_nodes_.size();
+    for (size_t i = 0; i < N; ++i)
     {
-      visualization_msgs::msg::Marker text;
-      text.header.frame_id = frame_id;
-      text.header.stamp = rclcpp::Clock().now();
-      text.ns = "agent_labels";
-      text.id = id; // same ID as the mesh
+      // read its stored init‐pose
+      const YAML::Node &node = loaded_agent_nodes_[i];
+      double ipx = node["init_pose"]["x"].as<double>();
+      double ipy = node["init_pose"]["y"].as<double>();
+
+      // pull out the saved yaw ("h") if present
+      double yaw = 0.0;
+      if (node["init_pose"]["h"])
+        yaw = node["init_pose"]["h"].as<double>();
+
+      // pick a single id for *both* mesh+text
+      int this_id = next_id++;
+      loaded_initial_marker_ids_[i] = this_id;
+
+      // stamp
+      std_msgs::msg::Header hdr;
+      hdr.frame_id = "/map";
+      hdr.stamp = this->now();
+
+      // pick its color
+      const QColor &c = agent_colors_[i];
+      std_msgs::msg::ColorRGBA col;
+      col.r = c.redF();
+      col.g = c.greenF();
+      col.b = c.blueF();
+      col.a = 1.0f;
+
+      // — mesh/person marker —
+      auto mesh = createMarker(ipx, ipy, this_id, "person", "parser");
+      mesh.header = hdr;
+      mesh.ns = "agent_initial";
+      mesh.id = this_id;
+      mesh.color = col;
+      tf2::Quaternion q;
+      q.setRPY(0, 0, yaw);
+      mesh.pose.orientation = tf2::toMsg(q);
+
+      arr1->markers.push_back(mesh);
+
+      // — floating text label —
+      auto text = mesh; // copy header, pose, etc
+      text.ns = "agent_id_text";
+      text.id = this_id;
       text.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
-      text.action = visualization_msgs::msg::Marker::ADD;
-      text.pose.position.x = x;
-      text.pose.position.y = y + 0.7;
-      text.pose.position.z = 1.5; // float it above the agent
-      text.scale.z = 0.8;         // text height
-      text.color.r = 0.0f;
-      text.color.g = 0.0f;
-      text.color.b = 1.0f;
-      text.color.a = 1.0f;
-      text.text = std::to_string(id);
-      return text;
+      text.text = std::to_string(int(i + 1));
+      text.scale.z = 0.8;
+      text.pose.position.y += 0.7;
+      text.pose.position.z += 1.5;
+      text.color = col;
+      arr1->markers.push_back(text);
     }
+    next_marker_id_ = next_id;
 
-    visualization_msgs::msg::Marker ActorPanel::createMarker(double point1_x, double point1_y, double ids,
-                                                             std::string marker_shape, std::string create_or_parser)
+    // 4) Publish all at once
+    initial_pose_publisher->publish(std::move(arr1));
+  }
+
+  void ActorPanel::clearDisplayedMap()
+  {
+    nav_msgs::msg::OccupancyGrid blank;
+    blank.header.frame_id = "map";
+    blank.header.stamp = this->now();
+
+    // a single unknown cell
+    blank.info.resolution = 1.0;
+    blank.info.width = 1;
+    blank.info.height = 1;
+    // origin somewhere offscreen
+    blank.info.origin.position.x = 9999.0;
+    blank.info.origin.position.y = 9999.0;
+    blank.info.origin.orientation.w = 1.0;
+
+    // mark it unknown
+    blank.data.assign(1, -1);
+
+    map_pub_->publish(blank);
+  }
+
+  void ActorPanel::clearNonAgentMarkers()
+  {
+    static const std::vector<std::string> bad_ns = {
+        "goal_points",
+        "goal_numbers",
+        "agent_goal",
+        "agent_arrow",
+        "goal_cubes",
+        "goal_labels"};
+
+    for (const auto &ns : bad_ns)
     {
-      visualization_msgs::msg::Marker marker;
-      uint32_t shape;
-      float scale;
+      visualization_msgs::msg::Marker m;
+      m.header.frame_id = "/map";
+      m.header.stamp = rclcpp::Clock().now();
+      m.ns = ns;
+      m.action = visualization_msgs::msg::Marker::DELETEALL;
 
-      if (marker_shape.compare("person") == 0)
-      {
-        // The variable create_or_parser is used to know from where we are calling the createMarker function
-        // If the function is being called from the creation of agents, we need to check which skin is selected in the
-        // combobox If the function is being called from the parser, we already know which skin it has by reading the yaml
-        // file.
-        if (create_or_parser.compare("create") == 0)
-        {
-          // Check which skin is selected
-          checkComboBoxSkin();
-        }
+      auto arr = std::make_unique<visualization_msgs::msg::MarkerArray>();
+      arr->markers.push_back(m);
 
-        shape = visualization_msgs::msg::Marker::MESH_RESOURCE;
-        marker.mesh_resource = person_skin;
-        scale = 1;
-        marker.pose.position.z = 0.0;
-      }
-      else
-      {
-        scale = 0.3;
-        shape = visualization_msgs::msg::Marker::CUBE;
-        // marker.mesh_resource = "package://hunav_rviz2_panel/meshes/ring.dae";
-        marker.color.r = rgb[red];
-        marker.color.g = rgb[green];
-        marker.color.b = rgb[blue];
-        marker.color.a = 1.0; // alpha has to be non-zero
-        marker.pose.position.z = 0.5;
-      }
+      // publish on both topics
+      initial_pose_publisher->publish(std::move(arr));
 
-      marker.header.frame_id = "/map";
-      // marker.header.stamp = rclcpp::Node::now();
-      marker.ns = "basic_shapes";
-      marker.id = ids;
-      marker.type = shape;
-      marker.action = visualization_msgs::msg::Marker::ADD;
-
-      marker.mesh_use_embedded_materials = true;
-
-      marker.pose.position.x = point1_x;
-      marker.pose.position.y = point1_y;
-
-      marker.scale.x = scale;
-      marker.scale.y = scale;
-      marker.scale.z = scale;
-
-      markers_array_to_remove.push_back(marker);
-
-      return marker;
+      auto arr2 = std::make_unique<visualization_msgs::msg::MarkerArray>();
+      arr2->markers.push_back(m);
+      goal_markers_pub_->publish(std::move(arr2));
     }
+  }
 
-    visualization_msgs::msg::Marker ActorPanel::createArrowMarker(double point1_x, double point1_y, double point2_x,
-                                                                  double point2_y, double ids)
+  void ActorPanel::removeCurrentMarkers()
+  {
+    auto marker_array = std::make_unique<visualization_msgs::msg::MarkerArray>();
+    auto marker_array1 = std::make_unique<visualization_msgs::msg::MarkerArray>();
+
+    visualization_msgs::msg::Marker markerDeletionIP;
+    markerDeletionIP.header.frame_id = "map";
+    markerDeletionIP.action = visualization_msgs::msg::Marker::DELETEALL;
+
+    visualization_msgs::msg::Marker markerDeletionG;
+    markerDeletionG.header.frame_id = "map";
+    markerDeletionG.action = visualization_msgs::msg::Marker::DELETEALL;
+
+    marker_array->markers.push_back(markerDeletionIP);
+    marker_array1->markers.push_back(markerDeletionG);
+
+    initial_pose_publisher->publish(std::move(marker_array));
+    goal_markers_pub_->publish(std::move(marker_array1));
+  }
+
+  std::string ActorPanel::openFileExplorer(bool file)
+  {
+    QString fileName;
+
+    if (file)
     {
-      visualization_msgs::msg::Marker arrow_marker;
-
-      arrow_marker.header.frame_id = "/map";
-      // arrow_marker.header.stamp = rclcpp::Node::now();
-      arrow_marker.id = ids;
-      arrow_marker.type = visualization_msgs::msg::Marker::ARROW;
-      arrow_marker.action = visualization_msgs::msg::Marker::ADD;
-
-      geometry_msgs::msg::Point point1;
-      point1.x = point1_x;
-      point1.y = point1_y;
-      point1.z = 0.5;
-
-      geometry_msgs::msg::Point point2;
-      point2.x = point2_x;
-      point2.y = point2_y;
-      point2.z = 0.5;
-
-      arrow_marker.points.push_back(point1);
-      arrow_marker.points.push_back(point2);
-
-      arrow_marker.scale.x = 0.1;
-      arrow_marker.scale.y = 0.3;
-      arrow_marker.scale.z = 0.3;
-
-      arrow_marker.color.r = rgb[red];
-      arrow_marker.color.g = rgb[green];
-      arrow_marker.color.b = rgb[blue];
-      arrow_marker.color.a = 1.0f;
-
-      arrow_marker.lifetime = rclcpp::Duration(0, 0);
-      arrow_marker.frame_locked = false;
-
-      markers_array_to_remove.push_back(arrow_marker);
-
-      return arrow_marker;
-    }
-
-    void ActorPanel::randomRGB()
-    {
-      red = rand() % 256;
-      green = rand() % 256;
-      blue = rand() % 256;
-    }
-
-    void ActorPanel::resetGoalMarkerColors()
-    {
-      for (auto &m : goal_markers_.markers)
-      {
-        if (m.ns == "goal_points")
-        {
-          m.color.r = 0.0f;
-          m.color.g = 0.7f;
-          m.color.b = 0.7f;
-          m.color.a = 1.0f;
-        }
-        if (m.ns == "goal_numbers")
-        {
-          m.color.r = 1.0f;
-          m.color.g = 1.0f;
-          m.color.b = 1.0f;
-          m.color.a = 1.0f;
-        }
-      }
-    }
-
-    void ActorPanel::publishAgentMarkers()
-    {
-      // 1) First, clear everything out
-      removeCurrentMarkers();
-
-      // 2) Build a MarkerArray on the stack
-      auto arr1 = std::make_unique<visualization_msgs::msg::MarkerArray>();
-      int next_id = 0;
-
-      // 3) For each loaded agent…
-      const size_t N = loaded_agent_nodes_.size();
-      for (size_t i = 0; i < N; ++i)
-      {
-        // read its stored init‐pose
-        const YAML::Node &node = loaded_agent_nodes_[i];
-        double ipx = node["init_pose"]["x"].as<double>();
-        double ipy = node["init_pose"]["y"].as<double>();
-
-        // pull out the saved yaw ("h") if present
-        double yaw = 0.0;
-        if (node["init_pose"]["h"])
-          yaw = node["init_pose"]["h"].as<double>();
-
-        // pick a single id for *both* mesh+text
-        int this_id = next_id++;
-        loaded_initial_marker_ids_[i] = this_id;
-
-        // stamp
-        std_msgs::msg::Header hdr;
-        hdr.frame_id = "/map";
-        hdr.stamp = this->now();
-
-        // pick its color
-        const QColor &c = agent_colors_[i];
-        std_msgs::msg::ColorRGBA col;
-        col.r = c.redF();
-        col.g = c.greenF();
-        col.b = c.blueF();
-        col.a = 1.0f;
-
-        // — mesh/person marker —
-        auto mesh = createMarker(ipx, ipy, this_id, "person", "parser");
-        mesh.header = hdr;
-        mesh.ns = "agent_initial";
-        mesh.id = this_id;
-        mesh.color = col;
-        tf2::Quaternion q;
-        q.setRPY(0, 0, yaw);
-        mesh.pose.orientation = tf2::toMsg(q);
-
-        arr1->markers.push_back(mesh);
-
-        // — floating text label —
-        auto text = mesh; // copy header, pose, etc
-        text.ns = "agent_id_text";
-        text.id = this_id;
-        text.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
-        text.text = std::to_string(int(i + 1));
-        text.scale.z = 0.8;
-        text.pose.position.y += 0.7;
-        text.pose.position.z += 1.5;
-        text.color = col;
-        arr1->markers.push_back(text);
-      }
-      next_marker_id_ = next_id;
-
-      // 4) Publish all at once
-      initial_pose_publisher->publish(std::move(arr1));
-    }
-
-    void ActorPanel::clearDisplayedMap()
-    {
-      nav_msgs::msg::OccupancyGrid blank;
-      blank.header.frame_id = "map";
-      blank.header.stamp = this->now();
-
-      // a single unknown cell
-      blank.info.resolution = 1.0;
-      blank.info.width = 1;
-      blank.info.height = 1;
-      // origin somewhere offscreen
-      blank.info.origin.position.x = 9999.0;
-      blank.info.origin.position.y = 9999.0;
-      blank.info.origin.orientation.w = 1.0;
-
-      // mark it unknown
-      blank.data.assign(1, -1);
-
-      map_pub_->publish(blank);
-    }
-
-    void ActorPanel::clearNonAgentMarkers()
-    {
-      static const std::vector<std::string> bad_ns = {
-          "goal_points",
-          "goal_numbers",
-          "agent_goal",
-          "agent_arrow",
-          "goal_cubes",
-          "goal_labels"};
-
-      for (const auto &ns : bad_ns)
-      {
-        visualization_msgs::msg::Marker m;
-        m.header.frame_id = "/map";
-        m.header.stamp = rclcpp::Clock().now();
-        m.ns = ns;
-        m.action = visualization_msgs::msg::Marker::DELETEALL;
-
-        auto arr = std::make_unique<visualization_msgs::msg::MarkerArray>();
-        arr->markers.push_back(m);
-
-        // publish on both topics
-        initial_pose_publisher->publish(std::move(arr));
-
-        auto arr2 = std::make_unique<visualization_msgs::msg::MarkerArray>();
-        arr2->markers.push_back(m);
-        goal_markers_pub_->publish(std::move(arr2));
-      }
-    }
-
-    void ActorPanel::removeCurrentMarkers()
-    {
-      auto marker_array = std::make_unique<visualization_msgs::msg::MarkerArray>();
-      auto marker_array1 = std::make_unique<visualization_msgs::msg::MarkerArray>();
-
-      visualization_msgs::msg::Marker markerDeletionIP;
-      markerDeletionIP.header.frame_id = "map";
-      markerDeletionIP.action = visualization_msgs::msg::Marker::DELETEALL;
-
-      visualization_msgs::msg::Marker markerDeletionG;
-      markerDeletionG.header.frame_id = "map";
-      markerDeletionG.action = visualization_msgs::msg::Marker::DELETEALL;
-
-      marker_array->markers.push_back(markerDeletionIP);
-      marker_array1->markers.push_back(markerDeletionG);
-
-      initial_pose_publisher->publish(std::move(marker_array));
-      goal_markers_pub_->publish(std::move(marker_array1));
-    }
-
-    std::string ActorPanel::openFileExplorer(bool file)
-    {
-      QString fileName;
-
-      if (file)
-      {
-        fileName = QFileDialog::getOpenFileName(this, tr("Open file"), "/home", tr("YAML Files (*.yaml)"));
-        show_file_selector_once = true;
-        checkbox->setChecked(true);
-      }
-      else
-      {
-        fileName = QFileDialog::getExistingDirectory(this, tr("Open folder"), "/home", QFileDialog::ShowDirsOnly);
-        window->activateWindow();
-      }
-
-      dir = fileName.toStdString();
-      return dir;
-    }
-
-    void ActorPanel::save(rviz_common::Config config) const
-    {
-      rviz_common::Panel::save(config);
-      config.mapSetValue("Topic", output_topic_);
-    }
-
-    void ActorPanel::resetPanel()
-    {
-      // 1) Clear all RViz markers
-      removeCurrentMarkers();
-      clearDisplayedMap();
-      goal_markers_.markers.clear();
-      initial_pose_marker_array.markers.clear();
-
-      // 1a) Create/Load buttons
-      create_button_->setChecked(false);
-      create_button_->setDown(false);
-      open_button_->setChecked(false);
-      open_button_->setDown(false);
-
-      // 2) Clear loaded data
-      loaded_agent_nodes_.clear();
-      loaded_agent_names_.clear();
-      loaded_agent_goals_.clear();
-      loaded_global_goals_.clear();
-      loaded_initial_marker_ids_.clear();
-      goal_list_widget_->clear();
-      goal_ids_.clear();
-      agent_goals_.clear();
-      actors_info_.clear();
-      agent_colors_.clear();
-      next_marker_id_ = 0;
-
-      // 2a) Clear file paths and names
-      map_file_.clear();
-      pkg_shared_tree_dir_.clear();
-      orig_yaml_base_name_.clear();
-      yaml_base_name_.clear();
-      defaultName_.clear();
-
-      // Reset dialog/window states
-      adding_new_agent_ = false;
-      goal_picking_mode_ = false;
-      initial_pose_set = false;
-      moving_goal_id_ = -1;
-
-      // Reset information flags
-      first_goal_picking_info_shown_ = false;
-      initial_pose_tip_shown_ = false;
-      show_file_selector_once = false;
-
-      // 3) Reset mode & indices
-      panel_mode_ = CREATE_MODE;
-      current_edit_idx_ = 0;
-      iterate_actors_ = 1;
-      agent_count = 1;
-      num_agents = 0;
-      num_actors_ = 0;
-
-      // 4) Reset UI back to “fresh” state
-      map_group->setEnabled(false);
-      map_group->setVisible(true);
-      simulator_combo_->setCurrentIndex(-1);
-      map_select_btn_->show();
-      map_select_btn_->setVisible(true);
-      map_select_btn_->setEnabled(false);
-      current_map_label_->clear();
-      current_map_label_->show();
-
-      // Reset agent creation fields
-      actors->clear();
-      actors->show();
-      actors->setEnabled(false);
-      n_agents_label_->show();
-      n_agents_label_->setEnabled(false);
-
-      // Actor button to constructor state
-      actor_button_->setText(tr("Generate Agents"));
-      actor_button_->setEnabled(false);
-      actor_button_->setDown(false);
-      actor_button_->setChecked(false);
-
-      // Edit mode buttons to hidden state
-      edit_goals_button_->hide();
-      edit_goals_button_->setDown(false);
-      edit_goals_button_->setChecked(false);
-      add_agent_button_->hide();
-      add_agent_button_->setEnabled(false);
-      add_agent_button_->setDown(false);
-      add_agent_button_->setChecked(false);
-
-      // YAML file label
-      yaml_file_label_->hide();
-      yaml_file_label_->clear();
-
-      // Goal management section
-      goal_group_->setTitle("Define agents goals");
-      goal_group_->setEnabled(false);
-
-      // Goal picking button
-      enter_goal_mode_btn_->show();
-      enter_goal_mode_btn_->setDown(false);
-      enter_goal_mode_btn_->setText("Enter Goal-Picking Mode");
-      enter_goal_mode_btn_->setEnabled(true);
-
-      // Reset: Goal management UI to disabled state
-      goal_list_widget_->clear();
-      goal_list_widget_->setEnabled(false);
-      reset_goals_button_->hide();
-      reset_goals_button_->setEnabled(false);
-      assign_goals_btn_->setEnabled(false);
-      assign_goals_btn_->setDown(false);
-
-      // Reset: Save and other buttons
-      save_bt_btn_->setEnabled(false);
-      save_bt_btn_->setText("Save agents YAML/Generate BTs");
-
-      checkbox->setEnabled(false);
+      fileName = QFileDialog::getOpenFileName(this, tr("Open file"), "/home", tr("YAML Files (*.yaml)"));
+      show_file_selector_once = true;
       checkbox->setChecked(true);
-
-      // Reset: Behavior tree group
-      bt_group_->setEnabled(true);
-      edit_bt_btn_->setEnabled(true);
-
-      QMessageBox::information(this, tr("Reset"),
-                               tr("All settings cleared.\nPanel is back to its initial state."));
     }
-
-    /**
-     * @brief Load configuration data for this panel from the given Config object
-     *
-     * This method is called by RViz2 when loading saved configurations.
-     * Currently loads base panel configuration but custom panel settings
-     * can be added here as needed.
-     *
-     * @param config RViz2 configuration object containing saved settings
-     */
-    void ActorPanel::load(const rviz_common::Config &config)
+    else
     {
-      rviz_common::Panel::load(config);
-      /*QString topic;
-      if (config.mapGetString("Topic", &topic))
-      {
-        output_topic_editor_->setText(topic);
-        updateTopic();
-      }*/
+      fileName = QFileDialog::getExistingDirectory(this, tr("Open folder"), "/home", QFileDialog::ShowDirsOnly);
+      window->activateWindow();
     }
 
-  } // namespace hunav_rviz2_panel
+    dir = fileName.toStdString();
+    return dir;
+  }
+
+  void ActorPanel::save(rviz_common::Config config) const
+  {
+    rviz_common::Panel::save(config);
+    config.mapSetValue("Topic", output_topic_);
+  }
+
+  void ActorPanel::resetPanel()
+  {
+    // 1) Clear all RViz markers
+    removeCurrentMarkers();
+    clearDisplayedMap();
+    goal_markers_.markers.clear();
+    initial_pose_marker_array.markers.clear();
+
+    // 1a) Create/Load buttons
+    create_button_->setChecked(false);
+    create_button_->setDown(false);
+    open_button_->setChecked(false);
+    open_button_->setDown(false);
+
+    // 2) Clear loaded data
+    loaded_agent_nodes_.clear();
+    loaded_agent_names_.clear();
+    loaded_agent_goals_.clear();
+    loaded_global_goals_.clear();
+    loaded_initial_marker_ids_.clear();
+    goal_list_widget_->clear();
+    goal_ids_.clear();
+    agent_goals_.clear();
+    actors_info_.clear();
+    agent_colors_.clear();
+    next_marker_id_ = 0;
+
+    // 2a) Clear file paths and names
+    map_file_.clear();
+    pkg_shared_tree_dir_.clear();
+    orig_yaml_base_name_.clear();
+    yaml_base_name_.clear();
+    defaultName_.clear();
+
+    // Reset dialog/window states
+    adding_new_agent_ = false;
+    goal_picking_mode_ = false;
+    initial_pose_set = false;
+    moving_goal_id_ = -1;
+
+    // Reset information flags
+    first_goal_picking_info_shown_ = false;
+    initial_pose_tip_shown_ = false;
+    show_file_selector_once = false;
+
+    // 3) Reset mode & indices
+    panel_mode_ = CREATE_MODE;
+    current_edit_idx_ = 0;
+    iterate_actors_ = 1;
+    agent_count = 1;
+    num_agents = 0;
+    num_actors_ = 0;
+
+    // 4) Reset UI back to “fresh” state
+    map_group->setEnabled(false);
+    map_group->setVisible(true);
+    simulator_combo_->setCurrentIndex(-1);
+    map_select_btn_->show();
+    map_select_btn_->setVisible(true);
+    map_select_btn_->setEnabled(false);
+    current_map_label_->clear();
+    current_map_label_->show();
+
+    // Reset agent creation fields
+    actors->clear();
+    actors->show();
+    actors->setEnabled(false);
+    n_agents_label_->show();
+    n_agents_label_->setEnabled(false);
+
+    // Actor button to constructor state
+    actor_button_->setText(tr("Generate Agents"));
+    actor_button_->setEnabled(false);
+    actor_button_->setDown(false);
+    actor_button_->setChecked(false);
+
+    // Edit mode buttons to hidden state
+    edit_goals_button_->hide();
+    edit_goals_button_->setDown(false);
+    edit_goals_button_->setChecked(false);
+    add_agent_button_->hide();
+    add_agent_button_->setEnabled(false);
+    add_agent_button_->setDown(false);
+    add_agent_button_->setChecked(false);
+
+    // YAML file label
+    yaml_file_label_->hide();
+    yaml_file_label_->clear();
+
+    // Goal management section
+    goal_group_->setTitle("Define agents goals");
+    goal_group_->setEnabled(false);
+
+    // Goal picking button
+    enter_goal_mode_btn_->show();
+    enter_goal_mode_btn_->setDown(false);
+    enter_goal_mode_btn_->setText("Enter Goal-Picking Mode");
+    enter_goal_mode_btn_->setEnabled(true);
+
+    // Reset: Goal management UI to disabled state
+    goal_list_widget_->clear();
+    goal_list_widget_->setEnabled(false);
+    reset_goals_button_->hide();
+    reset_goals_button_->setEnabled(false);
+    assign_goals_btn_->setEnabled(false);
+    assign_goals_btn_->setDown(false);
+
+    // Reset: Save and other buttons
+    save_bt_btn_->setEnabled(false);
+    save_bt_btn_->setText("Save agents YAML/Generate BTs");
+
+    checkbox->setEnabled(false);
+    checkbox->setChecked(true);
+
+    // Reset: Behavior tree group
+    bt_group_->setEnabled(false);
+    // edit_bt_btn_->setEnabled(true);
+
+    QMessageBox::information(this, tr("Reset"),
+                             tr("All settings cleared.\nPanel is back to its initial state."));
+  }
+
+  /**
+   * @brief Load configuration data for this panel from the given Config object
+   *
+   * This method is called by RViz2 when loading saved configurations.
+   * Currently loads base panel configuration but custom panel settings
+   * can be added here as needed.
+   *
+   * @param config RViz2 configuration object containing saved settings
+   */
+  void ActorPanel::load(const rviz_common::Config &config)
+  {
+    rviz_common::Panel::load(config);
+    /*QString topic;
+    if (config.mapGetString("Topic", &topic))
+    {
+      output_topic_editor_->setText(topic);
+      updateTopic();
+    }*/
+  }
+
+} // namespace hunav_rviz2_panel
 
 #include <pluginlib/class_list_macros.hpp>
-  PLUGINLIB_EXPORT_CLASS(hunav_rviz2_panel::ActorPanel, rviz_common::Panel)
+PLUGINLIB_EXPORT_CLASS(hunav_rviz2_panel::ActorPanel, rviz_common::Panel)
