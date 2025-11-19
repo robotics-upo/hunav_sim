@@ -1319,7 +1319,6 @@ namespace hunav_rviz2_panel
     // input: /home/hunav_gz_classic_ws/install/hunav_gazebo_wrapper/share/hunav_gazebo_wrapper
     // output: /home/hunav_gz_classic_ws/src/hunav_gazebo_wrapper
 
-    // Divide el path en partes usando '/' como separador
     std::vector<std::string> parts;
     std::stringstream ss(share_path);
     std::string item;
@@ -1327,7 +1326,6 @@ namespace hunav_rviz2_panel
         if (!item.empty()) parts.push_back(item);
     }
 
-    // Busca el índice de 'install'
     auto it = std::find(parts.begin(), parts.end(), "install");
     if (it == parts.end() || (it + 1) == parts.end()) {
         throw std::runtime_error("The path does not have the expected structure  ../install/share/package_name");
@@ -1335,14 +1333,15 @@ namespace hunav_rviz2_panel
     size_t install_idx = std::distance(parts.begin(), it);
     std::string pkg_name = parts[install_idx + 1];
 
-    // Construye el nuevo path: .../src/package_name/
     std::ostringstream src_path;
     for (size_t i = 0; i < install_idx; ++i) {
         src_path << "/" << parts[i];
     }
     src_path << "/src/" << pkg_name;
+
     RCLCPP_INFO(this->get_logger(), "Path to store the scenario file: %s!!!",
                   src_path.str().c_str());
+
     return src_path.str();
   }
 
@@ -5448,7 +5447,8 @@ namespace hunav_rviz2_panel
       {
         QString shareDir = QString::fromStdString(
             ament_index_cpp::get_package_share_directory(packageName.toStdString()));
-        configDir = shareDir + "/scenarios";
+        std::string srcDir = share_to_src_path(shareDir.toStdString());
+        configDir = QString::fromStdString(srcDir + "/scenarios");
       }
       catch (const std::exception &e)
       {
@@ -5484,99 +5484,108 @@ namespace hunav_rviz2_panel
     RCLCPP_INFO(get_logger(), "Launching LLM BT Generator for scenario: %s",
                 yamlFilePath.toStdString().c_str());
 
-    // Create the ROS2 command
-    QStringList arguments;
-    arguments << "run"
-              << "hunav_behavior_tree_generator"
-              << "generator_cli"
-              << "--mode"
-              << "scenario"
-              << "--yaml-file"
-              << yamlFilePath;
+    // Build the ROS2 command string
+    QString ros2Command = QString("ros2 run hunav_behavior_tree_generator generator_cli --mode scenario --yaml-file %1")
+                              .arg(QFileInfo(yamlFilePath).fileName());
 
-    // Execute the command
-    QProcess *process = new QProcess(this);
-    process->setProcessChannelMode(QProcess::MergedChannels);
+    // Detect available terminal emulator and build the command to open a new terminal window
+    QString terminalCommand;
+    QStringList terminalArgs;
 
-    // Connect signals for output handling
-    connect(process, &QProcess::readyReadStandardOutput, this, [process, this]()
-            {
-      QString output = QString::fromUtf8(process->readAllStandardOutput());
-      if (!output.trimmed().isEmpty())
+    // Try common terminal emulators in order of preference
+    QProcess checkTerminal;
+    
+    // Check for gnome-terminal
+    checkTerminal.start("which", QStringList() << "gnome-terminal");
+    checkTerminal.waitForFinished(1000);
+    if (checkTerminal.exitCode() == 0)
+    {
+      terminalCommand = "gnome-terminal";
+      terminalArgs << "--" << "bash" << "-c" 
+                   << QString("%1; echo ''; echo 'Press Enter to close this window...'; read").arg(ros2Command);
+    }
+    else
+    {
+      // Check for xterm
+      checkTerminal.start("which", QStringList() << "xterm");
+      checkTerminal.waitForFinished(1000);
+      if (checkTerminal.exitCode() == 0)
       {
-        RCLCPP_INFO(get_logger(), "[LLM BT Generator] %s", output.trimmed().toStdString().c_str());
-      } });
-
-    connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-            this, [process, this](int exitCode, QProcess::ExitStatus exitStatus)
-            {
-              if (exitStatus == QProcess::NormalExit && exitCode == 0)
-              {
-                RCLCPP_INFO(get_logger(), "LLM BT Generator completed successfully");
-                QMessageBox::information(
-                    this,
-                    "Generation Complete",
-                    "Behavior trees have been successfully generated.\n"
-                    "You can now view them in the behavior trees directory.");
-              }
-              else
-              {
-                QString errorOutput = QString::fromUtf8(process->readAll());
-                RCLCPP_ERROR(get_logger(), "LLM BT Generator failed with exit code %d: %s",
-                             exitCode, errorOutput.toStdString().c_str());
-                QMessageBox::critical(
-                    this,
-                    "Generation Failed",
-                    QString("Behavior tree generation failed with exit code %1\n\n%2")
-                        .arg(exitCode)
-                        .arg(errorOutput.isEmpty() ? "No error output available" : errorOutput));
-              }
-              process->deleteLater();
-            });
-
-    connect(process, &QProcess::errorOccurred, this, [process, this](QProcess::ProcessError error)
-            {
-              QString errorMsg;
-              switch (error)
-              {
-              case QProcess::FailedToStart:
-                errorMsg = "Failed to start ros2 command. Make sure ROS2 is properly installed and sourced, "
-                           "and the hunav_behavior_tree_generator package is available.";
-                break;
-              case QProcess::Crashed:
-                errorMsg = "The process crashed unexpectedly.";
-                break;
-              case QProcess::Timedout:
-                errorMsg = "The process timed out.";
-                break;
-              case QProcess::ReadError:
-                errorMsg = "An error occurred reading from the process.";
-                break;
-              case QProcess::WriteError:
-                errorMsg = "An error occurred writing to the process.";
-                break;
-              case QProcess::UnknownError:
-                errorMsg = "An unknown error occurred.";
-                break;
-              }
-
-              RCLCPP_ERROR(get_logger(), "LLM BT Generator process error: %s", errorMsg.toStdString().c_str());
-              QMessageBox::critical(
-                  this,
-                  "Process Error",
-                  QString("Failed to execute LLM BT Generator:\n\n%1").arg(errorMsg));
-              process->deleteLater();
-            });
+        terminalCommand = "xterm";
+        terminalArgs << "-hold" << "-e" << ros2Command;
+      }
+      else
+      {
+        // Check for konsole (KDE)
+        checkTerminal.start("which", QStringList() << "konsole");
+        checkTerminal.waitForFinished(1000);
+        if (checkTerminal.exitCode() == 0)
+        {
+          terminalCommand = "konsole";
+          terminalArgs << "-e" << "bash" << "-c" 
+                       << QString("%1; echo ''; echo 'Press Enter to close this window...'; read").arg(ros2Command);
+        }
+        else
+        {
+          // Check for xfce4-terminal
+          checkTerminal.start("which", QStringList() << "xfce4-terminal");
+          checkTerminal.waitForFinished(1000);
+          if (checkTerminal.exitCode() == 0)
+          {
+            terminalCommand = "xfce4-terminal";
+            terminalArgs << "-e" << "bash -c '" + ros2Command + "; echo ''; echo 'Press Enter to close...'; read'";
+          }
+          else
+          {
+            // Fallback error
+            QMessageBox::critical(
+                this,
+                "Terminal Not Found",
+                "Could not find a suitable terminal emulator (gnome-terminal, xterm, konsole, or xfce4-terminal).\n\n"
+                "Please install one of these terminal emulators to use this feature.");
+            return;
+          }
+        }
+      }
+    }
 
     // Show information dialog before starting
     QMessageBox::information(
         this,
-        "Generating Behavior Trees",
-        QString("Starting LLM-based behavior tree generation CLI for:\n%1\n\n")
+        "Launching LLM BT Generator",
+        QString("<html>Opening a new terminal window to run LLM-based behavior tree generation for:\n\n"
+                "<b>%1</b>\n\n"
+                "The generator will run interactively in the terminal.\n"
+                "Please follow the prompts in the terminal window.</html>")
             .arg(QFileInfo(yamlFilePath).fileName()));
 
-    // Start the process
-    process->start("ros2", arguments);
+    // Launch the terminal with the command
+    RCLCPP_INFO(get_logger(), "Executing in terminal: %s %s",
+                terminalCommand.toStdString().c_str(),
+                terminalArgs.join(" ").toStdString().c_str());
+
+    bool success = QProcess::startDetached(terminalCommand, terminalArgs);
+
+    if (success)
+    {
+      RCLCPP_INFO(get_logger(), "Successfully launched LLM BT Generator in new terminal window");
+      QMessageBox::information(
+          this,
+          "Terminal Launched",
+          "The LLM BT Generator has been launched in a new terminal window.\n\n"
+          "Please interact with it in that terminal to generate behavior trees.");
+    }
+    else
+    {
+      QString errorMsg = QString("Failed to launch terminal command:\n%1 %2")
+                             .arg(terminalCommand)
+                             .arg(terminalArgs.join(" "));
+      RCLCPP_ERROR(get_logger(), "%s", errorMsg.toStdString().c_str());
+      QMessageBox::critical(
+          this,
+          "Launch Failed",
+          errorMsg);
+    }
   }
   
 
