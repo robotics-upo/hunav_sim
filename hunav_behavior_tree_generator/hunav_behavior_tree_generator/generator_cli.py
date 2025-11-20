@@ -7,7 +7,7 @@ Author: Quentin Dury
 import argparse
 import logging
 from hunav_behavior_tree_generator.core.file_generator import FileGenerator
-from hunav_behavior_tree_generator.config.config import setup_logging
+from hunav_behavior_tree_generator.config.config import setup_logging , SIMULATOR_VERSION
 from hunav_behavior_tree_generator.ui.interface_manager import InterfaceManager
 
 def main():
@@ -19,13 +19,16 @@ def main():
                        help='Generation mode: scenario (from existing) or manual (from scratch)')
     parser.add_argument('--yaml-file', type=str, default=None,
                        help='Path to a specific YAML scenario file (optional, only for scenario mode)')
+    parser.add_argument('--simulator', type=str, default="Gazebo Classic",
+                       help='Simulator version to use (optional)')
     
     args = parser.parse_args()
     
     logger = setup_logging()
     ui = InterfaceManager()
-
+    SIMULATOR_VERSION = args.simulator
     logger.info("Starting Behavior Tree Generation CLI")
+
     try:
         generator = FileGenerator(ui_manager=ui)
         

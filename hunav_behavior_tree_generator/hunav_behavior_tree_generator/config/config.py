@@ -5,7 +5,18 @@ import logging
 # ===================================================
 # Paths Configuration
 # ===================================================
-WORKSPACE_NAME = "hunav_gz_classic_ws"
+
+switchcase = {SIMULATOR_VERSION}  
+case "Gazebo Classic":
+        ws_name = "hunav_gz_classic_ws"
+        package_name = "hunav_gazebo_wrapper"
+case "Gazebo Fortress":
+        ws_name = "hunav_gz_fortress_ws"
+        package_name = "hunav_gazebo_fortress_wrapper"
+# Add cases for Isaac Sim and Omniverse Isaac Sim
+
+
+WORKSPACE_NAME = {ws_name}
 PACKAGE_DIR = Path(__file__).parent.parent.parent
 
 current_path = PACKAGE_DIR
@@ -14,7 +25,7 @@ while current_path.name != WORKSPACE_NAME and current_path.parent != current_pat
     current_path = current_path.parent
 
 WORKSPACE_ROOT = current_path
-WRAPPER_PATH = WORKSPACE_ROOT / "src" / "hunav_gazebo_wrapper"
+WRAPPER_PATH = WORKSPACE_ROOT / "src" / {package_name}
 SRC_PACKAGE_DIR = WORKSPACE_ROOT / "src" / "hunav_sim" / "hunav_behavior_tree_generator"
 PROMPTS_DIR = SRC_PACKAGE_DIR / "hunav_behavior_tree_generator" / "prompts"
 TEMPLATES_DIR = SRC_PACKAGE_DIR / "hunav_behavior_tree_generator" / "templates"
