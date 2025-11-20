@@ -5485,8 +5485,9 @@ namespace hunav_rviz2_panel
                 yamlFilePath.toStdString().c_str());
 
     // Build the ROS2 command string
-    QString ros2Command = QString("ros2 run hunav_behavior_tree_generator generator_cli --mode scenario --yaml-file %1")
-                              .arg(QFileInfo(yamlFilePath).fileName());
+    QString ros2Command = QString("ros2 run hunav_behavior_tree_generator generator_cli --mode scenario --yaml-file %1 --simulator \"%2\"")
+                              .arg(QFileInfo(yamlFilePath).fileName())
+                              .arg(simulator_combo_->currentText());
 
     // Detect available terminal emulator and build the command to open a new terminal window
     QString terminalCommand;
