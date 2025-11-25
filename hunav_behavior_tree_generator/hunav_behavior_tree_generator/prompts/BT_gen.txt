@@ -44,13 +44,11 @@ DO NOT output:
    - If there is no user-provided navigation description and some goals is defined, take a standard navigation between objectives as a basis [(RunOnce + SetGoal) + RegularNav] and APPLY the EXACT user description to that navigation.
 
 4. Output management:
-   - Any node having an output  MUST explicitly declare it using: save_to="variable_name". For example FindNearestAgent has an output and be declare like that : <FindNearestAgent agent_id="{id}" save_to="target_agent_id"/>.
-   - All produced values MUST be stored in the blackboard. No direct node-to-node output propagation is allowed.
-   - Any node that needs to consume a value MUST read it from the blackboard using the same variable name (e.g., target="{target_agent_id}").
-   - Nodes MUST NOT rely on the implicit output of the previous node. ALL data transmission MUST occur exclusively through blackboard variables.
-   - If a node produces multiple outputs, each MUST be stored in a separate blackboard variable.
-   - When passing data into a SubTree, parameters MUST reference blackboard variables (e.g., <SubTree ... target="{speaker_id}"/>).
-   - This rule is universal: ALL information flow inside the BehaviorTree MUST use blackboard variables, with NO exceptions.
+   - Any node having an output  MUST explicitly declare it using: variable_name="{variable_name}". For example IsAnyoneSpeaking has an output and be declare like that : <IsAnyoneSpeaking agent_id="{id}" time_step="{dt}" duration="15" speaker_id="{speaker_id}"/>
+   - All produced values MUST be stored in the output variable of the node.
+   - Any node that needs to consume a value MUST read it from the node who provided the output variable needed using the same variable name (e.g., target="{speaker_id}").
+   - If a node produces multiple outputs, each MUST be stored in a separate variable.
+   - When passing data into a SubTree, parameters MUST reference of the outputs variables (e.g., <SubTree ... target="{speaker_id}"/>).
 
 5. TimeStep:
    - time_step must be in the format time_step="{dt}"
@@ -104,7 +102,7 @@ Conditions:
     - Input : agent_id (int), threshold (double)
     - Description : Evaluates whether the robot is within a threshold distance of the agent
   IsAgentClose 
-    - Input : observer_id (int), target_agent_id (int)
+    - Input : observer_id (int), target_agent_id (int), threshold (double)
     - Description : Determines whether one agent is within a close distance of another agent
   IsAtPosition 
     - Input : agent_id (int), goal_id (int), tolerance (double)
@@ -137,8 +135,8 @@ Actions:
   CuriousNav 
     - Input : agent_id (int), time_step (double), beh_duration (double), only_once (bool), agent_vel (double), stop_distance (double)
     - Description : Executes movement behavior appropriate for a curious agent
-  ScaredNav 
-    - Input : agent_id (int), time_step (double), beh_duration (double), only_once (bool), runaway_vel (double), scary_force_factor (double)
+  AvoidRobot 
+    - Input : agent_id (int), time_step (double), runaway_vel (double), safe_distance (double), duration (double)
     - Description : Executes movement behavior appropriate for a scared agent
   ThreateningNav 
     - Input : agent_id (int), time_step (double), beh_duration (double), only_once (bool), goal_dist (double)
@@ -207,7 +205,7 @@ Decorator:
 - Map keywords to behavior nodes:
     Curious → CuriousNav
     Regular → RegularNav
-    Scared → ScaredNav
+    Scared → AvoidRobot
     Surprised → SurprisedNav
     Threatening → ThreateningNav
 
