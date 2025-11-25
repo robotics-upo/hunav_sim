@@ -135,7 +135,7 @@ void AgentManager::lookAtTheRobot(int id)
   // Change the angle step by step according to
   // the time_step_secs_ and a maximum angular vel
   float max_ang_vel = M_PI;                                               // rad/secs
-  utils::Angle max_angle = utils::Angle::fromRadian(max_ang_vel * 0.04);  // time_step_secs_);
+  utils::Angle max_angle = utils::Angle::fromRadian(max_ang_vel * 0.2);  // time_step_secs_);
   if (robotYaw.sign() < 0)
     max_angle.setRadian(max_angle.toRadian() * (-1));
 
@@ -172,7 +172,7 @@ void AgentManager::lookAtAgent(int observer_id, int target_id)
   
   // Use a fixed time-step (0.01 seconds) and maximum angular velocity (π rad/s)
   float max_ang_vel = M_PI; // rad/s
-  utils::Angle max_angle = utils::Angle::fromRadian(max_ang_vel * 0.04);
+  utils::Angle max_angle = utils::Angle::fromRadian(max_ang_vel * 0.2);
   if (targetAngle.sign() < 0)
     max_angle.setRadian(max_angle.toRadian() * (-1));
 
@@ -205,8 +205,8 @@ void AgentManager::lookAtPoint(int agent_id, const utils::Vector2d & target)
     // Compute the angular error using std::remainder to normalize it to [-pi, pi]
     double error = std::remainder(desiredAngle - currentYaw, 2 * M_PI);
     
-    // Define maximum angular change per update
-    double maxAngularChange = M_PI * 0.04;
+    // Define maximum angular change per update)
+    double maxAngularChange = M_PI * 0.2; 
     
     // Clamp the angular change
     double deltaYaw = (std::fabs(error) > maxAngularChange) ?
