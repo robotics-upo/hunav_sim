@@ -11,6 +11,9 @@ build/
 install/
 log/
 
+# VsCode settings
+.vscode/
+
 # Distribution / packaging
 .Python
 build/

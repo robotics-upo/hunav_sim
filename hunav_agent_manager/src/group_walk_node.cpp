@@ -24,26 +24,16 @@ namespace hunav
                 throw BT::RuntimeError("GroupWalkNode: global AgentManager pointer not set");
         }
 
+        // Flexibly read non_main_agent_ids - handles both string "2,3" and int values
         std::string ids_str;
-        if (!getInput<std::string>("non_main_agent_ids", ids_str))
+        if (!getFlexibleString(*this, "non_main_agent_ids", ids_str))
             throw BT::RuntimeError("GroupWalkNode: missing input [non_main_agent_ids]");
 
         // Parse the comma-separated string into a vector of ints
-        std::vector<int> parsed_ids;
-        std::istringstream iss(ids_str);
-        std::string token;
-        while (std::getline(iss, token, ','))
+        if (!parseAgentIdList(ids_str, non_main_ids_))
         {
-            try
-            {
-                parsed_ids.push_back(std::stoi(token));
-            }
-            catch (const std::exception &e)
-            {
-                throw BT::RuntimeError("GroupWalkNode: failed to convert token '" + token + "' to int");
-            }
+            throw BT::RuntimeError("GroupWalkNode: failed to parse [non_main_agent_ids]: '" + ids_str + "'");
         }
-        non_main_ids_ = parsed_ids;
 
         // Build the complete list of participants (main agent + non-main agents)
         all_ids_.clear();

@@ -128,4 +128,126 @@ private:
   AgentManager agent_manager_;
 };
 
+// Helper functions for flexible BT port type handling
+
+/**
+ * @brief Flexibly read an integer from a BT port that might contain an int or string
+ * 
+ * This function handles the case where XML attributes might be strings like "2" 
+ * but the port expects an int. It tries reading as int first, then as string and converts.
+ * 
+ * @param node The BT node to read from
+ * @param port_name Name of the port
+ * @param output Reference to store the output value
+ * @return true if successfully read and converted
+ * @return false if the port is missing or cannot be converted
+ */
+inline bool getFlexibleInt(BT::TreeNode& node, const std::string& port_name, int& output)
+{
+    // Try reading directly as int first
+    auto int_result = node.getInput<int>(port_name);
+    if (int_result)
+    {
+        output = int_result.value();
+        return true;
+    }
+    
+    // If that fails, try reading as string and converting
+    auto string_result = node.getInput<std::string>(port_name);
+    if (string_result)
+    {
+        try
+        {
+            output = std::stoi(string_result.value());
+            return true;
+        }
+        catch (const std::exception&)
+        {
+            return false;
+        }
+    }
+    
+    return false;
+}
+
+/**
+ * @brief Flexibly read a string from a BT port that might contain a string or int
+ * 
+ * This function handles the case where an int value like 2 is provided but a string is expected.
+ * It tries reading as string first, then as int and converts to string.
+ * 
+ * @param node The BT node to read from
+ * @param port_name Name of the port
+ * @param output Reference to store the output value
+ * @return true if successfully read and converted
+ * @return false if the port is missing
+ */
+inline bool getFlexibleString(BT::TreeNode& node, const std::string& port_name, std::string& output)
+{
+    // Try reading directly as string first
+    auto string_result = node.getInput<std::string>(port_name);
+    if (string_result)
+    {
+        output = string_result.value();
+        return true;
+    }
+    
+    // If that fails, try reading as int and converting to string
+    auto int_result = node.getInput<int>(port_name);
+    if (int_result)
+    {
+        output = std::to_string(int_result.value());
+        return true;
+    }
+    
+    return false;
+}
+
+/**
+ * @brief Parse a comma-separated string of agent IDs into a vector of ints
+ * 
+ * Handles both string input like "1,2,3" and attempts to parse individual tokens.
+ * 
+ * @param ids_str The comma-separated string
+ * @param output Vector to store parsed IDs
+ * @return true if parsing succeeded
+ * @return false if any token could not be converted
+ */
+inline bool parseAgentIdList(const std::string& ids_str, std::vector<int>& output)
+{
+    output.clear();
+    
+    // Handle empty string
+    if (ids_str.empty())
+    {
+        return true;
+    }
+    
+    std::istringstream iss(ids_str);
+    std::string token;
+    
+    while (std::getline(iss, token, ','))
+    {
+        // Trim whitespace
+        token.erase(0, token.find_first_not_of(" \t\n\r"));
+        token.erase(token.find_last_not_of(" \t\n\r") + 1);
+        
+        if (token.empty())
+        {
+            continue;
+        }
+        
+        try
+        {
+            output.push_back(std::stoi(token));
+        }
+        catch (const std::exception&)
+        {
+            return false;
+        }
+    }
+    
+    return true;
+}
+
 } // namespace hunav

@@ -53,13 +53,13 @@ namespace hunav
             throw BT::RuntimeError("IsAnyoneSpeakingNode: missing input [time_step] during onRunning", dt_msg.error());
         dt = dt_msg.value();
 
-        // Update position/orientation of the main agent
-        agent_manager_->updatePosition(agent_id_, dt);
+        // Update position/orientation of the main agent - COMMENTED OUT to avoid navigation issues
+        // agent_manager_->updatePosition(agent_id_, dt);
 
-        if (agent_manager_->goalReached(agent_id_))
-        {
-            agent_manager_->updateGoal(agent_id_);
-        }
+        // if (agent_manager_->goalReached(agent_id_))
+        // {
+        //     agent_manager_->updateGoal(agent_id_);
+        // }
 
         // Get the last message from agent_say topic
         std::string msg = hunav::AgentSayNode::getInstance()->getLastMessage();
@@ -96,6 +96,7 @@ namespace hunav
                 if (dist <= distance_threshold_)
                 {
                     setOutput("speaker_id", speaker_id);
+                    RCLCPP_INFO(rclcpp::get_logger("IsAnyoneSpeakingNode"), "Agent %d heard Agent %d speaking within %.2f meters.", agent_id_, speaker_id, distance_threshold_);
                     return BT::NodeStatus::SUCCESS;
                 }
                 else

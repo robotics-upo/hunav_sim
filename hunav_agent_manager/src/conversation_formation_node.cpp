@@ -24,26 +24,15 @@ namespace hunav
     if (!getInput<double>("time_step", dt_))
       throw BT::RuntimeError("ConversationFormationNode: missing [time_step]");
 
+    // Flexibly read non_main_agent_ids - handles both string "2,3" and int values
     std::string ids_str;
-    if (!getInput<std::string>("non_main_agent_ids", ids_str))
+    if (!getFlexibleString(*this, "non_main_agent_ids", ids_str))
       throw BT::RuntimeError("ConversationFormationNode: missing [non_main_agent_ids]");
 
     // Parse the comma‐separated list of non‐main IDs
-    non_main_ids_.clear();
+    if (!parseAgentIdList(ids_str, non_main_ids_))
     {
-      std::istringstream iss(ids_str);
-      std::string token;
-      while (std::getline(iss, token, ','))
-      {
-        try
-        {
-          non_main_ids_.push_back(std::stoi(token));
-        }
-        catch (const std::exception &e)
-        {
-          throw BT::RuntimeError("ConversationFormationNode: failed to convert token '" + token + "' to int");
-        }
-      }
+      throw BT::RuntimeError("ConversationFormationNode: failed to parse [non_main_agent_ids]: '" + ids_str + "'");
     }
 
     // 2) Retrieve AgentManager

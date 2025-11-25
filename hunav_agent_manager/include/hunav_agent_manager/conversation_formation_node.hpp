@@ -30,7 +30,7 @@ namespace hunav
           BT::InputPort<int>("goal_id", "Global goal ID to use as conversation center"),
           BT::InputPort<double>("conversation_duration", 10.0, "Duration of the conversation (seconds)"),
           BT::InputPort<double>("time_step", 0.1, "Time step (seconds) for navigation updates"),
-          BT::InputPort<std::string>("non_main_agent_ids", "1,3", "Comma-separated IDs of non-main agents")};
+          BT::InputPort<BT::AnyTypeAllowed>("non_main_agent_ids", "Comma-separated IDs of non-main agents or single ID")};
     }
 
     BT::NodeStatus onStart() override;

@@ -116,7 +116,7 @@
       <input_port name="conversation_duration" type="double" default="10.0"/>
       <input_port name="goal_id" type="int"/>
       <input_port name="time_step" type="double" default="0.1"/>
-      <input_port name="non_main_agent_ids" type="std::string"/>
+      <input_port name="non_main_agent_ids"/>
     </Action>
     <Action ID="GoTo">
       <input_port name="agent_id" type="int">1</input_port>
@@ -155,7 +155,7 @@
     <Action ID="SetGroupWalk">
       <input_port name="main_agent_id" type="int">1</input_port>
       <input_port name="time_step" type="double"/>
-      <input_port name="non_main_agent_ids" type="std::string"/>
+      <input_port name="non_main_agent_ids"/>
       <input_port name="duration" type="double" default="5.0"/>
     </Action>
     <Action ID="FollowAgent">

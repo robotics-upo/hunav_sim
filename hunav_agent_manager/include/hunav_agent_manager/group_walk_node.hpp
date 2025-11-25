@@ -29,7 +29,7 @@ namespace hunav
           BT::InputPort<int>("main_agent_id"),
           BT::InputPort<double>("time_step"),
           BT::InputPort<double>("duration", 0.0, "Duration (in seconds) for group walk; 0 means indefinite"),
-          BT::InputPort<std::string>("non_main_agent_ids", "Comma-separated list of non-main agent IDs")};
+          BT::InputPort<BT::AnyTypeAllowed>("non_main_agent_ids", "Comma-separated list of non-main agent IDs")};
     }
 
     BT::NodeStatus onStart() override;

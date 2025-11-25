@@ -42,12 +42,12 @@ namespace hunav
             throw BT::RuntimeError("IsAnyoneLookingAtMeNode: missing input [time_step] during onRunning", dt_msg.error());
         dt = dt_msg.value();
 
-        // Update position/orientation of the main agent
-        agent_manager_->updatePosition(agent_id_, dt);
-        if (agent_manager_->goalReached(agent_id_))
-        {
-            agent_manager_->updateGoal(agent_id_);
-        }
+        // Note: Position updates should be handled by RegularNav in the BT structure
+        // agent_manager_->updatePosition(agent_id_, dt);
+        // if (agent_manager_->goalReached(agent_id_))
+        // {
+        //     agent_manager_->updateGoal(agent_id_);
+        // }
 
         // Get the position of the main agent
         auto myPos = agent_manager_->getAgentPosition(agent_id_);
