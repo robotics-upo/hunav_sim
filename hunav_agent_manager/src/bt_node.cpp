@@ -4,6 +4,9 @@
 #include <cstdlib>
 #include <rclcpp/node_options.hpp>
 #include <rcpputils/split.hpp>
+#include <sstream>
+#include <vector>
+#include <algorithm>
 
 // BT_REGISTER_NODES(factory) {
 //   hunav_agent_manager::registerBTNodes(factory);
@@ -15,6 +18,45 @@ namespace hunav
   using std::placeholders::_1;
   using std::placeholders::_2;
   // using std::placeholders::_3;
+
+  std::string BTnode::share_to_src_path(const std::string& share_path) 
+  {
+    // Example:
+    // input: /home/hunav_gz_classic_ws/install/hunav_gazebo_wrapper/share/hunav_gazebo_wrapper
+    // output: /home/hunav_gz_classic_ws/src/hunav_gazebo_wrapper
+    
+    std::vector<std::string> parts;
+    std::stringstream ss(share_path);
+    std::string item;
+    while (std::getline(ss, item, '/')) {
+        if (!item.empty()) parts.push_back(item);
+    }
+
+    auto it = std::find(parts.begin(), parts.end(), "install");
+    if (it == parts.end() || (it + 1) == parts.end()) {
+        RCLCPP_WARN(this->get_logger(),
+                    "The path does not have the expected structure ../install/share/package_name: %s",
+                    share_path.c_str());
+        return share_path;
+    }
+    
+    size_t install_idx = std::distance(parts.begin(), it);
+    std::string pkg_name = parts[install_idx + 1];
+
+    std::ostringstream src_path;
+    for (size_t i = 0; i < install_idx; ++i) {
+        src_path << "/" << parts[i];
+    }
+    src_path << "/src/" << pkg_name;
+    // src_path << "/src/"; // Temporary for isaac
+
+
+    RCLCPP_DEBUG(this->get_logger(), 
+                 "Converted share path to src: %s → %s", 
+                 share_path.c_str(), src_path.str().c_str());
+
+    return src_path.str();
+  }
 
   BTnode::BTnode()
   : Node("hunav_agent_manager")
@@ -67,7 +109,9 @@ namespace hunav
       }
       
       try {
-        bt_dir_base_ = ament_index_cpp::get_package_share_directory(package_name) + "/behavior_trees";
+        std::string share_dir = ament_index_cpp::get_package_share_directory(package_name);
+        std::string src_dir = share_to_src_path(share_dir);
+        bt_dir_base_ = src_dir + "/behavior_trees";
         RCLCPP_INFO(this->get_logger(),
                     "Found ROS2 package '%s', behavior trees will be loaded from: %s",
                     package_name.c_str(), bt_dir_base_.c_str());

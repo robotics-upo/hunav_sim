@@ -83,6 +83,7 @@ public:
         QStringList assignedBlocks;            ///< Which blocks this agent gets
         bool randomizeOrder = false;            ///< Whether to randomize block execution order
         QStringList runOnceBlocks;              ///< Blocks that should be wrapped in RunOnce tags
+        QMap<QString, double> randomExecutionBlocks;  ///< Blocks with random execution (blockId -> probability)
         QMap<QString, QVariant> agentSpecificParams;  ///< Agent-specific parameter overrides
         QMap<QString,QVariant> parameters;     ///< Legacy parameter storage
         

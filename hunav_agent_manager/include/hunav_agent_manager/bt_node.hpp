@@ -197,6 +197,13 @@ protected:
   void publish_agents_forces(rclcpp::Time t,
                              const hunav_msgs::msg::Agents::SharedPtr msg);
 
+  /**
+   * @brief Convert share directory path to source directory path
+   * @param share_path Path to package share directory
+   * @return Path to source directory, or share_path if conversion fails
+   */
+  std::string share_to_src_path(const std::string& share_path);
+
   sfm::Forces getAgentForces(int id) { return btfunc_.getAgentForces(id); };
 
   // Services provided

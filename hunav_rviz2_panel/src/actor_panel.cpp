@@ -1337,7 +1337,16 @@ namespace hunav_rviz2_panel
     for (size_t i = 0; i < install_idx; ++i) {
         src_path << "/" << parts[i];
     }
+
     src_path << "/src/" << pkg_name;
+    
+    // Check if this is hunav_agent_manager or hunav_rviz2_panel (nested in hunav_sim) (local only)
+    // if (pkg_name == "hunav_agent_manager" || pkg_name == "hunav_rviz2_panel") {
+    //     src_path << "/src/hunav_sim/" << pkg_name << "/";
+    // } else {
+    //     // For wrapper packages (Isaac, Gazebo, etc.) - use direct src path
+    //     src_path << "/src/";
+    // }
 
     RCLCPP_INFO(this->get_logger(), "Path to store the scenario file: %s!!!",
                   src_path.str().c_str());
@@ -1946,9 +1955,10 @@ namespace hunav_rviz2_panel
     {
       try
       {
-        auto pkg = QString::fromStdString(
+        auto shareDir = QString::fromStdString(
             ament_index_cpp::get_package_share_directory("hunav_agent_manager"));
-        fullPath = pkg + "/behavior_trees/" + filepath;
+        std::string srcDir = share_to_src_path(shareDir.toStdString());
+        fullPath = QString::fromStdString(srcDir) + "behavior_trees/" + filepath;
       }
       catch (const std::exception &e)
       {
@@ -6058,14 +6068,10 @@ namespace hunav_rviz2_panel
     }
 
     // 1) Load TreeNodesModel.xml
-    QString pkg = QString::fromStdString(
-        ament_index_cpp::get_package_share_directory("hunav_agent_manager"));
-    QString modelPath = pkg + "/behavior_trees/TreeNodesModel.xml";
-    QString modelXml = loadFile(modelPath);
+    QString modelXml = loadFile("TreeNodesModel.xml");
     if (modelXml.isEmpty())
     {
-      RCLCPP_ERROR(this->get_logger(), "Cannot open TreeNodesModel: %s",
-                   modelPath.toStdString().c_str());
+      RCLCPP_ERROR(this->get_logger(), "Cannot open TreeNodesModel.xml");
       return {};
     }
 
@@ -6136,7 +6142,7 @@ namespace hunav_rviz2_panel
                             : "5.0"}};
 
     // 5) Now build the <BehaviorTree> snippet from the selected template file
-    QString templateContent = loadFile(pkg + "/behavior_trees/" + tmpl);
+    QString templateContent = loadFile(tmpl);
     if (templateContent.isEmpty())
     {
       RCLCPP_WARN(this->get_logger(),

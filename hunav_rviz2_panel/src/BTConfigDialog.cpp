@@ -1091,6 +1091,8 @@ void BTConfigDialog::updateConfigurationPanel()
     {
         widgetsToDelete.insert(child);
         child->setParent(nullptr);
+        // Disconnect all signals before deletion to prevent crashes
+        child->disconnect();
         child->deleteLater();
     }
 
@@ -1116,6 +1118,8 @@ void BTConfigDialog::updateConfigurationPanel()
             if (item->widget())
             {
                 item->widget()->setParent(nullptr);
+                // Disconnect all signals before deletion
+                item->widget()->disconnect();
                 item->widget()->deleteLater();
             }
             else if (item->layout())
@@ -1572,7 +1576,9 @@ void BTConfigDialog::populateConfigurationContent()
     splitter->setStretchFactor(1, 55);
 
     // Connect order list item selection to update parameters display
-    connect(orderListWidget, &QListWidget::itemClicked, [this, selectedAgent, parametersLayout, parametersContentWidget](QListWidgetItem *item)
+    // Use parametersContentWidget as context to ensure connection is cleaned up properly
+    connect(orderListWidget, &QListWidget::itemClicked, parametersContentWidget, 
+            [this, selectedAgent, parametersLayout, parametersContentWidget](QListWidgetItem *item)
             {
         if (!item) return;
         
@@ -1580,7 +1586,8 @@ void BTConfigDialog::populateConfigurationContent()
         updateParametersForSelectedBlock(selectedBlockId, selectedAgent, parametersLayout, parametersContentWidget); });
 
     // Also connect to selection change
-    connect(orderListWidget, &QListWidget::itemSelectionChanged, [this, selectedAgent, parametersLayout, parametersContentWidget, orderListWidget]()
+    connect(orderListWidget, &QListWidget::itemSelectionChanged, parametersContentWidget,
+            [this, selectedAgent, parametersLayout, parametersContentWidget, orderListWidget]()
             {
         auto selectedItems = orderListWidget->selectedItems();
         if (selectedItems.isEmpty()) {
@@ -1606,6 +1613,8 @@ void BTConfigDialog::updateParametersForSelectedBlock(const QString &blockId, in
     {
         if (item->widget())
         {
+            // Disconnect all signals to prevent dangling connections
+            item->widget()->disconnect();
             item->widget()->deleteLater();
         }
         delete item;
@@ -1643,40 +1652,145 @@ void BTConfigDialog::updateParametersForSelectedBlock(const QString &blockId, in
     descLabel->setWordWrap(true);
     blockParamLayout->addRow(descLabel);
 
-    // Add "Run Once" checkbox
-    auto runOnceCheckbox = new QCheckBox("🔄 Execute this block only once");
-    runOnceCheckbox->setStyleSheet(
-        "QCheckBox { font-size: 13px; font-weight: 600; color: #495057; padding: 8px; }"
-        "QCheckBox::indicator { width: 18px; height: 18px; }"
-        "QCheckBox::indicator:checked { background: #dc3545; border: 2px solid #dc3545; }"
-        "QCheckBox::indicator:unchecked { background: white; border: 2px solid #ced4da; }");
-    runOnceCheckbox->setToolTip("When checked, all actions and conditions in this block will be wrapped in RunOnce tags");
-
+    // Add execution mode group
+    auto executionModeGroup = new QGroupBox("⚙️ Execution Mode");
+    executionModeGroup->setStyleSheet(
+        "QGroupBox { font-size: 13px; font-weight: 600; color: #495057; padding: 10px; margin-top: 10px; "
+        "border: 1px solid #dee2e6; border-radius: 4px; }"
+        "QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; padding: 0 5px; }");
+    
+    auto executionLayout = new QVBoxLayout;
+    
+    // Radio buttons for execution modes
+    auto alwaysRadio = new QRadioButton("🔄 Always Execute");
+    alwaysRadio->setToolTip("Execute this block every time conditions are met");
+    
+    auto onceRadio = new QRadioButton("1️⃣  Execute Only Once");
+    onceRadio->setToolTip("Execute this block only once per agent");
+    
+    auto randomRadio = new QRadioButton("🎲 Random Execution");
+    randomRadio->setToolTip("Execute this block probabilistically based on a chance value");
+    
+    // Probability spinbox (only enabled when random mode is selected)
+    auto probabilityWidget = new QWidget;
+    auto probabilityLayout = new QHBoxLayout(probabilityWidget);
+    probabilityLayout->setContentsMargins(20, 0, 0, 0);
+    
+    auto probabilityLabel = new QLabel("Probability:");
+    auto probabilitySpin = new QDoubleSpinBox;
+    probabilitySpin->setRange(0.0, 1.0);
+    probabilitySpin->setValue(0.5);
+    probabilitySpin->setSingleStep(0.1);
+    probabilitySpin->setDecimals(2);
+    probabilitySpin->setEnabled(false);
+    probabilitySpin->setToolTip("Probability of executing this block (0.0 = never, 1.0 = always)");
+    
+    probabilityLayout->addWidget(probabilityLabel);
+    probabilityLayout->addWidget(probabilitySpin);
+    probabilityLayout->addStretch();
+    
+    executionLayout->addWidget(alwaysRadio);
+    executionLayout->addWidget(onceRadio);
+    executionLayout->addWidget(randomRadio);
+    executionLayout->addWidget(probabilityWidget);
+    
+    executionModeGroup->setLayout(executionLayout);
+    
     // Set current state from agent assignment
-    if (agentIndex < agents_.size() && agents_[agentIndex].runOnceBlocks.contains(blockId))
+    bool isRunOnce = false;
+    bool isRandom = false;
+    double probability = 0.5;
+    
+    if (agentIndex < agents_.size())
     {
-        runOnceCheckbox->setChecked(true);
+        isRunOnce = agents_[agentIndex].runOnceBlocks.contains(blockId);
+        if (agents_[agentIndex].randomExecutionBlocks.contains(blockId))
+        {
+            isRandom = true;
+            probability = agents_[agentIndex].randomExecutionBlocks[blockId];
+        }
     }
-
-    // Connect to update agent assignment when changed
-    connect(runOnceCheckbox, &QCheckBox::toggled, [this, agentIndex, blockId](bool checked)
-            {
+    
+    if (isRandom)
+    {
+        randomRadio->setChecked(true);
+        probabilitySpin->setEnabled(true);
+        probabilitySpin->setValue(probability);
+    }
+    else if (isRunOnce)
+    {
+        onceRadio->setChecked(true);
+    }
+    else
+    {
+        alwaysRadio->setChecked(true);
+    }
+    
+    // Connect radio buttons with proper Qt parent context to avoid crashes
+    // Use QPointer to safely handle widget deletion
+    connect(alwaysRadio, &QRadioButton::toggled, alwaysRadio, [this, agentIndex, blockId, probabilitySpin](bool checked)
+    {
+        if (!checked || !probabilitySpin) return; // Only act on checked, not unchecked; check widget validity
+        
+        probabilitySpin->setEnabled(false);
         while (agents_.size() <= agentIndex) {
             AgentAssignment newAssignment;
             newAssignment.agentIndex = agents_.size();
             agents_.append(newAssignment);
         }
+        agents_[agentIndex].runOnceBlocks.removeAll(blockId);
+        agents_[agentIndex].randomExecutionBlocks.remove(blockId);
+    });
+    
+    connect(onceRadio, &QRadioButton::toggled, onceRadio, [this, agentIndex, blockId, probabilitySpin](bool checked)
+    {
+        if (!checked || !probabilitySpin) return; // Only act on checked, not unchecked; check widget validity
         
-        // Update run-once blocks list
-        if (checked) {
-            if (!agents_[agentIndex].runOnceBlocks.contains(blockId)) {
-                agents_[agentIndex].runOnceBlocks.append(blockId);
-            }
-        } else {
-            agents_[agentIndex].runOnceBlocks.removeAll(blockId);
-        } });
-
-    blockParamLayout->addRow(runOnceCheckbox);
+        probabilitySpin->setEnabled(false);
+        while (agents_.size() <= agentIndex) {
+            AgentAssignment newAssignment;
+            newAssignment.agentIndex = agents_.size();
+            agents_.append(newAssignment);
+        }
+        if (!agents_[agentIndex].runOnceBlocks.contains(blockId)) {
+            agents_[agentIndex].runOnceBlocks.append(blockId);
+        }
+        agents_[agentIndex].randomExecutionBlocks.remove(blockId);
+    });
+    
+    connect(randomRadio, &QRadioButton::toggled, randomRadio, [this, agentIndex, blockId, probabilitySpin](bool checked)
+    {
+        if (!checked || !probabilitySpin) return; // Only act on checked, not unchecked; check widget validity
+        
+        probabilitySpin->setEnabled(true);
+        while (agents_.size() <= agentIndex) {
+            AgentAssignment newAssignment;
+            newAssignment.agentIndex = agents_.size();
+            agents_.append(newAssignment);
+        }
+        agents_[agentIndex].runOnceBlocks.removeAll(blockId);
+        if (probabilitySpin) { // Double check before accessing
+            agents_[agentIndex].randomExecutionBlocks[blockId] = probabilitySpin->value();
+        }
+    });
+    
+    connect(probabilitySpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), 
+            probabilitySpin, [this, agentIndex, blockId](double value)
+    {
+        if (agentIndex >= agents_.size()) return; // Safety check
+        
+        while (agents_.size() <= agentIndex) {
+            AgentAssignment newAssignment;
+            newAssignment.agentIndex = agents_.size();
+            agents_.append(newAssignment);
+        }
+        // Only update if random mode is actually selected
+        if (agents_[agentIndex].randomExecutionBlocks.contains(blockId)) {
+            agents_[agentIndex].randomExecutionBlocks[blockId] = value;
+        }
+    });
+    
+    blockParamLayout->addRow(executionModeGroup);
 
     // Add parameters based on block type
     createBlockParametersForAgent(blockConfig->blockId, blockParamLayout, agentIndex);
@@ -1699,6 +1813,8 @@ void BTConfigDialog::showParametersInstruction(QVBoxLayout *parametersLayout, QW
     {
         if (item->widget())
         {
+            // Disconnect all signals to prevent dangling connections
+            item->widget()->disconnect();
             item->widget()->deleteLater();
         }
         delete item;
@@ -3419,7 +3535,30 @@ void BTConfigDialog::updateXMLPreviewForAgent(int agentIndex)
                 }
             }
 
-            tempRoot->InsertEndChild(blockSeq);
+            // Check if this block should use random execution
+            tinyxml2::XMLElement *elementToInsert = blockSeq;
+            
+            if (assignment.randomExecutionBlocks.contains(blockId))
+            {
+                // Wrap the entire block sequence in RandomChanceCondition
+                double probability = assignment.randomExecutionBlocks[blockId];
+                
+                auto *randomCondition = tempDoc.NewElement("Condition");
+                randomCondition->SetAttribute("ID", "RandomChanceCondition");
+                randomCondition->SetAttribute("agent_id", "{id}");
+                randomCondition->SetAttribute("probability", QString::number(probability, 'f', 2).toStdString().c_str());
+                
+                // Create a new sequence to contain the random condition + block sequence
+                auto *randomWrapper = tempDoc.NewElement("Sequence");
+                randomWrapper->SetAttribute("name", (blockId + "RandomBlock").toStdString().c_str());
+                
+                randomWrapper->InsertEndChild(randomCondition);
+                randomWrapper->InsertEndChild(blockSeq);
+                
+                elementToInsert = randomWrapper;
+            }
+
+            tempRoot->InsertEndChild(elementToInsert);
         }
     }
     catch (const std::exception &e)
@@ -3464,23 +3603,39 @@ void BTConfigDialog::updateXMLPreviewForAgent(int agentIndex)
     QStringList lines = tempXmlString.split('\n');
     QStringList relevantLines;
     bool insideSequence = false;
+    int sequenceDepth = 0;
 
     for (const QString &line : lines)
     {
-        if (line.contains("<Sequence name=") && line.contains("Block\""))
+        // Match both regular blocks and random blocks
+        if (line.contains("<Sequence name=") && (line.contains("Block\"") || line.contains("RandomBlock\"")))
         {
             insideSequence = true;
+            sequenceDepth = 1;
             relevantLines.append(line);
-        }
-        else if (line.contains("</Sequence>") && insideSequence)
-        {
-            relevantLines.append(line);
-            relevantLines.append(""); // Add blank line between blocks
-            insideSequence = false;
         }
         else if (insideSequence)
         {
-            relevantLines.append(line);
+            // Track nested sequences
+            if (line.contains("<Sequence"))
+            {
+                sequenceDepth++;
+            }
+            else if (line.contains("</Sequence>"))
+            {
+                sequenceDepth--;
+                relevantLines.append(line);
+                
+                if (sequenceDepth == 0)
+                {
+                    relevantLines.append(""); // Add blank line between blocks
+                    insideSequence = false;
+                }
+            }
+            else
+            {
+                relevantLines.append(line);
+            }
         }
     }
 
@@ -3837,6 +3992,7 @@ BTConfigDialog::Config BTConfigDialog::getEnhancedConfig() const
                 {
                     assignment.randomizeOrder = agents_[i].randomizeOrder;
                     assignment.runOnceBlocks = agents_[i].runOnceBlocks;
+                    assignment.randomExecutionBlocks = agents_[i].randomExecutionBlocks;
 
                     // Copy all agent-specific parameters directly from live data
                     for (auto it = agents_[i].agentSpecificParams.constBegin();
@@ -4239,6 +4395,7 @@ void BTConfigDialog::clearAllAssignments()
     {
         agent.assignedBlocks.clear();
         agent.runOnceBlocks.clear();
+        agent.randomExecutionBlocks.clear();
         agent.agentSpecificParams.clear();
     }
 
@@ -4371,45 +4528,36 @@ QStringList BTConfigDialog::generateBTPathsForScenario(const QString &scenarioNa
         QString shareDir = QString::fromStdString(
             ament_index_cpp::get_package_share_directory(packageName.toStdString()));
         
-        std::string srcDir = shareDir.toStdString();
-        
-        QWidgetList topLevelWidgets = QApplication::topLevelWidgets();
-        hunav_rviz2_panel::ActorPanel* actorPanel = nullptr;
-        
-        for (QWidget* widget : topLevelWidgets) {
-            actorPanel = widget->findChild<hunav_rviz2_panel::ActorPanel*>();
-            if (actorPanel) break;
+        std::vector<std::string> parts;
+        std::stringstream ss(shareDir.toStdString());
+        std::string item;
+        while (std::getline(ss, item, '/')) {
+            if (!item.empty()) parts.push_back(item);
         }
         
-        if (actorPanel) {
-            srcDir = actorPanel->share_to_src_path(shareDir.toStdString());
+        auto it = std::find(parts.begin(), parts.end(), "install");
+        if (it == parts.end() || (it + 1) == parts.end()) {
+            qWarning() << "Path does not have expected structure ../install/share/package_name:" << shareDir;
+            btDir = shareDir + "/behavior_trees";
         } else {
-            // Fallback: try to do the conversion manually
-            // Convert from .../install/package_name/share/package_name to .../src/package_name
-            std::vector<std::string> parts;
-            std::stringstream ss(shareDir.toStdString());
-            std::string item;
-            while (std::getline(ss, item, '/')) {
-                if (!item.empty()) parts.push_back(item);
-            }
+            size_t install_idx = std::distance(parts.begin(), it);
+            std::string pkg_name = parts[install_idx + 1];
             
-            auto it = std::find(parts.begin(), parts.end(), "install");
-            if (it != parts.end() && (it + 1) != parts.end()) {
-                size_t install_idx = std::distance(parts.begin(), it);
-                std::string pkg_name = parts[install_idx + 1];
-                std::ostringstream src_path;
-                for (size_t i = 0; i < install_idx; ++i) {
-                    src_path << "/" << parts[i];
-                }
-                src_path << "/src/" << pkg_name;
-                srcDir = src_path.str();
+            std::ostringstream src_path;
+            for (size_t i = 0; i < install_idx; ++i) {
+                src_path << "/" << parts[i];
             }
+            src_path << "/src/" << pkg_name;
+            // src_path << "/src/"; // Temporary for local setup (not docker)
+            
+            btDir = QString::fromStdString(src_path.str() + "/behavior_trees");
+            qDebug() << "Converted share path to src path:" << shareDir << "->" << btDir;
         }
-        
-        btDir = QString::fromStdString(srcDir + "/behavior_trees");
     }
     catch (const std::exception &e)
     {
+        // Package not found - use fallback paths
+        qWarning() << "Could not find package" << packageName << ":" << e.what();
         QString homePath = QDir::homePath() + "/" + packageName + "/behavior_trees";
         QString dockerPath = "/workspace/hunav_isaac_ws/src/" + packageName + "/behavior_trees";
         btDir = QDir(dockerPath).exists() ? dockerPath : homePath;
@@ -4556,8 +4704,8 @@ bool BTConfigDialog::patchAgentBtFile(const QString &btPath, int agentIndex, con
         if (name)
         {
             QString childName = QString(name);
-            // Keep SetGoals and RegNav, remove everything else
-            if (childName != "SetGoals" && childName != "RegNav")
+            // Keep SetGoals, RegNav, and RegularNavigation, remove everything else
+            if (childName != "SetGoals" && childName != "RegNav" && childName != "RegularNavigation")
             {
                 toRemove.push_back(child);
                 qDebug() << "Marking for removal:" << childName;
@@ -4565,9 +4713,15 @@ bool BTConfigDialog::patchAgentBtFile(const QString &btPath, int agentIndex, con
         }
         else
         {
-            // Remove unnamed sequences as well (they shouldn't be there)
-            if (strcmp(child->Name(), "Sequence") == 0)
+            // Check element type - preserve UpdateGoal action nodes
+            const char *elemType = child->Name();
+            if (strcmp(elemType, "UpdateGoal") == 0)
             {
+                qDebug() << "Keeping UpdateGoal action node";
+            }
+            else if (strcmp(child->Name(), "Sequence") == 0)
+            {
+                // Remove unnamed sequences (they shouldn't be there)
                 toRemove.push_back(child);
                 qDebug() << "Marking unnamed sequence for removal";
             }
@@ -4610,7 +4764,7 @@ bool BTConfigDialog::patchAgentBtFile(const QString &btPath, int agentIndex, con
         return true;
     }
 
-    // Find RegNav sequence to ensure we insert blocks before it
+    // Find RegNav or RegularNavigation sequence to ensure we insert blocks before it
     tinyxml2::XMLElement *regNavSeq = nullptr;
     std::function<tinyxml2::XMLElement *(tinyxml2::XMLElement *)> findRegNav =
         [&](tinyxml2::XMLElement *parent) -> tinyxml2::XMLElement *
@@ -4618,7 +4772,7 @@ bool BTConfigDialog::patchAgentBtFile(const QString &btPath, int agentIndex, con
         for (auto *elem = parent->FirstChildElement(); elem; elem = elem->NextSiblingElement())
         {
             const char *name = elem->Attribute("name");
-            if (name && QString(name) == "RegNav")
+            if (name && (QString(name) == "RegNav" || QString(name) == "RegularNavigation"))
             {
                 return elem;
             }
@@ -4635,11 +4789,12 @@ bool BTConfigDialog::patchAgentBtFile(const QString &btPath, int agentIndex, con
 
     if (regNavSeq)
     {
-        qDebug() << "Found RegNav sequence - will insert custom blocks before it";
+        const char *foundName = regNavSeq->Attribute("name");
+        qDebug() << "Found" << foundName << "sequence - will insert custom blocks before it";
     }
     else
     {
-        qDebug() << "RegNav sequence not found - will insert custom blocks after SetGoals";
+        qDebug() << "RegNav/RegularNavigation sequence not found - will insert custom blocks after SetGoals";
     }
 
     // Insert each selected block for this agent after SetGoals but before RegNav
@@ -4671,6 +4826,75 @@ bool BTConfigDialog::patchAgentBtFile(const QString &btPath, int agentIndex, con
 
         for (const QString &nodeId : nodes)
         {
+            // Check if this is a RetryUntilSuccessful wrapper
+            if (nodeId.startsWith("RetryUntilSuccessful:"))
+            {
+                QString innerContent = nodeId.mid(21); // Remove "RetryUntilSuccessful:"
+                
+                // Create RetryUntilSuccessful element
+                auto *retryElem = doc.NewElement("RetryUntilSuccessful");
+                retryElem->SetAttribute("num_attempts", "-1"); // Infinite retries
+                
+                // Check if there's an Inverter inside
+                if (innerContent.startsWith("Inverter:"))
+                {
+                    QString wrappedNodeId = innerContent.section(':', 1);
+                    
+                    // Create Inverter element
+                    auto *inverterElem = doc.NewElement("Inverter");
+                    
+                    // Create the wrapped condition
+                    auto *conditionElem = doc.NewElement("Condition");
+                    conditionElem->SetAttribute("ID", wrappedNodeId.toStdString().c_str());
+                    conditionElem->SetAttribute("agent_id", "{id}");
+                    
+                    // Apply parameters
+                    applyBlockParametersToNode(conditionElem, blockId, wrappedNodeId, cfg);
+                    applyAgentSpecificParametersToNode(conditionElem, agentIndex, blockId, wrappedNodeId, assignment);
+                    
+                    // Build the nested structure
+                    inverterElem->InsertEndChild(conditionElem);
+                    retryElem->InsertEndChild(inverterElem);
+                }
+                
+                blockSeq->InsertEndChild(retryElem);
+                continue;
+            }
+            
+            // Check if this is a KeepRunningUntilFailure wrapper
+            if (nodeId.startsWith("KeepRunningUntilFailure:"))
+            {
+                QString innerContent = nodeId.mid(24); // Remove "KeepRunningUntilFailure:"
+                
+                // Create KeepRunningUntilFailure element
+                auto *keepRunningElem = doc.NewElement("KeepRunningUntilFailure");
+                
+                // Check if there's an Inverter inside
+                if (innerContent.startsWith("Inverter:"))
+                {
+                    QString wrappedNodeId = innerContent.section(':', 1);
+                    
+                    // Create Inverter element
+                    auto *inverterElem = doc.NewElement("Inverter");
+                    
+                    // Create the wrapped condition
+                    auto *conditionElem = doc.NewElement("Condition");
+                    conditionElem->SetAttribute("ID", wrappedNodeId.toStdString().c_str());
+                    conditionElem->SetAttribute("agent_id", "{id}");
+                    
+                    // Apply parameters
+                    applyBlockParametersToNode(conditionElem, blockId, wrappedNodeId, cfg);
+                    applyAgentSpecificParametersToNode(conditionElem, agentIndex, blockId, wrappedNodeId, assignment);
+                    
+                    // Build the nested structure
+                    inverterElem->InsertEndChild(conditionElem);
+                    keepRunningElem->InsertEndChild(inverterElem);
+                }
+                
+                blockSeq->InsertEndChild(keepRunningElem);
+                continue;
+            }
+            
             // Check if this is an Inverter wrapper
             if (nodeId.startsWith("Inverter:"))
             {
@@ -4738,7 +4962,32 @@ bool BTConfigDialog::patchAgentBtFile(const QString &btPath, int agentIndex, con
             }
         }
 
-        // Insert the block sequence in the correct position
+        // Check if this block should use random execution
+        tinyxml2::XMLElement *elementToInsert = blockSeq;
+        
+        if (assignment.randomExecutionBlocks.contains(blockId))
+        {
+            // Wrap the entire block sequence in RandomChanceCondition
+            double probability = assignment.randomExecutionBlocks[blockId];
+            
+            auto *randomCondition = doc.NewElement("Condition");
+            randomCondition->SetAttribute("ID", "RandomChanceCondition");
+            randomCondition->SetAttribute("agent_id", "{id}");
+            randomCondition->SetAttribute("probability", QString::number(probability, 'f', 2).toStdString().c_str());
+            
+            // Create a new sequence to contain the random condition + block sequence
+            auto *randomWrapper = doc.NewElement("Sequence");
+            randomWrapper->SetAttribute("name", (blockId + "RandomBlock").toStdString().c_str());
+            
+            randomWrapper->InsertEndChild(randomCondition);
+            randomWrapper->InsertEndChild(blockSeq);
+            
+            elementToInsert = randomWrapper;
+            
+            qDebug() << "Wrapped block" << blockId << "in RandomChanceCondition with probability" << probability;
+        }
+
+        // Insert the block sequence (or wrapped version) in the correct position
         if (regNavSeq)
         {
             // Insert before RegNav sequence by finding the element immediately before RegNav
@@ -4755,14 +5004,14 @@ bool BTConfigDialog::patchAgentBtFile(const QString &btPath, int agentIndex, con
             if (beforeRegNav)
             {
                 // Insert after the element before RegNav
-                mainContainer->InsertAfterChild(beforeRegNav, blockSeq);
+                mainContainer->InsertAfterChild(beforeRegNav, elementToInsert);
             }
             else
             {
                 // RegNav is the first child, insert at the beginning after SetGoals
                 if (setGoals && setGoals != regNavSeq)
                 {
-                    mainContainer->InsertAfterChild(setGoals, blockSeq);
+                    mainContainer->InsertAfterChild(setGoals, elementToInsert);
                 }
                 else
                 {
@@ -4770,11 +5019,11 @@ bool BTConfigDialog::patchAgentBtFile(const QString &btPath, int agentIndex, con
                     auto *firstChild = mainContainer->FirstChildElement();
                     if (firstChild)
                     {
-                        mainContainer->InsertAfterChild(firstChild, blockSeq);
+                        mainContainer->InsertAfterChild(firstChild, elementToInsert);
                     }
                     else
                     {
-                        mainContainer->InsertFirstChild(blockSeq);
+                        mainContainer->InsertFirstChild(elementToInsert);
                     }
                 }
             }
@@ -4782,8 +5031,8 @@ bool BTConfigDialog::patchAgentBtFile(const QString &btPath, int agentIndex, con
         else
         {
             // Fallback: insert after the previous element if RegNav not found
-            mainContainer->InsertAfterChild(insertAfter, blockSeq);
-            insertAfter = blockSeq; // Update for next insertion
+            mainContainer->InsertAfterChild(insertAfter, elementToInsert);
+            insertAfter = elementToInsert; // Update for next insertion
         }
 
         qDebug() << "Inserted" << blockId << "block for agent" << (agentIndex + 1);
@@ -4867,7 +5116,7 @@ void BTConfigDialog::applyBlockParametersToNode(tinyxml2::XMLElement *nodeElem,
         }
         else if (nodeId == "IsRobotClose")
         {
-            nodeElem->SetAttribute("threshold", "1.0");
+            nodeElem->SetAttribute("threshold", "2.0");
         }
     }
     else if (blockId == "LookAround")
@@ -4920,7 +5169,7 @@ void BTConfigDialog::applyBlockParametersToNode(tinyxml2::XMLElement *nodeElem,
         }
         else if (nodeId == "IsAgentClose")
         {
-            nodeElem->SetAttribute("threshold", "1.0");
+            nodeElem->SetAttribute("threshold", "1.5");
         }
     }
     else if (blockId == "BlockingBehavior")
@@ -5421,7 +5670,7 @@ QStringList BTConfigDialog::getEnhancedNodesForBlock(const QString &blockId)
     static const QMap<QString, QStringList> enhancedBlockNodes = {
         {"EngageRobot", {"IsRobotVisible", "LookAtRobot", "ApproachRobot"}},
         {"TalkInteract", {"IsAgentVisible", "IsAgentClose", "ConversationFormation"}},
-        {"RobotAvoidance", {"IsRobotVisible", "IsRobotClose", "StopMovement", "Inverter:IsRobotClose", "ResumeMovement"}},
+        {"RobotAvoidance", {"IsRobotVisible", "IsRobotClose", "StopMovement", "LookAtRobot", "RetryUntilSuccessful:Inverter:IsRobotClose", "ResumeMovement"}},
         {"FollowAgent", {"IsAgentVisible", "IsAgentClose", "FollowAgent"}},
         {"BlockingBehavior", {"IsRobotVisible", "LookAtRobot", "BlockRobot"}},
         {"GroupFormation", {"FindNearestAgent", "SetGroupWalk"}},
@@ -5504,8 +5753,9 @@ void BTConfigDialog::setupParameterUpdateConnections(const QString &blockId, int
         // Connect different widget types with immediate parameter storage
         if (auto spinBox = qobject_cast<QSpinBox *>(widget))
         {
-            connect(spinBox, QOverload<int>::of(&QSpinBox::valueChanged), [this, agentIndex, paramKey](int value)
+            connect(spinBox, QOverload<int>::of(&QSpinBox::valueChanged), spinBox, [this, agentIndex, paramKey](int value)
                     {
+                if (agentIndex >= agents_.size()) return;
                 agents_[agentIndex].agentSpecificParams[paramKey] = value;
                 qDebug() << "PARAM UPDATE: " << paramKey << "=" << value << "for agent" << agentIndex; });
             // Set initial value if not already restored
@@ -5518,8 +5768,9 @@ void BTConfigDialog::setupParameterUpdateConnections(const QString &blockId, int
         }
         else if (auto doubleSpinBox = qobject_cast<QDoubleSpinBox *>(widget))
         {
-            connect(doubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged), [this, agentIndex, paramKey](double value)
+            connect(doubleSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged), doubleSpinBox, [this, agentIndex, paramKey](double value)
                     {
+                if (agentIndex >= agents_.size()) return;
                 agents_[agentIndex].agentSpecificParams[paramKey] = value;
                 qDebug() << "PARAM UPDATE: " << paramKey << "=" << value << "for agent" << agentIndex; });
             // Set initial value if not already restored
@@ -5532,8 +5783,9 @@ void BTConfigDialog::setupParameterUpdateConnections(const QString &blockId, int
         }
         else if (auto lineEdit = qobject_cast<QLineEdit *>(widget))
         {
-            connect(lineEdit, &QLineEdit::textChanged, [this, agentIndex, paramKey](const QString &value)
+            connect(lineEdit, &QLineEdit::textChanged, lineEdit, [this, agentIndex, paramKey](const QString &value)
                     {
+                if (agentIndex >= agents_.size()) return;
                 agents_[agentIndex].agentSpecificParams[paramKey] = value;
                 qDebug() << "PARAM UPDATE: " << paramKey << "=" << value << "for agent" << agentIndex; });
 
@@ -5546,8 +5798,9 @@ void BTConfigDialog::setupParameterUpdateConnections(const QString &blockId, int
         }
         else if (auto comboBox = qobject_cast<QComboBox *>(widget))
         {
-            connect(comboBox, QOverload<int>::of(&QComboBox::currentIndexChanged), [this, agentIndex, paramKey, comboBox](int)
+            connect(comboBox, QOverload<int>::of(&QComboBox::currentIndexChanged), comboBox, [this, agentIndex, paramKey, comboBox](int)
                     {
+                if (agentIndex >= agents_.size() || !comboBox) return;
                 QVariant value = comboBox->currentData();
                 if (!value.isValid()) value = comboBox->currentText();
                 agents_[agentIndex].agentSpecificParams[paramKey] = value;
@@ -5721,6 +5974,7 @@ bool BTConfigDialog::loadExistingConfiguration(const QStringList &btPaths)
     {
         agent.assignedBlocks.clear();
         agent.runOnceBlocks.clear();
+        agent.randomExecutionBlocks.clear();
         agent.agentSpecificParams.clear();
     }
 
@@ -5878,12 +6132,45 @@ bool BTConfigDialog::parseAgentXML(const QString &xmlPath, int agentIndex)
             continue;
         }
 
-        // Check if it's a RunOnce wrapper
-        bool isRunOnce = false;
+        // Check if it's a random execution wrapper
+        bool isRandom = false;
+        double randomProbability = 0.5;
         tinyxml2::XMLElement *actualSequence = sequence;
+        
+        if (seqName.endsWith("RandomBlock"))
+        {
+            // This is a random execution wrapper - look for RandomChanceCondition
+            if (auto *randomCondition = sequence->FirstChildElement("Condition"))
+            {
+                const char *condId = randomCondition->Attribute("ID");
+                if (condId && QString(condId) == "RandomChanceCondition")
+                {
+                    isRandom = true;
+                    const char *prob = randomCondition->Attribute("probability");
+                    if (prob)
+                    {
+                        randomProbability = QString(prob).toDouble();
+                    }
+                    
+                    // Get the actual block sequence inside
+                    if (auto *innerSeq = sequence->FirstChildElement("Sequence"))
+                    {
+                        actualSequence = innerSeq;
+                        const char *innerName = innerSeq->Attribute("name");
+                        if (innerName)
+                        {
+                            seqName = QString(innerName);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Check if it's a RunOnce wrapper (could be inside or outside random wrapper)
+        bool isRunOnce = false;
 
         // Check if there's a RunOnce decorator wrapping this sequence
-        if (auto *runOnce = sequence->FirstChildElement("RunOnce"))
+        if (auto *runOnce = actualSequence->FirstChildElement("RunOnce"))
         {
             if (auto *innerSeq = runOnce->FirstChildElement("Sequence"))
             {
@@ -5914,6 +6201,12 @@ bool BTConfigDialog::parseAgentXML(const QString &xmlPath, int agentIndex)
             if (isRunOnce && !agents_[agentIndex].runOnceBlocks.contains(blockId))
             {
                 agents_[agentIndex].runOnceBlocks.append(blockId);
+            }
+            
+            // Track if it's random execution
+            if (isRandom)
+            {
+                agents_[agentIndex].randomExecutionBlocks[blockId] = randomProbability;
             }
 
             // Extract parameters from nodes in this sequence
