@@ -137,10 +137,16 @@ void BTConfigDialog::setupPageTransitions()
                 break;
                 
             case Page_AgentConfig:   // Per-agent configuration page (ID 1)
-                // Refresh agent dropdowns and configuration panel
+                // Clear connection tracking FIRST to remove stale widget references
+                qDebug() << "Page_AgentConfig: Starting setup...";
+                clearParameterConnectionTracking();
+                qDebug() << "Page_AgentConfig: clearParameterConnectionTracking() done";
+                // Then refresh agent dropdowns and configuration panel
                 updateAgentDropdowns();
+                qDebug() << "Page_AgentConfig: updateAgentDropdowns() done";
                 // Parameter values are automatically restored during connection setup
                 setupAllParameterConnections();
+                qDebug() << "Page_AgentConfig: setupAllParameterConnections() done";
                 button(QWizard::NextButton)->setEnabled(true);
                 button(QWizard::NextButton)->setText("Next: Preview");
                 setButtonText(QWizard::NextButton, "Next: Preview");
@@ -1085,18 +1091,25 @@ void BTConfigDialog::updateConfigurationPanel()
     // We'll add null checks where needed instead
     QSet<QWidget *> widgetsToDelete;
 
-    // Delete all child widgets immediately
+    // Delete all child widgets immediately - including nested children
     auto children = configContentWidget_->findChildren<QWidget *>(QString(), Qt::FindDirectChildrenOnly);
     for (auto child : children)
     {
         widgetsToDelete.insert(child);
+        // Collect all descendants too for removal from blockConfigWidgets_
+        auto allDescendants = child->findChildren<QWidget *>();
+        for (auto descendant : allDescendants)
+        {
+            widgetsToDelete.insert(descendant);
+            descendant->disconnect();
+        }
         child->setParent(nullptr);
         // Disconnect all signals before deletion to prevent crashes
         child->disconnect();
         child->deleteLater();
     }
 
-    // Remove references from blockConfigWidgets_ map
+    // Remove references from blockConfigWidgets_ map BEFORE any signals fire
     for (auto it = blockConfigWidgets_.begin(); it != blockConfigWidgets_.end();)
     {
         if (widgetsToDelete.contains(it.value()))
@@ -1108,6 +1121,9 @@ void BTConfigDialog::updateConfigurationPanel()
             ++it;
         }
     }
+    
+    // Clear connection tracking to prevent stale references
+    connectedWidgets_.clear();
 
     // Clear layout completely
     if (configContentLayout_)
@@ -1653,10 +1669,10 @@ void BTConfigDialog::updateParametersForSelectedBlock(const QString &blockId, in
     blockParamLayout->addRow(descLabel);
 
     // Add execution mode group
-    auto executionModeGroup = new QGroupBox("⚙️ Execution Mode");
+    auto executionModeGroup = new QGroupBox("Execution Mode");
     executionModeGroup->setStyleSheet(
         "QGroupBox { font-size: 13px; font-weight: 600; color: #495057; padding: 10px; margin-top: 10px; "
-        "border: 1px solid #dee2e6; border-radius: 4px; }"
+        // "border: 1px solid #dee2e6; border-radius: 4px; }"
         "QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; padding: 0 5px; }");
     
     auto executionLayout = new QVBoxLayout;
@@ -2113,7 +2129,57 @@ void BTConfigDialog::createBlockParametersForAgent(const QString &blockId, QForm
     }
     else if (blockId == "TalkInteract")
     {
-        // Social Interaction: IsAgentVisible -> IsAgentClose -> ConversationFormation
+        // Social Interaction: User can choose between checking a specific agent or finding nearest
+
+        // Add interaction mode selection
+        auto modeGroup = new QGroupBox("🎭 Interaction Initiation Mode");
+        modeGroup->setStyleSheet(
+            "QGroupBox { font-size: 13px; font-weight: 600; color: #495057; padding: 10px; margin-top: 5px; "
+            //"border: 1px solid #dee2e6; border-radius: 4px; }"
+            "QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; padding: 0 5px; }");
+        
+        auto modeLayout = new QVBoxLayout;
+        
+        auto specificTargetRadio = new QRadioButton("🎯 Specific Target - Check for a specific agent");
+        specificTargetRadio->setToolTip("Use IsAgentVisible and IsAgentClose to check a specific target agent ID from Conversation Participants");
+        
+        auto findNearestRadio = new QRadioButton("🔍 Find Nearest - Dynamically find nearest agent");
+        findNearestRadio->setToolTip("Use FindNearestAgent to discover nearby agents, then look at them and approach for natural interaction");
+        
+        // Check if there's a saved mode in parameters, otherwise default to FindNearest
+        QString savedMode = "find_nearest";
+        QString modeParamKey = QString("%1.interaction_mode").arg(blockId);
+        if (agentIndex < agents_.size() && agents_[agentIndex].agentSpecificParams.contains(modeParamKey))
+        {
+            savedMode = agents_[agentIndex].agentSpecificParams[modeParamKey].toString();
+        }
+        
+        if (savedMode == "specific_target")
+        {
+            specificTargetRadio->setChecked(true);
+        }
+        else
+        {
+            findNearestRadio->setChecked(true);
+        }
+        
+        modeLayout->addWidget(specificTargetRadio);
+        modeLayout->addWidget(findNearestRadio);
+        modeGroup->setLayout(modeLayout);
+        
+        formLayout->addRow(modeGroup);
+        
+        // Store mode selection - hidden QLineEdit with parent so it gets picked up by parameter system
+        QString modeKey = QString("%1_%2_interaction_mode").arg(blockId).arg(agentIndex);
+        auto modeEdit = new QLineEdit(savedMode, modeGroup);
+        modeEdit->setVisible(false);
+        blockConfigWidgets_[modeKey] = modeEdit;
+        
+        // Store radio buttons for proper cleanup
+        QString specificRadioKey = QString("%1_%2_specific_radio").arg(blockId).arg(agentIndex);
+        QString findNearestRadioKey = QString("%1_%2_findnearest_radio").arg(blockId).arg(agentIndex);
+        blockConfigWidgets_[specificRadioKey] = specificTargetRadio;
+        blockConfigWidgets_[findNearestRadioKey] = findNearestRadio;
 
         auto visibilityDistSpin = new QDoubleSpinBox;
         visibilityDistSpin->setRange(2.0, 20.0);
@@ -2127,14 +2193,14 @@ void BTConfigDialog::createBlockParametersForAgent(const QString &blockId, QForm
         visLabel->setStyleSheet(labelStyle);
         formLayout->addRow(visLabel, visibilityDistSpin);
 
-        // Proximity threshold parameter for IsAgentClose
+        // Proximity threshold parameter for IsAgentClose (only for Specific Target mode)
         auto proximityThresholdSpin = new QDoubleSpinBox;
         proximityThresholdSpin->setRange(0.5, 10.0);
         proximityThresholdSpin->setValue(2.0);
         proximityThresholdSpin->setSuffix(" m");
         proximityThresholdSpin->setDecimals(1);
         proximityThresholdSpin->setStyleSheet(fieldStyle);
-        proximityThresholdSpin->setToolTip("Distance considered 'close enough' for social interaction to begin");
+        proximityThresholdSpin->setToolTip("Distance considered 'close enough' for social interaction to begin (used in Specific Target mode)");
 
         auto proximityLabel = new QLabel("📏 Social Interaction Threshold:");
         proximityLabel->setStyleSheet(labelStyle);
@@ -2198,6 +2264,15 @@ void BTConfigDialog::createBlockParametersForAgent(const QString &blockId, QForm
             goalsToShow = availableGoals_;
         }
 
+        // Check if there's a saved goal_id
+        int savedGoalId = -1;
+        QString savedGoalKey = QString("%1.goal_id").arg(blockId);
+        if (agentIndex < agents_.size() && agents_[agentIndex].agentSpecificParams.contains(savedGoalKey))
+        {
+            savedGoalId = agents_[agentIndex].agentSpecificParams[savedGoalKey].toInt();
+            qDebug() << "Found saved goal_id for" << blockId << "agent" << agentIndex << ":" << savedGoalId;
+        }
+
         // Create clickable goal buttons in grid layout (max 3 per row)
         for (int i = 0; i < goalsToShow.size(); ++i)
         {
@@ -2217,8 +2292,18 @@ void BTConfigDialog::createBlockParametersForAgent(const QString &blockId, QForm
                 "QPushButton:focus { "
                 "  outline: none; border-color: #007bff; }");
 
-            // Select first goal by default
-            if (i == 0)
+            // Check if this is the saved goal or default to first goal
+            bool shouldBeChecked = false;
+            if (savedGoalId > 0)
+            {
+                shouldBeChecked = (goalId == savedGoalId);
+            }
+            else
+            {
+                shouldBeChecked = (i == 0); // Default to first goal
+            }
+            
+            if (shouldBeChecked)
             {
                 goalButton->setChecked(true);
             }
@@ -2235,9 +2320,18 @@ void BTConfigDialog::createBlockParametersForAgent(const QString &blockId, QForm
         goalIdsLayout->addLayout(goalButtonsLayout);
 
         // Hidden line edit to store the selected goal value
-        auto goalIdsEdit = new QLineEdit;
-        int defaultGoalId = goalsToShow.isEmpty() ? 1 : goalsToShow.first();
-        goalIdsEdit->setText(QString::number(defaultGoalId));
+        auto goalIdsEdit = new QLineEdit(goalIdsWidget);
+        // Use saved goal_id if available
+        int initialGoalId;
+        if (savedGoalId > 0)
+        {
+            initialGoalId = savedGoalId;
+        }
+        else
+        {
+            initialGoalId = goalsToShow.isEmpty() ? 1 : goalsToShow.first();
+        }
+        goalIdsEdit->setText(QString::number(initialGoalId));
         goalIdsEdit->setVisible(false);
 
         QString goalIdsKey = QString("%1_%2_goal_id").arg(blockId).arg(agentIndex);
@@ -2247,14 +2341,17 @@ void BTConfigDialog::createBlockParametersForAgent(const QString &blockId, QForm
         goalIdsLabel->setStyleSheet(labelStyle);
         formLayout->addRow(goalIdsLabel, goalIdsWidget);
 
-        // Update function for goal selection
-        auto updateGoalIds = [goalIdsEdit, goalButtonGroup]()
+        // Update function for goal selection using QPointer for safety
+        QPointer<QLineEdit> goalIdsEditPtr(goalIdsEdit);
+        auto updateGoalIds = [goalIdsEditPtr, goalButtonGroup]()
         {
+            if (!goalIdsEditPtr)
+                return;
             auto checkedButton = goalButtonGroup->checkedButton();
             if (checkedButton)
             {
                 int goalId = checkedButton->property("goalId").toInt();
-                goalIdsEdit->setText(QString::number(goalId));
+                goalIdsEditPtr->setText(QString::number(goalId));
             }
         };
 
@@ -2285,6 +2382,20 @@ void BTConfigDialog::createBlockParametersForAgent(const QString &blockId, QForm
 
         // Store buttons for safe access later
         QList<QPushButton *> participantButtons;
+
+        // Check if there are saved participant selections
+        QString savedParticipantsKey = QString("%1.non_main_agent_ids").arg(blockId);
+        QStringList savedParticipantIds;
+        if (agentIndex < agents_.size() && agents_[agentIndex].agentSpecificParams.contains(savedParticipantsKey))
+        {
+            QString savedStr = agents_[agentIndex].agentSpecificParams[savedParticipantsKey].toString();
+            savedParticipantIds = savedStr.split(",", Qt::SkipEmptyParts);
+            // Trim whitespace
+            for (QString &id : savedParticipantIds)
+            {
+                id = id.trimmed();
+            }
+        }
 
         int buttonIndex = 0;
         for (int i = 0; i < totalAgents; ++i)
@@ -2326,12 +2437,24 @@ void BTConfigDialog::createBlockParametersForAgent(const QString &blockId, QForm
                 "  transform: translateY(1px);"
                 "}");
 
-            // Default: select only the first other agent
-            bool shouldBeChecked = (buttonIndex == 0);
+            // Check if this agent should be selected based on saved data
+            QString agentIdStr = QString::number(i + 1);
+            bool shouldBeChecked = false;
+            if (!savedParticipantIds.isEmpty())
+            {
+                // Use saved selection
+                shouldBeChecked = savedParticipantIds.contains(agentIdStr);
+            }
+            else
+            {
+                // Default: select only the first other agent
+                shouldBeChecked = (buttonIndex == 0);
+            }
+            
             button->setChecked(shouldBeChecked);
             if (button->isChecked())
             {
-                selectedIds.append(QString::number(i + 1));
+                selectedIds.append(agentIdStr);
             }
 
             // Store button for parameter collection
@@ -2351,7 +2474,7 @@ void BTConfigDialog::createBlockParametersForAgent(const QString &blockId, QForm
         agentIdsLayout->addLayout(buttonLayout);
 
         // Hidden line edit to store the final value
-        auto agentIdsEdit = new QLineEdit;
+        auto agentIdsEdit = new QLineEdit(agentIdsWidget);
         agentIdsEdit->setText(selectedIds.join(","));
         agentIdsEdit->setVisible(false);
 
@@ -2392,6 +2515,47 @@ void BTConfigDialog::createBlockParametersForAgent(const QString &blockId, QForm
                 connect(button, &QPushButton::toggled, updateAgentIds);
             }
         }
+        
+        // Connect mode changes to control visibility - Use widget-bound context to auto-disconnect on deletion
+        QPointer<QLineEdit> modeEditPtr(modeEdit);
+        QPointer<QDoubleSpinBox> proximityThresholdPtr(proximityThresholdSpin);
+        QPointer<QLabel> proximityLabelPtr(proximityLabel);
+        QPointer<QWidget> agentIdsWidgetPtr(agentIdsWidget);
+        QPointer<QLabel> agentIdsLabelPtr(agentIdsLabel);
+        
+        // Lambda to update visibility based on mode
+        auto updateModeVisibility = [agentIdsWidgetPtr, agentIdsLabelPtr](const QString &mode)
+        {
+            bool isSpecificTarget = (mode == "specific_target");
+            
+            // Conversation participants only visible in specific target mode
+            // (in find_nearest mode, the target is determined by FindNearestAgent)
+            if (agentIdsWidgetPtr)
+                agentIdsWidgetPtr->setVisible(isSpecificTarget);
+            if (agentIdsLabelPtr)
+                agentIdsLabelPtr->setVisible(isSpecificTarget);
+        };
+        
+        connect(specificTargetRadio, &QRadioButton::toggled, modeEdit, [modeEditPtr, updateModeVisibility](bool checked)
+        {
+            if (checked && modeEditPtr)
+            {
+                modeEditPtr->setText("specific_target");
+                updateModeVisibility("specific_target");
+            }
+        });
+        
+        connect(findNearestRadio, &QRadioButton::toggled, modeEdit, [modeEditPtr, updateModeVisibility](bool checked)
+        {
+            if (checked && modeEditPtr)
+            {
+                modeEditPtr->setText("find_nearest");
+                updateModeVisibility("find_nearest");
+            }
+        });
+        
+        // Set initial visibility based on the saved/default mode
+        updateModeVisibility(savedMode);
     }
     else if (blockId == "RobotAvoidance")
     {
@@ -2430,6 +2594,58 @@ void BTConfigDialog::createBlockParametersForAgent(const QString &blockId, QForm
     }
     else if (blockId == "FollowAgent")
     {
+        // Follow Agent: Two modes - Find Nearest or Specific Target
+        
+        // Mode selection using radio buttons
+        auto modeGroup = new QGroupBox("Interaction Mode Selection");
+        modeGroup->setStyleSheet(
+            "QGroupBox { font-size: 13px; font-weight: 600; color: #495057; padding: 10px; margin-top: 5px; "
+            //"border: 1px solid #dee2e6; border-radius: 4px; }"
+            "QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; padding: 0 5px; }");
+        
+        auto modeLayout = new QVBoxLayout;
+        
+        auto specificTargetRadio = new QRadioButton("🎯 Specific Target - Follow a specific agent");
+        specificTargetRadio->setToolTip("Use IsAgentVisible and IsAgentClose to track and follow a specific target agent");
+        
+        auto findNearestRadio = new QRadioButton("🔍 Find Nearest - Dynamically find nearest agent");
+        findNearestRadio->setToolTip("Use FindNearestAgent to discover nearby agents, then follow the nearest one");
+        
+        // Check if there's a saved mode in parameters, otherwise default to FindNearest
+        QString savedMode = "find_nearest";
+        QString modeParamKey = QString("%1.interaction_mode").arg(blockId);
+        if (agentIndex < agents_.size() && agents_[agentIndex].agentSpecificParams.contains(modeParamKey))
+        {
+            savedMode = agents_[agentIndex].agentSpecificParams[modeParamKey].toString();
+        }
+        
+        if (savedMode == "specific_target")
+        {
+            specificTargetRadio->setChecked(true);
+        }
+        else
+        {
+            findNearestRadio->setChecked(true);
+        }
+        
+        modeLayout->addWidget(specificTargetRadio);
+        modeLayout->addWidget(findNearestRadio);
+        modeGroup->setLayout(modeLayout);
+        
+        formLayout->addRow(modeGroup);
+        
+        // Store mode selection - hidden QLineEdit with parent so it gets picked up by parameter system
+        QString modeKey = QString("%1_%2_interaction_mode").arg(blockId).arg(agentIndex);
+        auto modeEdit = new QLineEdit(savedMode, modeGroup);
+        modeEdit->setVisible(false);
+        blockConfigWidgets_[modeKey] = modeEdit;
+        
+        // Store radio buttons for proper cleanup
+        QString specificRadioKey = QString("%1_%2_specific_radio").arg(blockId).arg(agentIndex);
+        QString findNearestRadioKey = QString("%1_%2_findnearest_radio").arg(blockId).arg(agentIndex);
+        blockConfigWidgets_[specificRadioKey] = specificTargetRadio;
+        blockConfigWidgets_[findNearestRadioKey] = findNearestRadio;
+
         // Follow Agent: IsAgentVisible -> IsAgentClose -> FollowAgent
 
         auto visibilityDistSpin = new QDoubleSpinBox;
@@ -2569,8 +2785,8 @@ void BTConfigDialog::createBlockParametersForAgent(const QString &blockId, QForm
 
         targetAgentLayout->addLayout(targetButtonsLayout);
 
-        // Hidden spin box to store the selected target agent value
-        auto targetAgentSpin = new QSpinBox;
+        // Hidden spin box to store the selected target agent value - needs parent for parameter system
+        auto targetAgentSpin = new QSpinBox(targetAgentWidget);
         targetAgentSpin->setRange(1, 100);
         targetAgentSpin->setValue(agentIndex == 0 ? 2 : 1); // Default to different agent
         targetAgentSpin->setStyleSheet(fieldStyle);
@@ -2604,6 +2820,45 @@ void BTConfigDialog::createBlockParametersForAgent(const QString &blockId, QForm
                 connect(button, &QPushButton::toggled, updateTargetAgent);
             }
         }
+        
+        // Connect mode changes to control visibility
+        QPointer<QLineEdit> modeEditPtr(modeEdit);
+        QPointer<QWidget> targetAgentWidgetPtr(targetAgentWidget);
+        QPointer<QLabel> targetLabelPtr(targetLabel);
+        
+        // Lambda to update visibility based on mode
+        auto updateModeVisibility = [targetAgentWidgetPtr, targetLabelPtr](const QString &mode)
+        {
+            bool isSpecificTarget = (mode == "specific_target");
+            
+            // Target agent selection only visible in specific target mode
+            // (in find_nearest mode, the target is determined by FindNearestAgent)
+            if (targetAgentWidgetPtr)
+                targetAgentWidgetPtr->setVisible(isSpecificTarget);
+            if (targetLabelPtr)
+                targetLabelPtr->setVisible(isSpecificTarget);
+        };
+        
+        connect(specificTargetRadio, &QRadioButton::toggled, modeEdit, [modeEditPtr, updateModeVisibility](bool checked)
+        {
+            if (checked && modeEditPtr)
+            {
+                modeEditPtr->setText("specific_target");
+                updateModeVisibility("specific_target");
+            }
+        });
+        
+        connect(findNearestRadio, &QRadioButton::toggled, modeEdit, [modeEditPtr, updateModeVisibility](bool checked)
+        {
+            if (checked && modeEditPtr)
+            {
+                modeEditPtr->setText("find_nearest");
+                updateModeVisibility("find_nearest");
+            }
+        });
+        
+        // Set initial visibility based on the saved/default mode
+        updateModeVisibility(savedMode);
 
         // Store duration spin box reference
         QString durationKey = QString("%1_%2_duration").arg(blockId).arg(agentIndex);
@@ -2736,20 +2991,211 @@ void BTConfigDialog::createBlockParametersForAgent(const QString &blockId, QForm
         convDurationLabel->setStyleSheet(labelStyle);
         formLayout->addRow(convDurationLabel, convDurationSpin);
 
+        // Duration for IsAnyoneSpeaking node
+        auto speakingDurationSpin = new QDoubleSpinBox;
+        speakingDurationSpin->setRange(1.0, 30.0);
+        speakingDurationSpin->setValue(5.0);
+        speakingDurationSpin->setSuffix(" s");
+        speakingDurationSpin->setDecimals(1);
+        speakingDurationSpin->setStyleSheet(fieldStyle);
+        speakingDurationSpin->setToolTip("Duration for speech detection check");
+
+        auto speakingDurationLabel = new QLabel("⏱️ Speech Detection Duration:");
+        speakingDurationLabel->setStyleSheet(labelStyle);
+        formLayout->addRow(speakingDurationLabel, speakingDurationSpin);
+
+        // Duration for ApproachAgent node
+        auto approachDurationSpin = new QDoubleSpinBox;
+        approachDurationSpin->setRange(5.0, 60.0);
+        approachDurationSpin->setValue(15.0);
+        approachDurationSpin->setSuffix(" s");
+        approachDurationSpin->setDecimals(1);
+        approachDurationSpin->setStyleSheet(fieldStyle);
+        approachDurationSpin->setToolTip("Maximum duration for approaching the speaking agent");
+
+        auto approachDurationLabel = new QLabel("⏱️ Approach Duration:");
+        approachDurationLabel->setStyleSheet(labelStyle);
+        formLayout->addRow(approachDurationLabel, approachDurationSpin);
+
         // Store widget references for parameter collection
         QString speechDistKey = QString("%1_%2_speech_distance").arg(blockId).arg(agentIndex);
         QString approachDistKey = QString("%1_%2_approach_distance").arg(blockId).arg(agentIndex);
         QString approachVelKey = QString("%1_%2_approach_velocity").arg(blockId).arg(agentIndex);
         QString convDurationKey = QString("%1_%2_conversation_duration").arg(blockId).arg(agentIndex);
+        QString speakingDurationKey = QString("%1_%2_speaking_duration").arg(blockId).arg(agentIndex);
+        QString approachDurationKey = QString("%1_%2_approach_duration").arg(blockId).arg(agentIndex);
 
         blockConfigWidgets_[speechDistKey] = speechDistSpin;
         blockConfigWidgets_[approachDistKey] = approachDistSpin;
         blockConfigWidgets_[approachVelKey] = approachVelSpin;
         blockConfigWidgets_[convDurationKey] = convDurationSpin;
+        blockConfigWidgets_[speakingDurationKey] = speakingDurationSpin;
+        blockConfigWidgets_[approachDurationKey] = approachDurationSpin;
+        
+        // Goal ID selection for conversation formation
+        auto goalIdsWidget = new QWidget;
+        auto goalIdsLayout = new QVBoxLayout(goalIdsWidget);
+        goalIdsLayout->setContentsMargins(0, 0, 0, 0);
+        goalIdsLayout->setSpacing(4);
+
+        // Instructions for goal selection
+        auto goalInstrLabel = new QLabel("Select conversation formation goal:");
+        goalInstrLabel->setStyleSheet("font-size: 12px; color: #666; margin-bottom: 4px;");
+        goalIdsLayout->addWidget(goalInstrLabel);
+
+        // Default goals
+        QList<int> goalsToShow = {1, 2, 3, 4, 5, 6};
+
+        // Create grid layout for goal buttons (max 3 per row)
+        auto goalButtonsLayout = new QGridLayout;
+        goalButtonsLayout->setContentsMargins(0, 0, 0, 0);
+        goalButtonsLayout->setSpacing(6);
+
+        QButtonGroup *goalButtonGroup = new QButtonGroup(goalIdsWidget);
+        QList<QPushButton *> goalButtons;
+
+        int buttonIndex = 0;
+        for (int goalId : goalsToShow)
+        {
+            auto goalButton = new QPushButton(QString("Goal %1").arg(goalId));
+            goalButton->setCheckable(true);
+            goalButton->setProperty("goalId", goalId);
+            goalButton->setStyleSheet(
+                "QPushButton {"
+                "  background-color: #f8f9fa;"
+                "  color: #6c757d;"
+                "  border: 2px solid #dee2e6;"
+                "  border-radius: 6px;"
+                "  padding: 6px 12px;"
+                "  font-weight: 600;"
+                "  font-size: 13px;"
+                "  min-width: 70px;"
+                "}"
+                "QPushButton:hover {"
+                "  background-color: #e9ecef;"
+                "  border-color: #adb5bd;"
+                "  color: #495057;"
+                "}"
+                "QPushButton:checked {"
+                "  background-color: #28a745;"
+                "  color: white;"
+                "  border-color: #1e7e34;"
+                "}"
+                "QPushButton:checked:hover {"
+                "  background-color: #1e7e34;"
+                "  border-color: #145523;"
+                "}"
+                "QPushButton:pressed {"
+                "  transform: translateY(1px);"
+                "}");
+
+            // Select first goal by default
+            if (buttonIndex == 0)
+            {
+                goalButton->setChecked(true);
+            }
+
+            goalButtonGroup->addButton(goalButton, goalId);
+            goalButtons.append(goalButton);
+
+            // Add to grid layout (max 3 per row)
+            int row = buttonIndex / 3;
+            int col = buttonIndex % 3;
+            goalButtonsLayout->addWidget(goalButton, row, col);
+            buttonIndex++;
+        }
+
+        goalIdsLayout->addLayout(goalButtonsLayout);
+
+        // Hidden line edit to store the selected goal value
+        auto goalIdsEdit = new QLineEdit(goalIdsWidget);
+        int defaultGoalId = goalsToShow.isEmpty() ? 1 : goalsToShow.first();
+        goalIdsEdit->setText(QString::number(defaultGoalId));
+        goalIdsEdit->setVisible(false);
+
+        QString goalIdsKey = QString("%1_%2_goal_id").arg(blockId).arg(agentIndex);
+        blockConfigWidgets_[goalIdsKey] = goalIdsEdit;
+
+        auto goalIdsLabel = new QLabel("🎯 Conversation Formation Goal:");
+        goalIdsLabel->setStyleSheet(labelStyle);
+        formLayout->addRow(goalIdsLabel, goalIdsWidget);
+
+        // Update function for goal selection using QPointer for safety
+        QPointer<QLineEdit> goalIdsEditPtr(goalIdsEdit);
+        auto updateGoalIds = [goalIdsEditPtr, goalButtonGroup]()
+        {
+            if (!goalIdsEditPtr)
+                return;
+            auto checkedButton = goalButtonGroup->checkedButton();
+            if (checkedButton)
+            {
+                int goalId = checkedButton->property("goalId").toInt();
+                goalIdsEditPtr->setText(QString::number(goalId));
+            }
+        };
+
+        // Connect goal button selection to update function
+        connect(goalButtonGroup, QOverload<QAbstractButton *>::of(&QButtonGroup::buttonClicked),
+                [updateGoalIds](QAbstractButton *)
+                {
+                    updateGoalIds();
+                });
     }
     else if (blockId == "AttentionSeeking")
     {
-        // Attention Response: IsAnyoneLookingAtMe -> LookAtAgent -> SaySomething
+        // Attention Response: Two modes - Agent Attention or Robot Attention
+        
+        // Mode selection using radio buttons
+        auto modeGroup = new QGroupBox("Attention Mode Selection");
+        modeGroup->setStyleSheet(
+            "QGroupBox { font-size: 13px; font-weight: 600; color: #495057; padding: 10px; margin-top: 5px; "
+            //"border: 1px solid #dee2e6; border-radius: 4px; }"
+            "QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; padding: 0 5px; }");
+        
+        auto modeLayout = new QVBoxLayout;
+        
+        auto agentAttentionRadio = new QRadioButton("👥 Agent Attention - Respond to other agents looking");
+        agentAttentionRadio->setToolTip("Use IsAnyoneLookingAtMe to detect when other agents are looking, then look back at them");
+        
+        auto robotAttentionRadio = new QRadioButton("🤖 Robot Attention - Respond to robot looking");
+        robotAttentionRadio->setToolTip("Use IsRobotFacingAgent to detect when robot is looking, then look at the robot");
+        
+        // Check if there's a saved mode in parameters, otherwise default to agent_attention
+        QString savedMode = "agent_attention";
+        QString modeParamKey = QString("%1.attention_mode").arg(blockId);
+        if (agentIndex < agents_.size() && agents_[agentIndex].agentSpecificParams.contains(modeParamKey))
+        {
+            savedMode = agents_[agentIndex].agentSpecificParams[modeParamKey].toString();
+        }
+        
+        if (savedMode == "robot_attention")
+        {
+            robotAttentionRadio->setChecked(true);
+        }
+        else
+        {
+            agentAttentionRadio->setChecked(true);
+        }
+        
+        modeLayout->addWidget(agentAttentionRadio);
+        modeLayout->addWidget(robotAttentionRadio);
+        modeGroup->setLayout(modeLayout);
+        
+        formLayout->addRow(modeGroup);
+        
+        // Store mode selection - hidden QLineEdit with parent so it gets picked up by parameter system
+        QString modeKey = QString("%1_%2_attention_mode").arg(blockId).arg(agentIndex);
+        auto modeEdit = new QLineEdit(savedMode, modeGroup);
+        modeEdit->setVisible(false);
+        blockConfigWidgets_[modeKey] = modeEdit;
+        
+        // Store radio buttons for proper cleanup
+        QString agentRadioKey = QString("%1_%2_agent_radio").arg(blockId).arg(agentIndex);
+        QString robotRadioKey = QString("%1_%2_robot_radio").arg(blockId).arg(agentIndex);
+        blockConfigWidgets_[agentRadioKey] = agentAttentionRadio;
+        blockConfigWidgets_[robotRadioKey] = robotAttentionRadio;
+
+        // Attention Response: IsAnyoneLookingAtMe/IsRobotFacingAgent -> LookAtAgent/LookAtRobot -> SaySomething
 
         auto attentionDistSpin = new QDoubleSpinBox;
         attentionDistSpin->setRange(2.0, 15.0);
@@ -2763,6 +3209,19 @@ void BTConfigDialog::createBlockParametersForAgent(const QString &blockId, QForm
         attentionDistLabel->setStyleSheet(labelStyle);
         formLayout->addRow(attentionDistLabel, attentionDistSpin);
 
+        // Duration for IsAnyoneLookingAtMe
+        auto lookingDurationSpin = new QDoubleSpinBox;
+        lookingDurationSpin->setRange(1.0, 30.0);
+        lookingDurationSpin->setValue(5.0);
+        lookingDurationSpin->setSuffix(" s");
+        lookingDurationSpin->setDecimals(1);
+        lookingDurationSpin->setStyleSheet(fieldStyle);
+        lookingDurationSpin->setToolTip("Duration for attention detection check (only for agent attention mode)");
+
+        auto lookingDurationLabel = new QLabel("⏱️ Attention Detection Duration:");
+        lookingDurationLabel->setStyleSheet(labelStyle);
+        formLayout->addRow(lookingDurationLabel, lookingDurationSpin);
+
         // Response message parameter for SaySomething
         auto responseMessageEdit = new QLineEdit;
         responseMessageEdit->setText("I see you looking at me!");
@@ -2775,14 +3234,123 @@ void BTConfigDialog::createBlockParametersForAgent(const QString &blockId, QForm
 
         // Store widget references for parameter collection
         QString attentionDistKey = QString("%1_%2_attention_distance").arg(blockId).arg(agentIndex);
+        QString lookingDurationKey = QString("%1_%2_looking_duration").arg(blockId).arg(agentIndex);
         QString responseMessageKey = QString("%1_%2_response_message").arg(blockId).arg(agentIndex);
 
         blockConfigWidgets_[attentionDistKey] = attentionDistSpin;
+        blockConfigWidgets_[lookingDurationKey] = lookingDurationSpin;
         blockConfigWidgets_[responseMessageKey] = responseMessageEdit;
+        
+        // Connect mode selection to update the hidden field
+        QPointer<QLineEdit> modeEditPtr(modeEdit);
+        QPointer<QRadioButton> agentAttentionPtr(agentAttentionRadio);
+        QPointer<QRadioButton> robotAttentionPtr(robotAttentionRadio);
+        
+        auto updateMode = [modeEditPtr, agentAttentionPtr, robotAttentionPtr]()
+        {
+            if (!modeEditPtr || !agentAttentionPtr || !robotAttentionPtr)
+                return;
+            if (agentAttentionPtr->isChecked())
+            {
+                modeEditPtr->setText("agent_attention");
+            }
+            else if (robotAttentionPtr->isChecked())
+            {
+                modeEditPtr->setText("robot_attention");
+            }
+        };
+        
+        connect(agentAttentionRadio, &QRadioButton::toggled, agentAttentionRadio, updateMode);
+        connect(robotAttentionRadio, &QRadioButton::toggled, robotAttentionRadio, updateMode);
     }
     else if (blockId == "GreetingInitiator")
     {
-        // Friendly Greeter: IsAgentVisible -> SaySomething
+        // Ensure agents_ array is properly sized
+        while (agents_.size() <= agentIndex)
+        {
+            AgentAssignment newAgent;
+            newAgent.agentIndex = agents_.size();
+            newAgent.agentName = QString("Agent_%1").arg(agents_.size() + 1);
+            newAgent.behaviorType = "Regular";
+            newAgent.randomizeOrder = false;
+            agents_.append(newAgent);
+        }
+        
+        // Friendly Greeter: Three modes - Greet Robot, Greet Specific Agent, or Greet Nearest Agent
+        
+        // Mode selection using radio buttons
+        auto modeGroup = new QGroupBox("Greeting Target Selection");
+        modeGroup->setStyleSheet(
+            "QGroupBox { font-size: 13px; font-weight: 600; color: #495057; padding: 10px; margin-top: 5px; "
+            // "border: 1px solid #dee2e6; border-radius: 4px; }"
+            "QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; padding: 0 5px; }");
+        
+        auto modeLayout = new QVBoxLayout;
+        
+        auto greetRobotRadio = new QRadioButton("🤖 Greet Robot - Detect and greet the robot");
+        greetRobotRadio->setToolTip("Use IsRobotVisible to detect robot and greet it with a message");
+        
+        auto specificAgentRadio = new QRadioButton("🎯 Greet Specific Agent - Greet a specific agent");
+        specificAgentRadio->setToolTip("Greet a specific agent when they come into view");
+        
+        auto nearestAgentRadio = new QRadioButton("🔍 Greet Nearest Agent - Greet whoever is closest");
+        nearestAgentRadio->setToolTip("Use FindNearestAgent to discover and greet whoever is closest");
+        
+        // Check if there's a saved mode in parameters, otherwise default to specific_agent
+        QString savedMode = "specific_agent";
+        QString modeParamKey = QString("%1.greeting_mode").arg(blockId);
+        if (agentIndex < agents_.size() && agents_[agentIndex].agentSpecificParams.contains(modeParamKey))
+        {
+            savedMode = agents_[agentIndex].agentSpecificParams[modeParamKey].toString();
+        }
+        
+        // Map old mode names to new ones for backward compatibility
+        if (savedMode == "specific_target")
+        {
+            savedMode = "specific_agent";
+        }
+        else if (savedMode == "find_nearest")
+        {
+            savedMode = "nearest_agent";
+        }
+        
+        if (savedMode == "greet_robot")
+        {
+            greetRobotRadio->setChecked(true);
+        }
+        else if (savedMode == "nearest_agent")
+        {
+            nearestAgentRadio->setChecked(true);
+        }
+        else
+        {
+            specificAgentRadio->setChecked(true);
+        }
+        
+        modeLayout->addWidget(greetRobotRadio);
+        modeLayout->addWidget(specificAgentRadio);
+        modeLayout->addWidget(nearestAgentRadio);
+        modeGroup->setLayout(modeLayout);
+        
+        formLayout->addRow(modeGroup);
+        
+        // Store mode selection - hidden QLineEdit with parent so it gets picked up by parameter system
+        QString modeKey = QString("%1_%2_greeting_mode").arg(blockId).arg(agentIndex);
+        auto modeEdit = new QLineEdit(savedMode, modeGroup);
+        modeEdit->setVisible(false);
+        blockConfigWidgets_[modeKey] = modeEdit;
+        
+        // Store radio buttons for proper cleanup
+        QString robotRadioKey = QString("%1_%2_robot_radio").arg(blockId).arg(agentIndex);
+        QString specificRadioKey = QString("%1_%2_specific_radio").arg(blockId).arg(agentIndex);
+        QString nearestRadioKey = QString("%1_%2_nearest_radio").arg(blockId).arg(agentIndex);
+        blockConfigWidgets_[robotRadioKey] = greetRobotRadio;
+        blockConfigWidgets_[specificRadioKey] = specificAgentRadio;
+        blockConfigWidgets_[nearestRadioKey] = nearestAgentRadio;
+
+        // Friendly Greeter: IsRobotVisible -> SaySomething (Robot mode)
+        //                or IsAgentVisible -> SaySomething (Agent mode)
+        //                or FindNearestAgent -> IsAgentVisible -> SaySomething (Nearest Agent mode)
 
         auto detectionDistSpin = new QDoubleSpinBox;
         detectionDistSpin->setRange(2.0, 15.0);
@@ -2790,7 +3358,7 @@ void BTConfigDialog::createBlockParametersForAgent(const QString &blockId, QForm
         detectionDistSpin->setSuffix(" m");
         detectionDistSpin->setDecimals(1);
         detectionDistSpin->setStyleSheet(fieldStyle);
-        detectionDistSpin->setToolTip("Maximum distance to detect other agents for greeting");
+        detectionDistSpin->setToolTip("Maximum distance to detect robot or agents for greeting");
 
         auto detectionDistLabel = new QLabel("👀 Detection Distance:");
         detectionDistLabel->setStyleSheet(labelStyle);
@@ -2800,20 +3368,20 @@ void BTConfigDialog::createBlockParametersForAgent(const QString &blockId, QForm
         auto greetingMessageEdit = new QLineEdit;
         greetingMessageEdit->setText("Hello there!");
         greetingMessageEdit->setStyleSheet(fieldStyle);
-        greetingMessageEdit->setToolTip("Message to say when greeting other agents");
+        greetingMessageEdit->setToolTip("Message to say when greeting robot or other agents");
 
         auto greetingMessageLabel = new QLabel("👋 Greeting Message:");
         greetingMessageLabel->setStyleSheet(labelStyle);
         formLayout->addRow(greetingMessageLabel, greetingMessageEdit);
 
-        // Target Agent ID selection for which agent to greet
+        // Target Agent ID selection for which agent to greet (only visible in specific_agent mode)
         auto greetTargetAgentWidget = new QWidget;
         auto greetTargetAgentLayout = new QVBoxLayout(greetTargetAgentWidget);
         greetTargetAgentLayout->setContentsMargins(0, 0, 0, 0);
         greetTargetAgentLayout->setSpacing(4);
 
         // Instructions for target agent selection
-        auto greetTargetInstrLabel = new QLabel("Select agent to greet when they come into view:");
+        auto greetTargetInstrLabel = new QLabel("Select specific agent to greet when they come into view:");
         greetTargetInstrLabel->setStyleSheet("font-size: 12px; color: #666; margin-bottom: 4px;");
         greetTargetAgentLayout->addWidget(greetTargetInstrLabel);
 
@@ -2867,7 +3435,7 @@ void BTConfigDialog::createBlockParametersForAgent(const QString &blockId, QForm
         greetTargetAgentLayout->addLayout(greetTargetButtonsLayout);
 
         // Hidden spin box to store the selected target agent value
-        auto greetTargetAgentSpin = new QSpinBox;
+        auto greetTargetAgentSpin = new QSpinBox(greetTargetAgentWidget);
         greetTargetAgentSpin->setRange(1, 100);
         greetTargetAgentSpin->setValue(agentIndex == 0 ? 2 : 1); // Default to different agent
         greetTargetAgentSpin->setStyleSheet(fieldStyle);
@@ -2894,10 +3462,120 @@ void BTConfigDialog::createBlockParametersForAgent(const QString &blockId, QForm
         blockConfigWidgets_[detectionDistKey] = detectionDistSpin;
         blockConfigWidgets_[greetingMessageKey] = greetingMessageEdit;
         blockConfigWidgets_[greetTargetAgentKey] = greetTargetAgentSpin;
+        
+        // Control visibility based on mode
+        // Target agent selection only visible in specific_agent mode
+        QPointer<QWidget> greetTargetAgentWidgetPtr(greetTargetAgentWidget);
+        QPointer<QLabel> greetTargetLabelPtr(greetTargetLabel);
+        QPointer<QRadioButton> specificAgentRadioPtr(specificAgentRadio);
+        
+        auto updateGreetingVisibility = [greetTargetAgentWidgetPtr, greetTargetLabelPtr, specificAgentRadioPtr]()
+        {
+            if (!greetTargetAgentWidgetPtr || !greetTargetLabelPtr || !specificAgentRadioPtr)
+                return;
+            bool shouldShow = specificAgentRadioPtr->isChecked();
+            greetTargetAgentWidgetPtr->setVisible(shouldShow);
+            greetTargetLabelPtr->setVisible(shouldShow);
+        };
+        
+        // Set initial visibility
+        updateGreetingVisibility();
+        
+        // Connect mode selection to update the hidden field and visibility
+        QPointer<QLineEdit> modeEditPtr(modeEdit);
+        QPointer<QRadioButton> greetRobotPtr(greetRobotRadio);
+        QPointer<QRadioButton> specificAgentPtr(specificAgentRadio);
+        QPointer<QRadioButton> nearestAgentPtr(nearestAgentRadio);
+        
+        auto updateGreetingMode = [this, agentIndex, blockId, modeEditPtr, greetRobotPtr, specificAgentPtr, nearestAgentPtr, updateGreetingVisibility]()
+        {
+            if (!modeEditPtr || !greetRobotPtr || !specificAgentPtr || !nearestAgentPtr)
+                return;
+            
+            QString newMode;
+            if (greetRobotPtr->isChecked())
+            {
+                newMode = "greet_robot";
+            }
+            else if (specificAgentPtr->isChecked())
+            {
+                newMode = "specific_agent";
+            }
+            else if (nearestAgentPtr->isChecked())
+            {
+                newMode = "nearest_agent";
+            }
+            
+            modeEditPtr->setText(newMode);
+            
+            // Also directly update the agents_ array to ensure it's saved
+            if (agentIndex >= 0 && agentIndex < agents_.size())
+            {
+                QString paramKey = QString("%1.greeting_mode").arg(blockId);
+                agents_[agentIndex].agentSpecificParams[paramKey] = newMode;
+                qDebug() << "GreetingInitiator: Updated mode to" << newMode << "for agent" << agentIndex;
+            }
+            
+            updateGreetingVisibility();
+        };
+        
+        connect(greetRobotRadio, &QRadioButton::toggled, greetRobotRadio, updateGreetingMode);
+        connect(specificAgentRadio, &QRadioButton::toggled, specificAgentRadio, updateGreetingMode);
+        connect(nearestAgentRadio, &QRadioButton::toggled, nearestAgentRadio, updateGreetingMode);
+        
+        // Set the initial mode value in agents_ array
+        if (agentIndex >= 0 && agentIndex < agents_.size())
+        {
+            QString paramKey = QString("%1.greeting_mode").arg(blockId);
+            agents_[agentIndex].agentSpecificParams[paramKey] = savedMode;
+            qDebug() << "GreetingInitiator: Initial mode set to" << savedMode << "for agent" << agentIndex;
+        }
     }
     else if (blockId == "ProtectiveGuardian")
     {
         // Guardian Protector: IsRobotVisible -> IsAgentVisible -> IsRobotClose -> LookAtAgent -> ApproachAgent -> BlockRobot
+
+        // Protection Mode Selection (place right after execution mode)
+        auto protectionModeGroup = new QGroupBox("Protection Strategy");
+        protectionModeGroup->setStyleSheet(""
+            "QGroupBox { font-size: 13px; font-weight: 600; color: #495057; padding: 10px; margin-top: 5px; "
+            // //"border: 1px solid #dee2e6; border-radius: 4px; }"
+            "QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; padding: 0 5px; }");
+        auto protectionModeLayout = new QVBoxLayout(protectionModeGroup);
+        
+        auto specificProtectedRadio = new QRadioButton("🎯 Protect Specific Agent");
+        specificProtectedRadio->setToolTip("Protect a single designated agent from robot threats");
+        auto protectNearestRadio = new QRadioButton("🔍 Protect Nearest Threatened Agent");
+        protectNearestRadio->setToolTip("Dynamically protect any agent that gets close to the robot");
+        
+        // Restore saved mode or default to specific_protected
+        QString savedProtectionMode = "specific_protected";
+        if (agents_.size() > agentIndex)
+        {
+            QString modeKey = QString("%1.protection_mode").arg(blockId);
+            savedProtectionMode = agents_[agentIndex].agentSpecificParams.value(modeKey, "specific_protected").toString();
+        }
+        
+        if (savedProtectionMode == "protect_nearest_threatened")
+        {
+            protectNearestRadio->setChecked(true);
+        }
+        else
+        {
+            specificProtectedRadio->setChecked(true);
+        }
+        
+        protectionModeLayout->addWidget(specificProtectedRadio);
+        protectionModeLayout->addWidget(protectNearestRadio);
+        
+        formLayout->addRow(protectionModeGroup);
+        
+        // Hidden field to store the selected mode
+        auto protectionModeEdit = new QLineEdit(savedProtectionMode, protectionModeGroup);
+        protectionModeEdit->setVisible(false);
+        
+        QString protectionModeKey = QString("%1_%2_protection_mode").arg(blockId).arg(agentIndex);
+        blockConfigWidgets_[protectionModeKey] = protectionModeEdit;
 
         // Robot detection distance for IsRobotVisible
         auto robotDetectionSpin = new QDoubleSpinBox;
@@ -2964,6 +3642,19 @@ void BTConfigDialog::createBlockParametersForAgent(const QString &blockId, QForm
         protectiveApproachVelLabel->setStyleSheet(labelStyle);
         formLayout->addRow(protectiveApproachVelLabel, protectiveApproachVelSpin);
 
+        // Duration for ApproachAgent
+        auto protectiveApproachDurationSpin = new QDoubleSpinBox;
+        protectiveApproachDurationSpin->setRange(1.0, 30.0);
+        protectiveApproachDurationSpin->setValue(5.0);
+        protectiveApproachDurationSpin->setSuffix(" s");
+        protectiveApproachDurationSpin->setDecimals(1);
+        protectiveApproachDurationSpin->setStyleSheet(fieldStyle);
+        protectiveApproachDurationSpin->setToolTip("Duration to approach and stay near the threatened agent");
+
+        auto protectiveApproachDurationLabel = new QLabel("⏱️ Approach Duration:");
+        protectiveApproachDurationLabel->setStyleSheet(labelStyle);
+        formLayout->addRow(protectiveApproachDurationLabel, protectiveApproachDurationSpin);
+
         // Blocking duration for BlockRobot
         auto blockingDurationSpin = new QDoubleSpinBox;
         blockingDurationSpin->setRange(5.0, 60.0);
@@ -2990,7 +3681,7 @@ void BTConfigDialog::createBlockParametersForAgent(const QString &blockId, QForm
         protectiveFrontDistLabel->setStyleSheet(labelStyle);
         formLayout->addRow(protectiveFrontDistLabel, protectiveFrontDistSpin);
 
-        // Target Agent ID selection for which agent to protect
+        // Target Agent ID selection for which agent to protect (only visible in specific_protected mode)
         auto protectedAgentWidget = new QWidget;
         auto protectedAgentLayout = new QVBoxLayout(protectedAgentWidget);
         protectedAgentLayout->setContentsMargins(0, 0, 0, 0);
@@ -3051,7 +3742,7 @@ void BTConfigDialog::createBlockParametersForAgent(const QString &blockId, QForm
         protectedAgentLayout->addLayout(protectedButtonsLayout);
 
         // Hidden spin box to store the selected protected agent value
-        auto protectedAgentSpin = new QSpinBox;
+        auto protectedAgentSpin = new QSpinBox(protectedAgentWidget);
         protectedAgentSpin->setRange(1, 100);
         protectedAgentSpin->setValue(agentIndex == 0 ? 2 : 1); // Default to different agent
         protectedAgentSpin->setStyleSheet(fieldStyle);
@@ -3075,6 +3766,7 @@ void BTConfigDialog::createBlockParametersForAgent(const QString &blockId, QForm
         QString robotCloseThresholdKey = QString("%1_%2_robot_close_threshold").arg(blockId).arg(agentIndex);
         QString protectiveApproachDistKey = QString("%1_%2_protective_approach_distance").arg(blockId).arg(agentIndex);
         QString protectiveApproachVelKey = QString("%1_%2_protective_approach_velocity").arg(blockId).arg(agentIndex);
+        QString protectiveApproachDurationKey = QString("%1_%2_protective_approach_duration").arg(blockId).arg(agentIndex);
         QString blockingDurationKey = QString("%1_%2_blocking_duration").arg(blockId).arg(agentIndex);
         QString protectiveFrontDistKey = QString("%1_%2_protective_front_distance").arg(blockId).arg(agentIndex);
         QString protectedAgentKey = QString("%1_%2_target_agent_id").arg(blockId).arg(agentIndex);
@@ -3084,9 +3776,51 @@ void BTConfigDialog::createBlockParametersForAgent(const QString &blockId, QForm
         blockConfigWidgets_[robotCloseThresholdKey] = robotCloseThresholdSpin;
         blockConfigWidgets_[protectiveApproachDistKey] = protectiveApproachDistSpin;
         blockConfigWidgets_[protectiveApproachVelKey] = protectiveApproachVelSpin;
+        blockConfigWidgets_[protectiveApproachDurationKey] = protectiveApproachDurationSpin;
         blockConfigWidgets_[blockingDurationKey] = blockingDurationSpin;
         blockConfigWidgets_[protectiveFrontDistKey] = protectiveFrontDistSpin;
         blockConfigWidgets_[protectedAgentKey] = protectedAgentSpin;
+        
+        // Control visibility based on protection mode
+        // Use QPointer for all widgets to prevent crashes on deletion
+        QPointer<QLabel> protectedLabelPtr(protectedLabel);
+        QPointer<QWidget> protectedAgentWidgetPtr(protectedAgentWidget);
+        QPointer<QRadioButton> specificProtectedRadioPtr(specificProtectedRadio);
+        
+        auto updateProtectionVisibility = [protectedLabelPtr, protectedAgentWidgetPtr, specificProtectedRadioPtr]()
+        {
+            if (!protectedLabelPtr || !protectedAgentWidgetPtr || !specificProtectedRadioPtr)
+                return;
+            bool showSpecific = specificProtectedRadioPtr->isChecked();
+            protectedLabelPtr->setVisible(showSpecific);
+            protectedAgentWidgetPtr->setVisible(showSpecific);
+        };
+        
+        // Set initial visibility
+        updateProtectionVisibility();
+        
+        // Connect mode selection to update the hidden field and visibility
+        QPointer<QLineEdit> protectionModeEditPtr(protectionModeEdit);
+        QPointer<QRadioButton> specificProtectedPtr(specificProtectedRadio);
+        QPointer<QRadioButton> protectNearestPtr(protectNearestRadio);
+        
+        auto updateProtectionMode = [protectionModeEditPtr, specificProtectedPtr, protectNearestPtr, updateProtectionVisibility]()
+        {
+            if (!protectionModeEditPtr || !specificProtectedPtr || !protectNearestPtr)
+                return;
+            if (specificProtectedPtr->isChecked())
+            {
+                protectionModeEditPtr->setText("specific_protected");
+            }
+            else if (protectNearestPtr->isChecked())
+            {
+                protectionModeEditPtr->setText("protect_nearest_threatened");
+            }
+            updateProtectionVisibility();
+        };
+        
+        connect(specificProtectedRadio, &QRadioButton::toggled, specificProtectedRadio, updateProtectionMode);
+        connect(protectNearestRadio, &QRadioButton::toggled, protectNearestRadio, updateProtectionMode);
     }
 }
 
@@ -3448,14 +4182,120 @@ void BTConfigDialog::updateXMLPreviewForAgent(int agentIndex)
 
             // Create container for this block
             auto *blockSeq = tempDoc.NewElement("Sequence");
-            blockSeq->SetAttribute("name", (blockId + "Block").toStdString().c_str());
+            std::string name_str = ((blockId + "Block")).toStdString();
+            blockSeq->SetAttribute("name", name_str.c_str());
 
             // Add comment for clarity
-            auto *comment = tempDoc.NewComment(QString(" Block: %1 - %2 ").arg(blockId, blockDef->description).toStdString().c_str());
+            std::string comment_str = (QString(" Block: %1 - %2 ").arg(blockId, blockDef->description)).toStdString();
+            auto *comment = tempDoc.NewComment(comment_str.c_str());
             blockSeq->InsertEndChild(comment);
 
             // Get nodes for this block
             QStringList nodes = getEnhancedNodesForBlock(blockId);
+            
+            // Special handling for TalkInteract based on interaction mode
+            if (blockId == "TalkInteract")
+            {
+                // Use the param key format (with dot) to match how it's stored
+                QString modeKey = QString("%1.interaction_mode").arg(blockId);
+                QString mode = assignment.agentSpecificParams.value(modeKey, "find_nearest").toString();
+                
+                if (mode == "specific_target")
+                {
+                    // Option B: Specific Target - Check specific agent(s)
+                    // Note: For multiple participants, we'll create multiple IsAgentVisible/IsAgentClose nodes
+                    // with different agent_id values during node creation
+                    nodes = QStringList({"IsAgentVisible", "IsAgentClose", "ConversationFormation"});
+                }
+                else // find_nearest
+                {
+                    // Option C: Find Nearest - Dynamic discovery with looking
+                    nodes = QStringList({"FindNearestAgent", "IsAgentVisible", "LookAtAgent", "ConversationFormation"});
+                }
+            }
+            // Special handling for FollowAgent based on interaction mode
+            else if (blockId == "FollowAgent")
+            {
+                QString modeKey = QString("%1.interaction_mode").arg(blockId);
+                QString mode = assignment.agentSpecificParams.value(modeKey, "find_nearest").toString();
+                
+                if (mode == "specific_target")
+                {
+                    // Specific Target - Follow a specific agent
+                    nodes = QStringList({"IsAgentVisible", "IsAgentClose", "FollowAgent"});
+                }
+                else // find_nearest
+                {
+                    // Find Nearest - Dynamically find and follow nearest agent
+                    nodes = QStringList({"FindNearestAgent", "IsAgentVisible", "IsAgentClose", "FollowAgent"});
+                }
+            }
+            // Special handling for AttentionSeeking based on attention mode
+            else if (blockId == "AttentionSeeking")
+            {
+                QString modeKey = QString("%1.attention_mode").arg(blockId);
+                QString mode = assignment.agentSpecificParams.value(modeKey, "agent_attention").toString();
+                
+                if (mode == "robot_attention")
+                {
+                    // Robot Attention - Detect robot looking and respond
+                    nodes = QStringList({"IsRobotFacingAgent", "LookAtRobot", "SaySomething"});
+                }
+                else // agent_attention
+                {
+                    // Agent Attention - Detect other agents looking and respond
+                    nodes = QStringList({"IsAnyoneLookingAtMe", "LookAtAgent", "SaySomething"});
+                }
+            }
+            // Special handling for GreetingInitiator based on greeting mode
+            else if (blockId == "GreetingInitiator")
+            {
+                QString modeKey = QString("%1.greeting_mode").arg(blockId);
+                QString mode = assignment.agentSpecificParams.value(modeKey, "specific_agent").toString();
+                
+                qDebug() << "GreetingInitiator XML Preview: modeKey=" << modeKey << "mode=" << mode;
+                qDebug() << "Available params:" << assignment.agentSpecificParams.keys();
+                
+                // Map old mode names for backward compatibility
+                if (mode == "specific_target")
+                    mode = "specific_agent";
+                else if (mode == "find_nearest")
+                    mode = "nearest_agent";
+                
+                if (mode == "greet_robot")
+                {
+                    // Greet Robot - Detect, look at, and greet robot
+                    nodes = QStringList({"IsRobotVisible", "LookAtRobot", "SaySomething"});
+                }
+                else if (mode == "nearest_agent")
+                {
+                    // Greet Nearest Agent - Dynamically find, look at, and greet nearest agent
+                    nodes = QStringList({"FindNearestAgent", "IsAgentVisible", "LookAtAgent", "SaySomething"});
+                }
+                else // specific_agent
+                {
+                    // Greet Specific Agent - Detect, look at, and greet specific agent
+                    nodes = QStringList({"IsAgentVisible", "LookAtAgent", "SaySomething"});
+                }
+            }
+            // Special handling for ProtectiveGuardian based on protection mode
+            else if (blockId == "ProtectiveGuardian")
+            {
+                QString modeKey = QString("%1.protection_mode").arg(blockId);
+                QString mode = assignment.agentSpecificParams.value(modeKey, "specific_protected").toString();
+                
+                if (mode == "protect_nearest_threatened")
+                {
+                    // Protect Nearest Threatened - Dynamically find any threatened agent
+                    // First find nearest agent, then check if robot is threatening them
+                    nodes = QStringList({"FindNearestAgent", "IsRobotVisible", "IsAgentVisible", "IsRobotClose", "LookAtAgent", "ApproachAgent", "BlockRobot"});
+                }
+                else // specific_protected
+                {
+                    // Specific Protected - Protect specific agent from robot
+                    nodes = QStringList({"IsRobotVisible", "IsAgentVisible", "IsRobotClose", "LookAtAgent", "ApproachAgent", "BlockRobot"});
+                }
+            }
 
             for (const QString &nodeId : nodes)
             {
@@ -3471,7 +4311,8 @@ void BTConfigDialog::updateXMLPreviewForAgent(int agentIndex)
 
                         // Create the wrapped condition
                         auto *conditionElem = tempDoc.NewElement("Condition");
-                        conditionElem->SetAttribute("ID", wrappedNodeId.toStdString().c_str());
+                        std::string id_str = (wrappedNodeId).toStdString();
+                        conditionElem->SetAttribute("ID", id_str.c_str());
 
                         // Apply parameters to the wrapped condition
                         applyBlockParametersToNode(conditionElem, blockId, wrappedNodeId, config);
@@ -3496,6 +4337,69 @@ void BTConfigDialog::updateXMLPreviewForAgent(int agentIndex)
                         continue;
                     }
 
+                    // Special handling for TalkInteract with multiple participants
+                    // For multi-participant conversations, we need multiple condition check instances
+                    if (blockId == "TalkInteract" && (nodeId == "IsAgentVisible" || nodeId == "IsAgentClose"))
+                    {
+                        QString modeKey = QString("%1.interaction_mode").arg(blockId);
+                        QString mode = assignment.agentSpecificParams.value(modeKey, "find_nearest").toString();
+                        
+                        if (mode == "specific_target")
+                        {
+                            QString participantsKey = blockId + ".non_main_agent_ids";
+                            if (assignment.agentSpecificParams.contains(participantsKey))
+                            {
+                                QString participantsStr = assignment.agentSpecificParams[participantsKey].toString();
+                                QStringList participants = participantsStr.split(",", Qt::SkipEmptyParts);
+                                
+                                if (participants.size() > 1)
+                                {
+                                    // Multiple participants - create one node instance per participant
+                                    for (const QString &participantId : participants)
+                                    {
+                                        QString nodeType = "Condition";
+                                        std::string nodeType_str = nodeType.toStdString();
+                                        auto *nodeElem = tempDoc.NewElement(nodeType_str.c_str());
+                                        std::string id_str = (nodeId).toStdString();
+                                        nodeElem->SetAttribute("ID", id_str.c_str());
+                                        
+                                        // Set participant-specific attributes
+                                        if (nodeId == "IsAgentVisible")
+                                        {
+                                            nodeElem->SetAttribute("observer_id", "{id}");
+                                            std::string agent_id_str = participantId.trimmed().toStdString();
+                                            nodeElem->SetAttribute("agent_id", agent_id_str.c_str());
+                                            nodeElem->SetAttribute("field_of_view", "3.14");
+                                        }
+                                        else if (nodeId == "IsAgentClose")
+                                        {
+                                            nodeElem->SetAttribute("observer_id", "{id}");
+                                            std::string target_agent_id_str = participantId.trimmed().toStdString();
+                                            nodeElem->SetAttribute("target_agent_id", target_agent_id_str.c_str());
+                                        }
+                                        
+                                        // Apply parameters (distance/threshold from user config)
+                                        applyBlockParametersToNode(nodeElem, blockId, nodeId, config);
+                                        applyAgentSpecificParametersToNode(nodeElem, agentIndex, blockId, nodeId, assignment);
+                                        
+                                        // Add node to sequence
+                                        if (assignment.runOnceBlocks.contains(blockId))
+                                        {
+                                            auto *runOnceElem = tempDoc.NewElement("RunOnce");
+                                            runOnceElem->InsertEndChild(nodeElem);
+                                            blockSeq->InsertEndChild(runOnceElem);
+                                        }
+                                        else
+                                        {
+                                            blockSeq->InsertEndChild(nodeElem);
+                                        }
+                                    }
+                                    continue; // Skip the normal single-node creation below
+                                }
+                            }
+                        }
+                    }
+
                     // Determine correct XML element type based on node ID
                     QString nodeType = "Action"; // Default to Action
                     if (nodeId.contains("Is") || nodeId.contains("Condition") || nodeId == "RandomChanceCondition")
@@ -3503,8 +4407,10 @@ void BTConfigDialog::updateXMLPreviewForAgent(int agentIndex)
                         nodeType = "Condition";
                     }
 
-                    auto *nodeElem = tempDoc.NewElement(nodeType.toStdString().c_str());
-                    nodeElem->SetAttribute("ID", nodeId.toStdString().c_str());
+                    std::string nodeType_str = nodeType.toStdString();
+                    auto *nodeElem = tempDoc.NewElement(nodeType_str.c_str());
+                    std::string id_str = (nodeId).toStdString();
+                    nodeElem->SetAttribute("ID", id_str.c_str());
 
                     // Apply parameters to the node
                     applyBlockParametersToNode(nodeElem, blockId, nodeId, config);
@@ -3546,11 +4452,13 @@ void BTConfigDialog::updateXMLPreviewForAgent(int agentIndex)
                 auto *randomCondition = tempDoc.NewElement("Condition");
                 randomCondition->SetAttribute("ID", "RandomChanceCondition");
                 randomCondition->SetAttribute("agent_id", "{id}");
-                randomCondition->SetAttribute("probability", QString::number(probability, 'f', 2).toStdString().c_str());
+                std::string probability_str = (QString::number(probability, 'f', 2)).toStdString();
+                randomCondition->SetAttribute("probability", probability_str.c_str());
                 
                 // Create a new sequence to contain the random condition + block sequence
                 auto *randomWrapper = tempDoc.NewElement("Sequence");
-                randomWrapper->SetAttribute("name", (blockId + "RandomBlock").toStdString().c_str());
+                std::string name_str = ((blockId + "RandomBlock")).toStdString();
+                randomWrapper->SetAttribute("name", name_str.c_str());
                 
                 randomWrapper->InsertEndChild(randomCondition);
                 randomWrapper->InsertEndChild(blockSeq);
@@ -4087,9 +4995,11 @@ void BTConfigDialog::updateButtonSelectionState(QPushButton *selectedButton)
 
 bool BTConfigDialog::validateConfiguration(const Config &config) const
 {
+    qDebug() << "validateConfiguration() called";
     // Check that at least one agent has block assignments
     bool hasAssignments = false;
 
+    qDebug() << "Checking assignment matrix...";
     // Check assignment matrix first
     if (assignmentMatrix_)
     {
@@ -4108,8 +5018,10 @@ bool BTConfigDialog::validateConfiguration(const Config &config) const
                 break;
         }
     }
+    qDebug() << "Assignment matrix check done, hasAssignments:" << hasAssignments;
 
     // Fallback: check agents_ array
+    qDebug() << "Checking agents_ array as fallback...";
     if (!hasAssignments)
     {
         for (const auto &agent : agents_)
@@ -4121,90 +5033,148 @@ bool BTConfigDialog::validateConfiguration(const Config &config) const
             }
         }
     }
+    qDebug() << "Agents array check done, hasAssignments:" << hasAssignments;
 
     if (!hasAssignments)
     {
+        qDebug() << "No assignments found, showing warning";
         QMessageBox::warning(const_cast<BTConfigDialog *>(this),
                              "No Agent Assignments",
                              "Please assign at least one behavior block to an agent before applying configuration.");
         return false;
     }
 
-    // Validate parameter ranges and required values
+    qDebug() << "Validating parameter ranges...";
+    // Validate parameter ranges and required values using the config data
     QStringList validationErrors;
 
-    for (int i = 0; i < agentNames_.size(); ++i)
+    qDebug() << "Validating" << config.agentAssignments.size() << "agents from config data";
+    
+    for (int i = 0; i < config.agentAssignments.size(); ++i)
     {
-        // Check FollowAgent parameters
-        QString followKey = QString("FollowAgent_%1_target_agent_id").arg(i);
-        if (blockConfigWidgets_.contains(followKey))
+        const auto &agentConfig = config.agentAssignments[i];
+        qDebug() << "Validating agent" << i << "with" << agentConfig.assignedBlocks.size() << "blocks";
+        
+        // Check if agent has FollowAgent block and validate target_agent_id parameter
+        if (agentConfig.assignedBlocks.contains("FollowAgent"))
         {
-            auto combo = qobject_cast<QComboBox *>(blockConfigWidgets_[followKey]);
-            if (combo && combo->isEnabled() && combo->currentIndex() < 0)
+            // Check if it's in "specific_target" mode - only then is target_agent_id required
+            QString modeKey = "FollowAgent.interaction_mode";
+            QString mode = "specific_target"; // Default to specific_target if no mode specified
+            
+            if (agentConfig.agentSpecificParams.contains(modeKey))
             {
-                validationErrors.append(QString("Agent %1: FollowAgent requires a target agent").arg(i + 1));
+                mode = agentConfig.agentSpecificParams[modeKey].toString();
             }
-        }
-
-        // Check ApproachAgent parameters
-        QString approachTargetKey = QString("ApproachAgent_%1_target_agent_id").arg(i);
-        if (blockConfigWidgets_.contains(approachTargetKey))
-        {
-            auto combo = qobject_cast<QComboBox *>(blockConfigWidgets_[approachTargetKey]);
-            if (combo && combo->isEnabled() && combo->currentIndex() < 0)
+            
+            // Only validate target_agent_id if in specific_target mode
+            if (mode == "specific_target")
             {
-                validationErrors.append(QString("Agent %1: ApproachAgent requires a target agent").arg(i + 1));
-            }
-        }
-
-        // Check GoTo parameters
-        QString gotoGoalKey = QString("GoTo_%1_goal_id").arg(i);
-        if (blockConfigWidgets_.contains(gotoGoalKey))
-        {
-            auto spin = qobject_cast<QSpinBox *>(blockConfigWidgets_[gotoGoalKey]);
-            if (spin && spin->isEnabled() && spin->value() < 1)
-            {
-                validationErrors.append(QString("Agent %1: GoTo requires a valid goal ID (≥1)").arg(i + 1));
-            }
-        }
-
-        // Check ConversationFormation parameters
-        QString convKey = QString("ConversationFormation_%1_target_agent_id").arg(i);
-        if (blockConfigWidgets_.contains(convKey))
-        {
-            auto combo = qobject_cast<QComboBox *>(blockConfigWidgets_[convKey]);
-            if (combo && combo->isEnabled() && combo->currentIndex() < 0)
-            {
-                validationErrors.append(QString("Agent %1: ConversationFormation requires a target agent").arg(i + 1));
-            }
-        }
-
-        // Check SetGroupWalk agents list
-        QString groupKey = QString("GroupWalk_%1_agents_list").arg(i);
-        if (blockConfigWidgets_.contains(groupKey))
-        {
-            auto lineEdit = qobject_cast<QLineEdit *>(blockConfigWidgets_[groupKey]);
-            if (lineEdit && lineEdit->isEnabled())
-            {
-                QString text = lineEdit->text().trimmed();
-                if (text.isEmpty())
+                QString paramKey = "FollowAgent.target_agent_id";
+                if (agentConfig.agentSpecificParams.contains(paramKey))
                 {
-                    validationErrors.append(QString("Agent %1: SetGroupWalk requires a list of agent IDs").arg(i + 1));
+                    int targetId = agentConfig.agentSpecificParams[paramKey].toInt();
+                    // Validate that target agent ID is valid (1-based indexing)
+                    if (targetId < 1 || targetId > config.agentAssignments.size())
+                    {
+                        validationErrors.append(QString("Agent %1: FollowAgent has invalid target agent ID %2").arg(i + 1).arg(targetId));
+                    }
+                }
+                else
+                {
+                    validationErrors.append(QString("Agent %1: FollowAgent in specific_target mode requires a target agent").arg(i + 1));
+                }
+            }
+            // If in "find_nearest" mode, target_agent_id is not required
+        }
+        
+        // Check if agent has TalkInteract block and validate based on interaction mode
+        if (agentConfig.assignedBlocks.contains("TalkInteract"))
+        {
+            // Check if it's in "specific_target" mode - only then might target_agent_id be required
+            QString modeKey = "TalkInteract.interaction_mode";
+            QString mode = "find_nearest"; // Default to find_nearest
+            
+            if (agentConfig.agentSpecificParams.contains(modeKey))
+            {
+                mode = agentConfig.agentSpecificParams[modeKey].toString();
+            }
+            
+            // In specific_target mode, check if non_main_agent_ids is specified
+            if (mode == "specific_target")
+            {
+                QString paramKey = "TalkInteract.non_main_agent_ids";
+                if (!agentConfig.agentSpecificParams.contains(paramKey) || 
+                    agentConfig.agentSpecificParams[paramKey].toString().trimmed().isEmpty())
+                {
+                    validationErrors.append(QString("Agent %1: TalkInteract in specific_target mode requires conversation participants").arg(i + 1));
+                }
+            }
+            // If in "find_nearest" mode, no specific agents required
+        }
+        
+        // Check if agent has ConversationFormation block and validate target_agent_id parameter
+        if (agentConfig.assignedBlocks.contains("ConversationFormation"))
+        {
+            QString paramKey = "ConversationFormation.target_agent_id";
+            if (agentConfig.agentSpecificParams.contains(paramKey))
+            {
+                int targetId = agentConfig.agentSpecificParams[paramKey].toInt();
+                if (targetId < 1 || targetId > config.agentAssignments.size())
+                {
+                    validationErrors.append(QString("Agent %1: ConversationFormation has invalid target agent ID %2").arg(i + 1).arg(targetId));
+                }
+            }
+            // ConversationFormation target_agent_id is optional (can use find_nearest mode)
+        }
+        
+        // Check if agent has GoTo block and validate goal_id parameter
+        if (agentConfig.assignedBlocks.contains("GoTo"))
+        {
+            QString paramKey = "GoTo.goal_id";
+            if (agentConfig.agentSpecificParams.contains(paramKey))
+            {
+                int goalId = agentConfig.agentSpecificParams[paramKey].toInt();
+                if (goalId < 1)
+                {
+                    validationErrors.append(QString("Agent %1: GoTo requires a valid goal ID (≥1)").arg(i + 1));
+                }
+            }
+            else
+            {
+                validationErrors.append(QString("Agent %1: GoTo requires a goal ID").arg(i + 1));
+            }
+        }
+        
+        // Check if agent has GroupWalk block and validate agents list
+        if (agentConfig.assignedBlocks.contains("GroupWalk"))
+        {
+            QString paramKey = "GroupWalk.group_agent_ids";
+            if (agentConfig.agentSpecificParams.contains(paramKey))
+            {
+                QString agentIds = agentConfig.agentSpecificParams[paramKey].toString().trimmed();
+                if (agentIds.isEmpty())
+                {
+                    validationErrors.append(QString("Agent %1: GroupWalk requires a list of agent IDs").arg(i + 1));
                 }
                 else
                 {
                     // Validate agent ID format
-                    QStringList ids = text.split(",", Qt::SkipEmptyParts);
+                    QStringList ids = agentIds.split(",", Qt::SkipEmptyParts);
                     for (const QString &id : ids)
                     {
                         bool ok;
                         int agentId = id.trimmed().toInt(&ok);
-                        if (!ok || agentId < 1 || agentId > agentNames_.size())
+                        if (!ok || agentId < 1 || agentId > config.agentAssignments.size())
                         {
-                            validationErrors.append(QString("Agent %1: Invalid agent ID '%2' in SetGroupWalk list").arg(i + 1).arg(id.trimmed()));
+                            validationErrors.append(QString("Agent %1: Invalid agent ID '%2' in GroupWalk list").arg(i + 1).arg(id.trimmed()));
                         }
                     }
                 }
+            }
+            else
+            {
+                validationErrors.append(QString("Agent %1: GroupWalk requires a list of agent IDs").arg(i + 1));
             }
         }
     }
@@ -4234,26 +5204,34 @@ bool BTConfigDialog::validateConfiguration(const Config &config) const
         {
             if (blockId == "FollowAgent")
             {
-                // Check that FollowAgent has a valid target
-                QString targetKey = QString("%1.target_agent_id").arg(blockId);
-                if (!agent.agentSpecificParams.contains(targetKey))
+                // Check the interaction mode
+                QString modeKey = QString("%1.interaction_mode").arg(blockId);
+                QString mode = agent.agentSpecificParams.value(modeKey, "find_nearest").toString();
+                
+                // Only validate target agent in specific_target mode
+                if (mode == "specific_target")
                 {
-                    QMessageBox::warning(const_cast<BTConfigDialog *>(this),
-                                         "Invalid Configuration",
-                                         QString("Agent %1 has FollowAgent behavior but no target agent specified.")
-                                             .arg(i + 1));
-                    return false;
-                }
+                    QString targetKey = QString("%1.target_agent_id").arg(blockId);
+                    if (!agent.agentSpecificParams.contains(targetKey))
+                    {
+                        QMessageBox::warning(const_cast<BTConfigDialog *>(this),
+                                             "Invalid Configuration",
+                                             QString("Agent %1 has FollowAgent behavior in specific target mode but no target agent specified.")
+                                                 .arg(i + 1));
+                        return false;
+                    }
 
-                int targetId = agent.agentSpecificParams[targetKey].toInt();
-                if (targetId == i + 1)
-                { // Can't follow yourself
-                    QMessageBox::warning(const_cast<BTConfigDialog *>(this),
-                                         "Invalid Configuration",
-                                         QString("Agent %1 cannot follow itself. Please select a different target.")
-                                             .arg(i + 1));
-                    return false;
+                    int targetId = agent.agentSpecificParams[targetKey].toInt();
+                    if (targetId == i + 1)
+                    { // Can't follow yourself
+                        QMessageBox::warning(const_cast<BTConfigDialog *>(this),
+                                             "Invalid Configuration",
+                                             QString("Agent %1 cannot follow itself. Please select a different target.")
+                                                 .arg(i + 1));
+                        return false;
+                    }
                 }
+                // In find_nearest mode, target is determined dynamically by FindNearestAgent
             }
         }
     }
@@ -4379,12 +5357,20 @@ void BTConfigDialog::updateValidationFeedback()
 
 void BTConfigDialog::accept()
 {
+    qDebug() << "BTConfigDialog::accept() called";
+    
     // Get configuration once and use it for validation
     auto config = getEnhancedConfig();
 
     if (validateConfiguration(config))
     {
+        qDebug() << "Configuration validated, calling QWizard::accept()";
         QWizard::accept();
+        qDebug() << "QWizard::accept() returned successfully";
+    }
+    else
+    {
+        qDebug() << "Configuration validation failed, staying on current page";
     }
     // If validation fails, stay on current page
 }
@@ -4482,17 +5468,26 @@ bool BTConfigDialog::validateWizardConfig(const Config &config, int totalAgents)
         // Validate FollowAgent parameters if assigned
         if (assignment.assignedBlocks.contains("FollowAgent"))
         {
-            QString targetKey = QString("FollowAgent.target_agent_id");
-            if (!assignment.agentSpecificParams.contains(targetKey))
+            // Check the interaction mode
+            QString modeKey = QString("FollowAgent.interaction_mode");
+            QString mode = assignment.agentSpecificParams.value(modeKey, "find_nearest").toString();
+            
+            // Only validate target agent in specific_target mode
+            if (mode == "specific_target")
             {
-                return false; // Missing required target_agent_id parameter
-            }
+                QString targetKey = QString("FollowAgent.target_agent_id");
+                if (!assignment.agentSpecificParams.contains(targetKey))
+                {
+                    return false; // Missing required target_agent_id parameter in specific_target mode
+                }
 
-            int targetId = assignment.agentSpecificParams[targetKey].toInt();
-            if (targetId == assignment.agentIndex + 1)
-            {
-                return false; // Can't follow yourself
+                int targetId = assignment.agentSpecificParams[targetKey].toInt();
+                if (targetId == assignment.agentIndex + 1)
+                {
+                    return false; // Can't follow yourself
+                }
             }
+            // In find_nearest mode, target is determined dynamically by FindNearestAgent
         }
     }
 
@@ -4547,8 +5542,8 @@ QStringList BTConfigDialog::generateBTPathsForScenario(const QString &scenarioNa
             for (size_t i = 0; i < install_idx; ++i) {
                 src_path << "/" << parts[i];
             }
-            src_path << "/src/" << pkg_name;
-            // src_path << "/src/"; // Temporary for local setup (not docker)
+            // src_path << "/src/" << pkg_name;
+            src_path << "/src/"; // Temporary for local setup (not docker)
             
             btDir = QString::fromStdString(src_path.str() + "/behavior_trees");
             qDebug() << "Converted share path to src path:" << shareDir << "->" << btDir;
@@ -4574,27 +5569,39 @@ QStringList BTConfigDialog::generateBTPathsForScenario(const QString &scenarioNa
 
 bool BTConfigDialog::patchAllAgentBTFiles(const QStringList &btPaths, const Config &config)
 {
+    qDebug() << "patchAllAgentBTFiles called with" << btPaths.size() << "files";
     bool allSuccess = true;
     for (int i = 0; i < btPaths.size(); ++i)
     {
+        qDebug() << "Processing BT file" << (i+1) << "of" << btPaths.size() << ":" << btPaths[i];
         if (!patchAgentBtFile(btPaths[i], i, config))
         {
+            qWarning() << "Failed to patch BT file for agent" << (i+1);
             allSuccess = false;
         }
+        else
+        {
+            qDebug() << "Successfully patched BT file for agent" << (i+1);
+        }
     }
+    qDebug() << "patchAllAgentBTFiles completed. Success:" << allSuccess;
     return allSuccess;
 }
 
 bool BTConfigDialog::patchAgentBtFile(const QString &btPath, int agentIndex, const Config &cfg)
 {
+    qDebug() << "patchAgentBtFile called for agent" << (agentIndex+1) << "file:" << btPath;
+    
     if (btPath.isEmpty() || !QFile::exists(btPath))
     {
         qWarning() << "BT file does not exist:" << btPath;
         return false;
     }
 
+    qDebug() << "Loading XML file:" << btPath;
     tinyxml2::XMLDocument doc;
-    if (doc.LoadFile(btPath.toStdString().c_str()) != tinyxml2::XML_SUCCESS)
+    std::string btPath_str = btPath.toStdString();
+    if (doc.LoadFile(btPath_str.c_str()) != tinyxml2::XML_SUCCESS)
     {
         qWarning() << "Cannot parse BT file:" << btPath << "-" << doc.ErrorStr();
         return false;
@@ -4802,6 +5809,8 @@ bool BTConfigDialog::patchAgentBtFile(const QString &btPath, int agentIndex, con
 
     for (const QString &blockId : assignment.assignedBlocks)
     {
+        qDebug() << "Processing block:" << blockId << "for agent" << (agentIndex + 1);
+        
         // Find the block definition
         auto blockDef = std::find_if(cfg.availableBlocks.begin(), cfg.availableBlocks.end(),
                                      [&blockId](const auto &block)
@@ -4813,16 +5822,123 @@ bool BTConfigDialog::patchAgentBtFile(const QString &btPath, int agentIndex, con
             continue;
         }
 
+        qDebug() << "Creating XML container for block:" << blockId;
+        
         // Create container for this block
         auto *blockSeq = doc.NewElement("Sequence");
-        blockSeq->SetAttribute("name", (blockId + "Block").toStdString().c_str());
+        std::string name_str = ((blockId + "Block")).toStdString();
+        blockSeq->SetAttribute("name", name_str.c_str());
 
         // Add comment for clarity
-        auto *comment = doc.NewComment(QString(" Block: %1 - %2 ").arg(blockId, blockDef->description).toStdString().c_str());
+        std::string comment_str = (QString(" Block: %1 - %2 ").arg(blockId, blockDef->description)).toStdString();
+        auto *comment = doc.NewComment(comment_str.c_str());
         blockSeq->InsertEndChild(comment);
 
         // Get nodes for this block
         QStringList nodes = getEnhancedNodesForBlock(blockId);
+        
+        // Special handling for TalkInteract based on interaction mode
+        if (blockId == "TalkInteract")
+        {
+            // Use the param key format (with dot) to match how it's stored
+            QString modeKey = QString("%1.interaction_mode").arg(blockId);
+            QString mode = assignment.agentSpecificParams.value(modeKey, "find_nearest").toString();
+            
+            if (mode == "specific_target")
+            {
+                // Option B: Specific Target - Check specific agent(s)
+                // Note: For multiple participants, we'll create multiple IsAgentVisible/IsAgentClose nodes
+                // with different agent_id values during node creation
+                nodes = QStringList({"IsAgentVisible", "IsAgentClose", "ConversationFormation"});
+            }
+            else // find_nearest
+            {
+                // Option C: Find Nearest - Dynamic discovery with looking
+                nodes = QStringList({"FindNearestAgent", "IsAgentVisible", "LookAtAgent", "ConversationFormation"});
+            }
+        }
+        // Special handling for FollowAgent based on interaction mode
+        else if (blockId == "FollowAgent")
+        {
+            QString modeKey = QString("%1.interaction_mode").arg(blockId);
+            QString mode = assignment.agentSpecificParams.value(modeKey, "find_nearest").toString();
+            
+            if (mode == "specific_target")
+            {
+                // Specific Target - Follow a specific agent
+                nodes = QStringList({"IsAgentVisible", "IsAgentClose", "FollowAgent"});
+            }
+            else // find_nearest
+            {
+                // Find Nearest - Dynamically find and follow nearest agent
+                nodes = QStringList({"FindNearestAgent", "IsAgentVisible", "IsAgentClose", "FollowAgent"});
+            }
+        }
+        // Special handling for AttentionSeeking based on attention mode
+        else if (blockId == "AttentionSeeking")
+        {
+            QString modeKey = QString("%1.attention_mode").arg(blockId);
+            QString mode = assignment.agentSpecificParams.value(modeKey, "agent_attention").toString();
+            
+            if (mode == "robot_attention")
+            {
+                // Robot Attention - Detect robot looking and respond
+                nodes = QStringList({"IsRobotFacingAgent", "LookAtRobot", "SaySomething"});
+            }
+            else // agent_attention
+            {
+                // Agent Attention - Detect other agents looking and respond
+                nodes = QStringList({"IsAnyoneLookingAtMe", "LookAtAgent", "SaySomething"});
+            }
+        }
+        // Special handling for GreetingInitiator based on greeting mode
+        else if (blockId == "GreetingInitiator")
+        {
+            QString modeKey = QString("%1.greeting_mode").arg(blockId);
+            QString mode = assignment.agentSpecificParams.value(modeKey, "specific_agent").toString();
+            
+            qDebug() << "GreetingInitiator XML Generation: modeKey=" << modeKey << "mode=" << mode;
+            qDebug() << "Available params:" << assignment.agentSpecificParams.keys();
+            
+            // Map old mode names for backward compatibility
+            if (mode == "specific_target")
+                mode = "specific_agent";
+            else if (mode == "find_nearest")
+                mode = "nearest_agent";
+            
+            if (mode == "greet_robot")
+            {
+                // Greet Robot - Detect, look at, and greet robot
+                nodes = QStringList({"IsRobotVisible", "LookAtRobot", "SaySomething"});
+            }
+            else if (mode == "nearest_agent")
+            {
+                // Greet Nearest Agent - Dynamically find, look at, and greet nearest agent
+                nodes = QStringList({"FindNearestAgent", "IsAgentVisible", "LookAtAgent", "SaySomething"});
+            }
+            else // specific_agent
+            {
+                // Greet Specific Agent - Detect, look at, and greet specific agent
+                nodes = QStringList({"IsAgentVisible", "LookAtAgent", "SaySomething"});
+            }
+        }
+        // Special handling for ProtectiveGuardian based on protection mode
+        else if (blockId == "ProtectiveGuardian")
+        {
+            QString modeKey = QString("%1.protection_mode").arg(blockId);
+            QString mode = assignment.agentSpecificParams.value(modeKey, "specific_protected").toString();
+            
+            if (mode == "protect_nearest_threatened")
+            {
+                // Protect Nearest Threatened - Dynamically find any threatened agent
+                nodes = QStringList({"IsRobotVisible", "FindNearestAgent", "IsAgentVisible", "IsRobotClose", "LookAtAgent", "ApproachAgent", "BlockRobot"});
+            }
+            else // specific_protected
+            {
+                // Specific Protected - Protect specific agent from robot
+                nodes = QStringList({"IsRobotVisible", "IsAgentVisible", "IsRobotClose", "LookAtAgent", "ApproachAgent", "BlockRobot"});
+            }
+        }
 
         for (const QString &nodeId : nodes)
         {
@@ -4845,7 +5961,8 @@ bool BTConfigDialog::patchAgentBtFile(const QString &btPath, int agentIndex, con
                     
                     // Create the wrapped condition
                     auto *conditionElem = doc.NewElement("Condition");
-                    conditionElem->SetAttribute("ID", wrappedNodeId.toStdString().c_str());
+                    std::string id_str = (wrappedNodeId).toStdString();
+                    conditionElem->SetAttribute("ID", id_str.c_str());
                     conditionElem->SetAttribute("agent_id", "{id}");
                     
                     // Apply parameters
@@ -4879,7 +5996,8 @@ bool BTConfigDialog::patchAgentBtFile(const QString &btPath, int agentIndex, con
                     
                     // Create the wrapped condition
                     auto *conditionElem = doc.NewElement("Condition");
-                    conditionElem->SetAttribute("ID", wrappedNodeId.toStdString().c_str());
+                    std::string id_str = (wrappedNodeId).toStdString();
+                    conditionElem->SetAttribute("ID", id_str.c_str());
                     conditionElem->SetAttribute("agent_id", "{id}");
                     
                     // Apply parameters
@@ -4905,7 +6023,8 @@ bool BTConfigDialog::patchAgentBtFile(const QString &btPath, int agentIndex, con
 
                 // Create the wrapped condition
                 auto *conditionElem = doc.NewElement("Condition");
-                conditionElem->SetAttribute("ID", wrappedNodeId.toStdString().c_str());
+                std::string id_str = (wrappedNodeId).toStdString();
+                conditionElem->SetAttribute("ID", id_str.c_str());
                 conditionElem->SetAttribute("agent_id", "{id}");
 
                 // Apply parameters to the wrapped condition
@@ -4932,6 +6051,69 @@ bool BTConfigDialog::patchAgentBtFile(const QString &btPath, int agentIndex, con
                 continue;
             }
 
+            // Special handling for TalkInteract with multiple participants
+            // For multi-participant conversations, we need multiple condition check instances
+            if (blockId == "TalkInteract" && (nodeId == "IsAgentVisible" || nodeId == "IsAgentClose"))
+            {
+                QString modeKey = QString("%1.interaction_mode").arg(blockId);
+                QString mode = assignment.agentSpecificParams.value(modeKey, "find_nearest").toString();
+                
+                if (mode == "specific_target")
+                {
+                    QString participantsKey = blockId + ".non_main_agent_ids";
+                    if (assignment.agentSpecificParams.contains(participantsKey))
+                    {
+                        QString participantsStr = assignment.agentSpecificParams[participantsKey].toString();
+                        QStringList participants = participantsStr.split(",", Qt::SkipEmptyParts);
+                        
+                        if (participants.size() > 1)
+                        {
+                            // Multiple participants - create one node instance per participant
+                            for (const QString &participantId : participants)
+                            {
+                                QString nodeType = "Condition";
+                                std::string nodeType_str = nodeType.toStdString();
+                                auto *nodeElem = doc.NewElement(nodeType_str.c_str());
+                                std::string id_str = (nodeId).toStdString();
+                                nodeElem->SetAttribute("ID", id_str.c_str());
+                                
+                                // Set participant-specific attributes
+                                if (nodeId == "IsAgentVisible")
+                                {
+                                    nodeElem->SetAttribute("observer_id", "{id}");
+                                    std::string agent_id_str = participantId.trimmed().toStdString();
+                                    nodeElem->SetAttribute("agent_id", agent_id_str.c_str());
+                                    nodeElem->SetAttribute("field_of_view", "3.14");
+                                }
+                                else if (nodeId == "IsAgentClose")
+                                {
+                                    nodeElem->SetAttribute("observer_id", "{id}");
+                                    std::string target_agent_id_str = participantId.trimmed().toStdString();
+                                    nodeElem->SetAttribute("target_agent_id", target_agent_id_str.c_str());
+                                }
+                                
+                                // Apply parameters (distance/threshold from user config)
+                                applyBlockParametersToNode(nodeElem, blockId, nodeId, cfg);
+                                applyAgentSpecificParametersToNode(nodeElem, agentIndex, blockId, nodeId, assignment);
+                                
+                                // Add node to sequence
+                                if (assignment.runOnceBlocks.contains(blockId))
+                                {
+                                    auto *runOnceElem = doc.NewElement("RunOnce");
+                                    runOnceElem->InsertEndChild(nodeElem);
+                                    blockSeq->InsertEndChild(runOnceElem);
+                                }
+                                else
+                                {
+                                    blockSeq->InsertEndChild(nodeElem);
+                                }
+                            }
+                            continue; // Skip the normal single-node creation below
+                        }
+                    }
+                }
+            }
+
             // Determine correct XML element type based on node ID
             QString nodeType = "Action"; // Default to Action
             if (nodeId.contains("Is") || nodeId.contains("Condition") || nodeId == "RandomChanceCondition")
@@ -4939,8 +6121,10 @@ bool BTConfigDialog::patchAgentBtFile(const QString &btPath, int agentIndex, con
                 nodeType = "Condition";
             }
 
-            auto *nodeElem = doc.NewElement(nodeType.toStdString().c_str());
-            nodeElem->SetAttribute("ID", nodeId.toStdString().c_str());
+            std::string nodeType_str = nodeType.toStdString();
+            auto *nodeElem = doc.NewElement(nodeType_str.c_str());
+            std::string id_str = (nodeId).toStdString();
+            nodeElem->SetAttribute("ID", id_str.c_str());
 
             // Apply global block parameters and agent-specific parameters
             applyBlockParametersToNode(nodeElem, blockId, nodeId, cfg);
@@ -4973,11 +6157,13 @@ bool BTConfigDialog::patchAgentBtFile(const QString &btPath, int agentIndex, con
             auto *randomCondition = doc.NewElement("Condition");
             randomCondition->SetAttribute("ID", "RandomChanceCondition");
             randomCondition->SetAttribute("agent_id", "{id}");
-            randomCondition->SetAttribute("probability", QString::number(probability, 'f', 2).toStdString().c_str());
+            std::string probability_str = (QString::number(probability, 'f', 2)).toStdString();
+            randomCondition->SetAttribute("probability", probability_str.c_str());
             
             // Create a new sequence to contain the random condition + block sequence
             auto *randomWrapper = doc.NewElement("Sequence");
-            randomWrapper->SetAttribute("name", (blockId + "RandomBlock").toStdString().c_str());
+            std::string name_str = ((blockId + "RandomBlock")).toStdString();
+            randomWrapper->SetAttribute("name", name_str.c_str());
             
             randomWrapper->InsertEndChild(randomCondition);
             randomWrapper->InsertEndChild(blockSeq);
@@ -5039,7 +6225,8 @@ bool BTConfigDialog::patchAgentBtFile(const QString &btPath, int agentIndex, con
     }
 
     // Save the modified XML
-    if (doc.SaveFile(btPath.toStdString().c_str()) != tinyxml2::XML_SUCCESS)
+    std::string btPath_save_str = btPath.toStdString();
+    if (doc.SaveFile(btPath_save_str.c_str()) != tinyxml2::XML_SUCCESS)
     {
         qWarning() << "Failed to save patched BT:" << btPath << "-" << doc.ErrorStr();
         return false;
@@ -5057,7 +6244,12 @@ void BTConfigDialog::applyBlockParametersToNode(tinyxml2::XMLElement *nodeElem,
 {
     if (blockId == "FollowAgent")
     {
-        if (nodeId == "FollowAgent")
+        if (nodeId == "FindNearestAgent")
+        {
+            // FindNearestAgent only needs agent_id (input) and outputs target_agent_id
+            // No additional parameters needed - it finds the nearest agent automatically
+        }
+        else if (nodeId == "FollowAgent")
         {
             nodeElem->SetAttribute("time_step", "{dt}");
         }
@@ -5075,6 +6267,7 @@ void BTConfigDialog::applyBlockParametersToNode(tinyxml2::XMLElement *nodeElem,
     {
         if (nodeId == "IsRobotVisible")
         {
+            nodeElem->SetAttribute("agent_id", "{id}");
             nodeElem->SetAttribute("distance", "5.0");
         }
         else if (nodeId == "ApproachRobot")
@@ -5087,7 +6280,12 @@ void BTConfigDialog::applyBlockParametersToNode(tinyxml2::XMLElement *nodeElem,
     }
     else if (blockId == "TalkInteract")
     {
-        if (nodeId == "IsAgentVisible")
+        if (nodeId == "FindNearestAgent")
+        {
+            // FindNearestAgent only needs agent_id (input) and outputs target_agent_id
+            // No additional parameters needed - it finds the nearest agent automatically
+        }
+        else if (nodeId == "IsAgentVisible")
         {
             nodeElem->SetAttribute("distance", "10.0");
             nodeElem->SetAttribute("field_of_view", "3.14");
@@ -5095,6 +6293,10 @@ void BTConfigDialog::applyBlockParametersToNode(tinyxml2::XMLElement *nodeElem,
         else if (nodeId == "IsAgentClose")
         {
             nodeElem->SetAttribute("threshold", "2.0");
+        }
+        else if (nodeId == "LookAtAgent")
+        {
+            nodeElem->SetAttribute("yaw_tolerance", "0.1");
         }
         else if (nodeId == "IsAnyoneSpeaking")
         {
@@ -5112,6 +6314,7 @@ void BTConfigDialog::applyBlockParametersToNode(tinyxml2::XMLElement *nodeElem,
     {
         if (nodeId == "IsRobotVisible")
         {
+            nodeElem->SetAttribute("agent_id", "{id}");
             nodeElem->SetAttribute("distance", "5.0");
         }
         else if (nodeId == "IsRobotClose")
@@ -5137,6 +6340,7 @@ void BTConfigDialog::applyBlockParametersToNode(tinyxml2::XMLElement *nodeElem,
     {
         if (nodeId == "IsRobotVisible")
         {
+            nodeElem->SetAttribute("agent_id", "{id}");
             nodeElem->SetAttribute("distance", "5.0");
         }
         else if (nodeId == "BlockRobot")
@@ -5153,29 +6357,11 @@ void BTConfigDialog::applyBlockParametersToNode(tinyxml2::XMLElement *nodeElem,
             nodeElem->SetAttribute("wait_duration", "10.0");
         }
     }
-    else if (blockId == "FollowAgent")
-    {
-        if (nodeId == "FollowAgent")
-        {
-            nodeElem->SetAttribute("time_step", "{dt}");
-            nodeElem->SetAttribute("closest_dist", "1.5");
-            nodeElem->SetAttribute("max_vel", "1.5");
-            nodeElem->SetAttribute("duration", "60.0");
-        }
-        else if (nodeId == "IsAgentVisible")
-        {
-            nodeElem->SetAttribute("distance", "10.0");
-            nodeElem->SetAttribute("field_of_view", "3.14");
-        }
-        else if (nodeId == "IsAgentClose")
-        {
-            nodeElem->SetAttribute("threshold", "1.5");
-        }
-    }
     else if (blockId == "BlockingBehavior")
     {
         if (nodeId == "IsRobotVisible")
         {
+            nodeElem->SetAttribute("agent_id", "{id}");
             nodeElem->SetAttribute("distance", "5.0");
         }
         else if (nodeId == "BlockRobot")
@@ -5196,38 +6382,43 @@ void BTConfigDialog::applyBlockParametersToNode(tinyxml2::XMLElement *nodeElem,
     {
         if (nodeId == "IsAgentVisible")
         {
-            nodeElem->SetAttribute("distance", "10.0");
             nodeElem->SetAttribute("field_of_view", "3.14");
+            // distance will be applied from user parameters
         }
         else if (nodeId == "SaySomething")
         {
+            // greeting_message will be applied from user parameters
         }
     }
     else if (blockId == "ProtectiveGuardian")
     {
         if (nodeId == "IsRobotVisible")
         {
-            nodeElem->SetAttribute("distance", "5.0");
+            nodeElem->SetAttribute("agent_id", "{id}");
+            // robot_detection_distance will be applied from user parameters
         }
         else if (nodeId == "IsAgentVisible")
         {
-            nodeElem->SetAttribute("distance", "10.0");
             nodeElem->SetAttribute("field_of_view", "3.14");
+            // agent_visibility_distance will be applied from user parameters
         }
         else if (nodeId == "IsRobotClose")
         {
-            nodeElem->SetAttribute("threshold", "2.0");
+            // robot_close_threshold will be applied from user parameters
+        }
+        else if (nodeId == "LookAtAgent")
+        {
+            // Instantaneous action, no parameters needed
         }
         else if (nodeId == "ApproachAgent")
         {
             nodeElem->SetAttribute("time_step", "{dt}");
-            nodeElem->SetAttribute("duration", "10.0");
+            // protective_approach_distance, protective_approach_velocity will be applied from user parameters
         }
         else if (nodeId == "BlockRobot")
         {
             nodeElem->SetAttribute("time_step", "{dt}");
-            nodeElem->SetAttribute("front_dist", "1.0");
-            nodeElem->SetAttribute("duration", "30.0");
+            // protective_front_distance, blocking_duration will be applied from user parameters
         }
     }
     else if (blockId == "SpeechDetection")
@@ -5235,18 +6426,16 @@ void BTConfigDialog::applyBlockParametersToNode(tinyxml2::XMLElement *nodeElem,
         if (nodeId == "IsAnyoneSpeaking")
         {
             nodeElem->SetAttribute("time_step", "{dt}");
-            nodeElem->SetAttribute("distance_threshold", "5.0");
-            nodeElem->SetAttribute("duration", "5.0");
+            // distance_threshold and duration will be set from agent-specific parameters
         }
         else if (nodeId == "ApproachAgent")
         {
             nodeElem->SetAttribute("time_step", "{dt}");
-            nodeElem->SetAttribute("duration", "10.0");
+            // closest_dist, max_vel, and duration will be set from agent-specific parameters
         }
         else if (nodeId == "ConversationFormation")
         {
-            nodeElem->SetAttribute("conversation_duration", "15.0");
-            nodeElem->SetAttribute("time_step", "{dt}");
+            // All parameters will be set in applyAgentSpecificParametersToNode
         }
     }
     else if (blockId == "AttentionSeeking")
@@ -5254,12 +6443,16 @@ void BTConfigDialog::applyBlockParametersToNode(tinyxml2::XMLElement *nodeElem,
         if (nodeId == "IsAnyoneLookingAtMe")
         {
             nodeElem->SetAttribute("time_step", "{dt}");
-            nodeElem->SetAttribute("distance_threshold", "5.0");
             nodeElem->SetAttribute("angle_threshold", "0.2");
-            nodeElem->SetAttribute("duration", "5.0");
+            // distance_threshold and duration will be applied from user parameters
+        }
+        else if (nodeId == "LookAtAgent")
+        {
+            // LookAtAgent has no time_step or duration - it's an instantaneous action
         }
         else if (nodeId == "SaySomething")
         {
+            // response_message will be applied from user parameters
         }
     }
 }
@@ -5294,11 +6487,11 @@ void BTConfigDialog::applyAgentSpecificParametersToNode(tinyxml2::XMLElement *no
                     // Only apply parameters that are relevant to this specific node
                     bool shouldApplyParameter = false;
 
-                    if (nodeId == "IsRobotVisible" && (param == "detection_distance"))
+                    if (nodeId == "IsRobotVisible" && (param == "detection_distance" || param == "robot_detection_distance"))
                     {
                         shouldApplyParameter = true;
                     }
-                    else if (nodeId == "IsRobotClose" && (param == "close_threshold"))
+                    else if (nodeId == "IsRobotClose" && (param == "close_threshold" || param == "proximity_threshold" || param == "robot_close_threshold"))
                     {
                         shouldApplyParameter = true;
                     }
@@ -5318,7 +6511,7 @@ void BTConfigDialog::applyAgentSpecificParametersToNode(tinyxml2::XMLElement *no
                     {
                         shouldApplyParameter = true;
                     }
-                    else if (nodeId == "ApproachRobot" && (param == "closest_dist" || param == "max_vel" || param == "duration"))
+                    else if (nodeId == "ApproachRobot" && (param == "closest_dist" || param == "approach_distance" || param == "max_vel" || param == "approach_velocity" || param == "duration" || param == "engagement_duration"))
                     {
                         shouldApplyParameter = true;
                     }
@@ -5326,27 +6519,31 @@ void BTConfigDialog::applyAgentSpecificParametersToNode(tinyxml2::XMLElement *no
                     {
                         shouldApplyParameter = true;
                     }
-                    else if (nodeId == "BlockRobot" && (param == "front_dist" || param == "duration"))
+                    else if (nodeId == "BlockRobot" && (param == "front_dist" || param == "protective_front_distance" || param == "duration" || param == "blocking_duration"))
                     {
                         shouldApplyParameter = true;
                     }
-                    else if (nodeId == "SetGroupWalk" && (param == "non_main_agent_ids" || param == "duration"))
+                    else if (nodeId == "SetGroupWalk" && (param == "non_main_agent_ids" || param == "group_agent_ids" || param == "duration"))
                     {
                         shouldApplyParameter = true;
                     }
-                    else if (nodeId == "IsAnyoneSpeaking" && (param == "speech_distance"))
+                    else if (nodeId == "IsAnyoneSpeaking" && (param == "speech_distance" || param == "speaking_duration"))
                     {
                         shouldApplyParameter = true;
                     }
-                    else if (nodeId == "ApproachAgent" && (param == "duration"))
+                    else if (nodeId == "ApproachAgent" && (param == "duration" || param == "interaction_duration" || param == "protective_approach_distance" || param == "protective_approach_velocity"))
                     {
                         shouldApplyParameter = true;
                     }
-                    else if (nodeId == "ConversationFormation" && (param == "conversation_duration"))
+                    else if (nodeId == "IsAnyoneLookingAtMe" && (param == "attention_distance" || param == "looking_duration"))
                     {
                         shouldApplyParameter = true;
                     }
-                    else if (nodeId == "IsAnyoneLookingAtMe" && (param == "attention_distance"))
+                    else if (nodeId == "IsRobotFacingAgent" && (param == "attention_distance"))
+                    {
+                        shouldApplyParameter = true;
+                    }
+                    else if (nodeId == "LookAtAgent" && (param == "yaw_tolerance"))
                     {
                         shouldApplyParameter = true;
                     }
@@ -5354,21 +6551,10 @@ void BTConfigDialog::applyAgentSpecificParametersToNode(tinyxml2::XMLElement *no
                     {
                         shouldApplyParameter = true;
                     }
-                    else if (nodeId == "IsRobotVisible" && (param == "robot_detection_distance"))
+                    else if (nodeId == "FindNearestAgent")
                     {
-                        shouldApplyParameter = true;
-                    }
-                    else if (nodeId == "IsAgentVisible" && (param == "agent_visibility_distance" || param == "detection_distance"))
-                    {
-                        shouldApplyParameter = true;
-                    }
-                    else if (nodeId == "IsRobotClose" && (param == "robot_close_threshold"))
-                    {
-                        shouldApplyParameter = true;
-                    }
-                    else if (nodeId == "BlockRobot" && (param == "protective_front_distance" || param == "blocking_duration"))
-                    {
-                        shouldApplyParameter = true;
+                        // FindNearestAgent doesn't have user-configurable parameters
+                        shouldApplyParameter = false;
                     }
 
                     if (shouldApplyParameter)
@@ -5379,9 +6565,16 @@ void BTConfigDialog::applyAgentSpecificParametersToNode(tinyxml2::XMLElement *no
                             QString value = it.value().toString();
                             if (!value.isEmpty())
                             {
-                                nodeElem->SetAttribute(xmlAttr.toStdString().c_str(), value.toStdString().c_str());
+                                // Convert to std::string first to avoid dangling pointer from temporary
+                                std::string attrName = xmlAttr.toStdString();
+                                std::string attrValue = value.toStdString();
+                                nodeElem->SetAttribute(attrName.c_str(), attrValue.c_str());
                                 qDebug() << "Applied parameter:" << xmlAttr << "=" << value << "for node" << nodeId;
                             }
+                        }
+                        else
+                        {
+                            qWarning() << "No XML attribute mapping found for parameter:" << param << "on node:" << nodeId;
                         }
                     }
                 }
@@ -5408,10 +6601,422 @@ void BTConfigDialog::applyAgentSpecificParametersToNode(tinyxml2::XMLElement *no
     // Apply agent IDs
     try
     {
-        if (nodeId == "IsAgentVisible")
+        // Special handling for GreetingInitiator block based on greeting mode
+        if (blockId == "GreetingInitiator")
+        {
+            QString modeKey = QString("%1.greeting_mode").arg(blockId);
+            QString mode = assignment.agentSpecificParams.value(modeKey, "specific_agent").toString();
+            
+            // Map old mode names for backward compatibility
+            if (mode == "specific_target")
+                mode = "specific_agent";
+            else if (mode == "find_nearest")
+                mode = "nearest_agent";
+            
+            if (nodeId == "FindNearestAgent")
+            {
+                // FindNearestAgent uses agent_id (input) and outputs target_agent_id
+                nodeElem->SetAttribute("agent_id", "{id}");
+                nodeElem->SetAttribute("target_agent_id", "{target_agent_id}");
+            }
+            else if (nodeId == "IsAgentVisible")
+            {
+                nodeElem->SetAttribute("observer_id", "{id}");
+                nodeElem->SetAttribute("field_of_view", "3.14");
+                
+                if (mode == "nearest_agent")
+                {
+                    // Use target_agent_id from FindNearestAgent output
+                    nodeElem->SetAttribute("agent_id", "{target_agent_id}");
+                }
+                else // specific_agent mode
+                {
+                    // Use the selected target agent
+                    if (assignment.agentSpecificParams.contains(blockId + ".target_agent_id"))
+                    {
+                        std::string target_agent_id_str = assignment.agentSpecificParams[blockId + ".target_agent_id"].toString().toStdString();
+                        nodeElem->SetAttribute("agent_id", target_agent_id_str.c_str());
+                    }
+                    else
+                    {
+                        nodeElem->SetAttribute("agent_id", "2"); // Default fallback
+                    }
+                }
+            }
+            else if (nodeId == "LookAtAgent")
+            {
+                nodeElem->SetAttribute("observer_id", "{id}");
+                
+                if (mode == "nearest_agent")
+                {
+                    // Use target_agent_id from FindNearestAgent output
+                    nodeElem->SetAttribute("target_id", "{target_agent_id}");
+                }
+                else // specific_agent mode
+                {
+                    // Use the selected target agent
+                    if (assignment.agentSpecificParams.contains(blockId + ".target_agent_id"))
+                    {
+                        std::string target_agent_id_str = assignment.agentSpecificParams[blockId + ".target_agent_id"].toString().toStdString();
+                        nodeElem->SetAttribute("target_id", target_agent_id_str.c_str());
+                    }
+                    else
+                    {
+                        nodeElem->SetAttribute("target_id", "2"); // Default fallback
+                    }
+                }
+            }
+            else if (nodeId == "IsRobotVisible")
+            {
+                // IsRobotVisible for greet_robot mode
+                nodeElem->SetAttribute("agent_id", "{id}");
+                
+                // Apply user-configured detection distance
+                if (assignment.agentSpecificParams.contains(blockId + ".detection_distance"))
+                {
+                    std::string distance_value = assignment.agentSpecificParams[blockId + ".detection_distance"].toString().toStdString();
+                    nodeElem->SetAttribute("distance", distance_value.c_str());
+                }
+                else
+                {
+                    nodeElem->SetAttribute("distance", "6.0");
+                }
+            }
+            else if (nodeId == "LookAtRobot")
+            {
+                // LookAtRobot for greet_robot mode
+                nodeElem->SetAttribute("agent_id", "{id}");
+            }
+            else if (nodeId == "SaySomething")
+            {
+                // SaySomething is used in all modes
+                nodeElem->SetAttribute("agent_id", "{id}");
+                
+                // message parameter is handled by the general parameter application above
+            }
+        }
+        // Special handling for TalkInteract block based on interaction mode
+        else if (blockId == "TalkInteract")
+        {
+            QString modeKey = QString("%1.interaction_mode").arg(blockId);
+            QString mode = assignment.agentSpecificParams.value(modeKey, "find_nearest").toString();
+            
+            if (nodeId == "FindNearestAgent")
+            {
+                // FindNearestAgent uses agent_id (input) and outputs target_agent_id
+                nodeElem->SetAttribute("agent_id", "{id}");
+                nodeElem->SetAttribute("target_agent_id", "{target_agent_id}");
+                // No other parameters needed
+            }
+            else if (nodeId == "IsAgentVisible")
+            {
+                // Note: For multi-participant mode, participant-specific attributes are already set
+                // during node creation. Skip if agent_id is already set.
+                if (!nodeElem->Attribute("agent_id"))
+                {
+                    nodeElem->SetAttribute("observer_id", "{id}");
+                    nodeElem->SetAttribute("field_of_view", "3.14");
+                    if (mode == "find_nearest")
+                    {
+                        // Use target_agent_id from FindNearestAgent output
+                        nodeElem->SetAttribute("agent_id", "{target_agent_id}");
+                    }
+                    else // specific_target mode - single participant
+                    {
+                        // Use the single conversation participant
+                        if (assignment.agentSpecificParams.contains(blockId + ".non_main_agent_ids"))
+                        {
+                            QString participantsStr = assignment.agentSpecificParams[blockId + ".non_main_agent_ids"].toString();
+                            QStringList participants = participantsStr.split(",", Qt::SkipEmptyParts);
+                            if (!participants.isEmpty())
+                            {
+                                std::string agent_id_str = participants.first().trimmed().toStdString();
+                                nodeElem->SetAttribute("agent_id", agent_id_str.c_str());
+                            }
+                            else
+                            {
+                                nodeElem->SetAttribute("agent_id", "2"); // Default fallback
+                            }
+                        }
+                        else
+                        {
+                            nodeElem->SetAttribute("agent_id", "2"); // Default fallback
+                        }
+                    }
+                }
+            }
+            else if (nodeId == "IsAgentClose")
+            {
+                // Note: For multi-participant mode, participant-specific attributes are already set
+                // during node creation. Skip if target_agent_id is already set.
+                if (!nodeElem->Attribute("target_agent_id"))
+                {
+                    nodeElem->SetAttribute("observer_id", "{id}");
+                    if (mode == "find_nearest")
+                    {
+                        // Use target_agent_id from FindNearestAgent output
+                        nodeElem->SetAttribute("target_agent_id", "{target_agent_id}");
+                    }
+                    else // specific_target mode - single participant
+                    {
+                        // Use the single conversation participant
+                        if (assignment.agentSpecificParams.contains(blockId + ".non_main_agent_ids"))
+                        {
+                            QString participantsStr = assignment.agentSpecificParams[blockId + ".non_main_agent_ids"].toString();
+                            QStringList participants = participantsStr.split(",", Qt::SkipEmptyParts);
+                            if (!participants.isEmpty())
+                            {
+                                std::string target_agent_id_str = participants.first().trimmed().toStdString();
+                                nodeElem->SetAttribute("target_agent_id", target_agent_id_str.c_str());
+                            }
+                            else
+                            {
+                                nodeElem->SetAttribute("target_agent_id", "2"); // Default fallback
+                            }
+                        }
+                        else
+                        {
+                            nodeElem->SetAttribute("target_agent_id", "2"); // Default fallback
+                        }
+                    }
+                }
+            }
+            else if (nodeId == "LookAtAgent")
+            {
+                // Used in find_nearest mode
+                // LookAtAgent uses observer_id and target_id (from TreeNodesModel.xml)
+                nodeElem->SetAttribute("observer_id", "{id}");
+                nodeElem->SetAttribute("target_id", "{target_agent_id}");
+            }
+            else if (nodeId == "ConversationFormation")
+            {
+                // ConversationFormation uses main_agent_id (from TreeNodesModel.xml)
+                nodeElem->SetAttribute("main_agent_id", "{id}");
+                nodeElem->SetAttribute("time_step", "{dt}");
+                
+                // goal_id comes from user selection in the wizard
+                if (assignment.agentSpecificParams.contains(blockId + ".goal_id"))
+                {
+                    std::string goal_id_value = assignment.agentSpecificParams[blockId + ".goal_id"].toString().toStdString();
+                    nodeElem->SetAttribute("goal_id", goal_id_value.c_str());
+                }
+                else
+                {
+                    nodeElem->SetAttribute("goal_id", "1");
+                }
+                
+                // non_main_agent_ids depends on the interaction mode
+                if (mode == "find_nearest")
+                {
+                    // For find_nearest mode, use the target_agent_id from FindNearestAgent
+                    nodeElem->SetAttribute("non_main_agent_ids", "{target_agent_id}");
+                }
+                else // specific_target mode
+                {
+                    // For specific_target mode, use conversation participants parameter
+                    if (assignment.agentSpecificParams.contains(blockId + ".non_main_agent_ids"))
+                    {
+                        std::string non_main_agent_ids_value = assignment.agentSpecificParams[blockId + ".non_main_agent_ids"].toString().toStdString();
+                        nodeElem->SetAttribute("non_main_agent_ids", non_main_agent_ids_value.c_str());
+                    }
+                    else
+                    {
+                        nodeElem->SetAttribute("non_main_agent_ids", "2");
+                    }
+                }
+            }
+            // Continue to regular agent ID handling below for any other nodes
+            else if (nodeId != "FindNearestAgent" && nodeId != "IsAgentVisible" && 
+                     nodeId != "IsAgentClose" && nodeId != "LookAtAgent" && 
+                     nodeId != "ConversationFormation")
+            {
+                nodeElem->SetAttribute("agent_id", "{id}");
+            }
+        }
+        // Special handling for FollowAgent block based on interaction mode
+        else if (blockId == "FollowAgent")
+        {
+            QString modeKey = QString("%1.interaction_mode").arg(blockId);
+            QString mode = assignment.agentSpecificParams.value(modeKey, "find_nearest").toString();
+            
+            if (nodeId == "FindNearestAgent")
+            {
+                // FindNearestAgent uses agent_id (input) and outputs target_agent_id
+                nodeElem->SetAttribute("agent_id", "{id}");
+                nodeElem->SetAttribute("target_agent_id", "{target_agent_id}");
+            }
+            else if (nodeId == "IsAgentVisible")
+            {
+                nodeElem->SetAttribute("observer_id", "{id}");
+                if (mode == "find_nearest")
+                {
+                    // Use target_agent_id from FindNearestAgent output
+                    nodeElem->SetAttribute("agent_id", "{target_agent_id}");
+                }
+                else // specific_target mode
+                {
+                    // Use specific target from user selection
+                    if (assignment.agentSpecificParams.contains(blockId + ".target_agent_id"))
+                    {
+                        std::string agent_id_value = assignment.agentSpecificParams[blockId + ".target_agent_id"].toString().toStdString();
+                        nodeElem->SetAttribute("agent_id", agent_id_value.c_str());
+                    }
+                    else
+                    {
+                        nodeElem->SetAttribute("agent_id", "2"); // Default fallback
+                    }
+                }
+                // Apply user-configured visibility distance
+                if (assignment.agentSpecificParams.contains(blockId + ".visibility_distance"))
+                {
+                    std::string distance_value = assignment.agentSpecificParams[blockId + ".visibility_distance"].toString().toStdString();
+                    nodeElem->SetAttribute("distance", distance_value.c_str());
+                }
+            }
+            else if (nodeId == "IsAgentClose")
+            {
+                nodeElem->SetAttribute("observer_id", "{id}");
+                if (mode == "find_nearest")
+                {
+                    // Use target_agent_id from FindNearestAgent output
+                    nodeElem->SetAttribute("target_agent_id", "{target_agent_id}");
+                }
+                else // specific_target mode
+                {
+                    // Use specific target from user selection
+                    if (assignment.agentSpecificParams.contains(blockId + ".target_agent_id"))
+                    {
+                        std::string target_agent_id_value = assignment.agentSpecificParams[blockId + ".target_agent_id"].toString().toStdString();
+                        nodeElem->SetAttribute("target_agent_id", target_agent_id_value.c_str());
+                    }
+                    else
+                    {
+                        nodeElem->SetAttribute("target_agent_id", "2"); // Default fallback
+                    }
+                }
+                // Apply user-configured close threshold
+                if (assignment.agentSpecificParams.contains(blockId + ".is_close_threshold"))
+                {
+                    std::string threshold_value = assignment.agentSpecificParams[blockId + ".is_close_threshold"].toString().toStdString();
+                    nodeElem->SetAttribute("threshold", threshold_value.c_str());
+                }
+            }
+            else if (nodeId == "FollowAgent")
+            {
+                nodeElem->SetAttribute("agent_id", "{id}");
+                if (mode == "find_nearest")
+                {
+                    // Use target_agent_id from FindNearestAgent output
+                    nodeElem->SetAttribute("target_agent_id", "{target_agent_id}");
+                }
+                else // specific_target mode
+                {
+                    // Use specific target from user selection
+                    if (assignment.agentSpecificParams.contains(blockId + ".target_agent_id"))
+                    {
+                        std::string target_agent_id_value = assignment.agentSpecificParams[blockId + ".target_agent_id"].toString().toStdString();
+                        nodeElem->SetAttribute("target_agent_id", target_agent_id_value.c_str());
+                    }
+                    else
+                    {
+                        nodeElem->SetAttribute("target_agent_id", "2"); // Default fallback
+                    }
+                }
+                // Apply user-configured parameters
+                if (assignment.agentSpecificParams.contains(blockId + ".following_distance"))
+                {
+                    std::string closest_dist_value = assignment.agentSpecificParams[blockId + ".following_distance"].toString().toStdString();
+                    nodeElem->SetAttribute("closest_dist", closest_dist_value.c_str());
+                }
+                if (assignment.agentSpecificParams.contains(blockId + ".max_vel"))
+                {
+                    std::string max_vel_value = assignment.agentSpecificParams[blockId + ".max_vel"].toString().toStdString();
+                    nodeElem->SetAttribute("max_vel", max_vel_value.c_str());
+                }
+                if (assignment.agentSpecificParams.contains(blockId + ".duration"))
+                {
+                    std::string duration_value = assignment.agentSpecificParams[blockId + ".duration"].toString().toStdString();
+                    nodeElem->SetAttribute("duration", duration_value.c_str());
+                }
+            }
+        }
+        else if (nodeId == "IsAgentVisible")
         {
             nodeElem->SetAttribute("observer_id", "{id}");
-            if (!assignment.agentSpecificParams.contains(blockId + ".target_agent_id"))
+            
+            if (blockId == "GreetingInitiator")
+            {
+                // Check greeting mode
+                QString modeKey = QString("%1.greeting_mode").arg(blockId);
+                QString mode = assignment.agentSpecificParams.value(modeKey, "specific_target").toString();
+                
+                if (mode == "find_nearest")
+                {
+                    // Use target_agent_id from FindNearestAgent output
+                    nodeElem->SetAttribute("agent_id", "{target_agent_id}");
+                }
+                else // specific_target
+                {
+                    // Apply user-selected target agent
+                    if (assignment.agentSpecificParams.contains(blockId + ".target_agent_id"))
+                    {
+                        std::string agent_id_value = assignment.agentSpecificParams[blockId + ".target_agent_id"].toString().toStdString();
+                        nodeElem->SetAttribute("agent_id", agent_id_value.c_str());
+                    }
+                    else
+                    {
+                        nodeElem->SetAttribute("agent_id", "2");
+                    }
+                }
+                
+                // Apply user-configured detection distance (used in both modes)
+                if (assignment.agentSpecificParams.contains(blockId + ".detection_distance"))
+                {
+                    std::string distance_value = assignment.agentSpecificParams[blockId + ".detection_distance"].toString().toStdString();
+                    nodeElem->SetAttribute("distance", distance_value.c_str());
+                }
+                else
+                {
+                    nodeElem->SetAttribute("distance", "6.0");
+                }
+            }
+            else if (blockId == "ProtectiveGuardian")
+            {
+                // Check protection mode
+                QString modeKey = QString("%1.protection_mode").arg(blockId);
+                QString mode = assignment.agentSpecificParams.value(modeKey, "specific_protected").toString();
+                
+                if (mode == "protect_nearest_threatened")
+                {
+                    // Use target_agent_id from FindNearestAgent output
+                    nodeElem->SetAttribute("agent_id", "{target_agent_id}");
+                }
+                else // specific_protected
+                {
+                    // Apply user-selected protected agent
+                    if (assignment.agentSpecificParams.contains(blockId + ".target_agent_id"))
+                    {
+                        std::string agent_id_value = assignment.agentSpecificParams[blockId + ".target_agent_id"].toString().toStdString();
+                        nodeElem->SetAttribute("agent_id", agent_id_value.c_str());
+                    }
+                    else
+                    {
+                        nodeElem->SetAttribute("agent_id", "2");
+                    }
+                }
+                
+                // Apply user-configured agent visibility distance (used in both modes)
+                if (assignment.agentSpecificParams.contains(blockId + ".agent_visibility_distance"))
+                {
+                    std::string distance_value = assignment.agentSpecificParams[blockId + ".agent_visibility_distance"].toString().toStdString();
+                    nodeElem->SetAttribute("distance", distance_value.c_str());
+                }
+                else
+                {
+                    nodeElem->SetAttribute("distance", "10.0");
+                }
+            }
+            else if (!assignment.agentSpecificParams.contains(blockId + ".target_agent_id"))
             {
                 nodeElem->SetAttribute("agent_id", "2");
             }
@@ -5428,27 +7033,147 @@ void BTConfigDialog::applyAgentSpecificParametersToNode(tinyxml2::XMLElement *no
         {
             if (blockId == "ProtectiveGuardian")
             {
-                if (!assignment.agentSpecificParams.contains(blockId + ".target_agent_id"))
+                // Check protection mode
+                QString modeKey = QString("%1.protection_mode").arg(blockId);
+                QString mode = assignment.agentSpecificParams.value(modeKey, "specific_protected").toString();
+                
+                if (mode == "protect_nearest_threatened")
                 {
-                    nodeElem->SetAttribute("agent_id", "2");
+                    // Check if robot is close to the agent found by FindNearestAgent
+                    nodeElem->SetAttribute("agent_id", "{target_agent_id}");
+                }
+                else // specific_protected
+                {
+                    // Check if robot is close to the protected agent (not to this agent)
+                    if (!assignment.agentSpecificParams.contains(blockId + ".target_agent_id"))
+                    {
+                        nodeElem->SetAttribute("agent_id", "2");
+                    }
+                    else
+                    {
+                        QString targetAgent = assignment.agentSpecificParams.value(blockId + ".target_agent_id").toString();
+                        std::string targetAgent_str = targetAgent.toStdString();
+                        nodeElem->SetAttribute("agent_id", targetAgent_str.c_str());
+                    }
+                }
+                
+                // Apply user-configured robot close threshold (used in both modes)
+                if (assignment.agentSpecificParams.contains(blockId + ".robot_close_threshold"))
+                {
+                    std::string threshold_value = assignment.agentSpecificParams[blockId + ".robot_close_threshold"].toString().toStdString();
+                    nodeElem->SetAttribute("threshold", threshold_value.c_str());
                 }
                 else
                 {
-                    QString targetAgent = assignment.agentSpecificParams.value(blockId + ".target_agent_id").toString();
-                    nodeElem->SetAttribute("agent_id", targetAgent.toStdString().c_str());
+                    nodeElem->SetAttribute("threshold", "3.0");
                 }
             }
             else
             {
-
                 nodeElem->SetAttribute("agent_id", "{id}");
+            }
+        }
+        else if (nodeId == "IsRobotVisible")
+        {
+            // Generic robot visibility check - needs agent_id and distance
+            nodeElem->SetAttribute("agent_id", "{id}");
+            
+            if (blockId == "GreetingInitiator")
+            {
+                // Apply user-configured detection distance
+                if (assignment.agentSpecificParams.contains(blockId + ".detection_distance"))
+                {
+                    std::string distance_value = assignment.agentSpecificParams[blockId + ".detection_distance"].toString().toStdString();
+                    nodeElem->SetAttribute("distance", distance_value.c_str());
+                }
+                else
+                {
+                    nodeElem->SetAttribute("distance", "6.0");
+                }
+            }
+            else if (blockId == "ProtectiveGuardian")
+            {
+                // Apply user-configured robot detection distance
+                if (assignment.agentSpecificParams.contains(blockId + ".robot_detection_distance"))
+                {
+                    std::string distance_value = assignment.agentSpecificParams[blockId + ".robot_detection_distance"].toString().toStdString();
+                    nodeElem->SetAttribute("distance", distance_value.c_str());
+                }
+                else
+                {
+                    nodeElem->SetAttribute("distance", "15.0");
+                }
+            }
+        }
+        else if (nodeId == "LookAtRobot")
+        {
+            // LookAtRobot needs agent_id
+            nodeElem->SetAttribute("agent_id", "{id}");
+        }
+        else if (nodeId == "BlockRobot")
+        {
+            nodeElem->SetAttribute("agent_id", "{id}");
+            
+            if (blockId == "ProtectiveGuardian")
+            {
+                // Apply user-configured protective front distance
+                if (assignment.agentSpecificParams.contains(blockId + ".protective_front_distance"))
+                {
+                    std::string front_dist_value = assignment.agentSpecificParams[blockId + ".protective_front_distance"].toString().toStdString();
+                    nodeElem->SetAttribute("front_dist", front_dist_value.c_str());
+                }
+                else
+                {
+                    nodeElem->SetAttribute("front_dist", "1.2");
+                }
+                
+                // Apply user-configured blocking duration
+                if (assignment.agentSpecificParams.contains(blockId + ".blocking_duration"))
+                {
+                    std::string duration_value = assignment.agentSpecificParams[blockId + ".blocking_duration"].toString().toStdString();
+                    nodeElem->SetAttribute("duration", duration_value.c_str());
+                }
+                else
+                {
+                    nodeElem->SetAttribute("duration", "20.0");
+                }
             }
         }
         else if (nodeId == "LookAtAgent")
         {
             nodeElem->SetAttribute("observer_id", "{id}");
 
-            if (!assignment.agentSpecificParams.contains(blockId + ".target_agent_id"))
+            if (blockId == "AttentionSeeking")
+            {
+                // For AttentionSeeking, look at whoever was looking at us
+                nodeElem->SetAttribute("target_id", "{observer_id}");
+            }
+            else if (blockId == "ProtectiveGuardian")
+            {
+                // Check protection mode
+                QString modeKey = QString("%1.protection_mode").arg(blockId);
+                QString mode = assignment.agentSpecificParams.value(modeKey, "specific_protected").toString();
+                
+                if (mode == "protect_nearest_threatened")
+                {
+                    // Look at the agent found by FindNearestAgent
+                    nodeElem->SetAttribute("target_id", "{target_agent_id}");
+                }
+                else // specific_protected
+                {
+                    // For ProtectiveGuardian, look at the protected agent
+                    if (assignment.agentSpecificParams.contains(blockId + ".target_agent_id"))
+                    {
+                        std::string target_id_value = assignment.agentSpecificParams[blockId + ".target_agent_id"].toString().toStdString();
+                        nodeElem->SetAttribute("target_id", target_id_value.c_str());
+                    }
+                    else
+                    {
+                        nodeElem->SetAttribute("target_id", "2");
+                    }
+                }
+            }
+            else if (!assignment.agentSpecificParams.contains(blockId + ".target_agent_id"))
             {
                 nodeElem->SetAttribute("target_id", "2");
             }
@@ -5463,13 +7188,107 @@ void BTConfigDialog::applyAgentSpecificParametersToNode(tinyxml2::XMLElement *no
         else if (nodeId == "ConversationFormation")
         {
             nodeElem->SetAttribute("main_agent_id", "{id}");
-            if (!assignment.agentSpecificParams.contains(blockId + ".goal_id"))
+            nodeElem->SetAttribute("time_step", "{dt}");
+            
+            // Handle different blocks that use ConversationFormation
+            if (blockId == "TalkInteract")
             {
-                nodeElem->SetAttribute("goal_id", "1");
+                // For TalkInteract, use the selected conversation participants
+                // Check interaction mode to determine how to set non_main_agent_ids
+                QString modeKey = QString("%1.interaction_mode").arg(blockId);
+                QString mode = assignment.agentSpecificParams.value(modeKey, "find_nearest").toString();
+                
+                if (mode == "find_nearest")
+                {
+                    // In find_nearest mode, conversation partner is the found agent
+                    nodeElem->SetAttribute("non_main_agent_ids", "{target_agent_id}");
+                }
+                else // specific_target
+                {
+                    // In specific_target mode, use the selected participants
+                    if (assignment.agentSpecificParams.contains(blockId + ".non_main_agent_ids"))
+                    {
+                        QString participants = assignment.agentSpecificParams[blockId + ".non_main_agent_ids"].toString();
+                        std::string participants_str = participants.toStdString();
+                        nodeElem->SetAttribute("non_main_agent_ids", participants_str.c_str());
+                    }
+                    else
+                    {
+                        // Fallback to default
+                        nodeElem->SetAttribute("non_main_agent_ids", "2");
+                    }
+                }
+                
+                // Apply goal_id from user selection
+                if (assignment.agentSpecificParams.contains(blockId + ".goal_id"))
+                {
+                    std::string goal_id_value = assignment.agentSpecificParams[blockId + ".goal_id"].toString().toStdString();
+                    nodeElem->SetAttribute("goal_id", goal_id_value.c_str());
+                }
+                else
+                {
+                    nodeElem->SetAttribute("goal_id", "1");
+                }
+                
+                // Apply conversation_duration from user selection
+                if (assignment.agentSpecificParams.contains(blockId + ".conversation_duration"))
+                {
+                    std::string conversation_duration_value = assignment.agentSpecificParams[blockId + ".conversation_duration"].toString().toStdString();
+                    nodeElem->SetAttribute("conversation_duration", conversation_duration_value.c_str());
+                }
+                else
+                {
+                    nodeElem->SetAttribute("conversation_duration", "30.0");
+                }
             }
-            if (!assignment.agentSpecificParams.contains(blockId + ".non_main_agent_ids"))
+            else if (blockId == "SpeechDetection")
             {
-                nodeElem->SetAttribute("non_main_agent_ids", "2,3");
+                // For SpeechDetection, the speaker is the conversation partner
+                nodeElem->SetAttribute("non_main_agent_ids", "{speaker_id}");
+                
+                // Apply goal_id from user selection
+                if (assignment.agentSpecificParams.contains(blockId + ".goal_id"))
+                {
+                    std::string goal_id_value = assignment.agentSpecificParams[blockId + ".goal_id"].toString().toStdString();
+                    nodeElem->SetAttribute("goal_id", goal_id_value.c_str());
+                }
+                else
+                {
+                    nodeElem->SetAttribute("goal_id", "1");
+                }
+                
+                // Apply conversation_duration from user selection
+                if (assignment.agentSpecificParams.contains(blockId + ".conversation_duration"))
+                {
+                    std::string conversation_duration_value = assignment.agentSpecificParams[blockId + ".conversation_duration"].toString().toStdString();
+                    nodeElem->SetAttribute("conversation_duration", conversation_duration_value.c_str());
+                }
+                else
+                {
+                    nodeElem->SetAttribute("conversation_duration", "45.0");
+                }
+            }
+            else
+            {
+                // Generic handling for other blocks (e.g., ProtectiveGuardian)
+                if (assignment.agentSpecificParams.contains(blockId + ".goal_id"))
+                {
+                    std::string goal_id_value = assignment.agentSpecificParams[blockId + ".goal_id"].toString().toStdString();
+                    nodeElem->SetAttribute("goal_id", goal_id_value.c_str());
+                }
+                else
+                {
+                    nodeElem->SetAttribute("goal_id", "1");
+                }
+                if (assignment.agentSpecificParams.contains(blockId + ".non_main_agent_ids"))
+                {
+                    std::string non_main_agent_ids_value = assignment.agentSpecificParams[blockId + ".non_main_agent_ids"].toString().toStdString();
+                    nodeElem->SetAttribute("non_main_agent_ids", non_main_agent_ids_value.c_str());
+                }
+                else
+                {
+                    nodeElem->SetAttribute("non_main_agent_ids", "2,3");
+                }
             }
         }
         else if (nodeId == "SetGroupWalk")
@@ -5486,29 +7305,194 @@ void BTConfigDialog::applyAgentSpecificParametersToNode(tinyxml2::XMLElement *no
         }
         else if (nodeId == "ApproachAgent")
         {
+            nodeElem->SetAttribute("agent_id", "{id}");
+            
             if (blockId == "SpeechDetection")
             {
                 nodeElem->SetAttribute("target_agent_id", "{speaker_id}");
+                
+                // Apply user-configured approach parameters
+                if (assignment.agentSpecificParams.contains(blockId + ".approach_distance"))
+                {
+                    std::string closest_dist_value = assignment.agentSpecificParams[blockId + ".approach_distance"].toString().toStdString();
+                    nodeElem->SetAttribute("closest_dist", closest_dist_value.c_str());
+                }
+                else
+                {
+                    nodeElem->SetAttribute("closest_dist", "1.5");
+                }
+                
+                if (assignment.agentSpecificParams.contains(blockId + ".approach_velocity"))
+                {
+                    std::string max_vel_value = assignment.agentSpecificParams[blockId + ".approach_velocity"].toString().toStdString();
+                    nodeElem->SetAttribute("max_vel", max_vel_value.c_str());
+                }
+                else
+                {
+                    nodeElem->SetAttribute("max_vel", "1.2");
+                }
+                
+                // Apply user-configured approach duration
+                if (assignment.agentSpecificParams.contains(blockId + ".approach_duration"))
+                {
+                    std::string duration_value = assignment.agentSpecificParams[blockId + ".approach_duration"].toString().toStdString();
+                    nodeElem->SetAttribute("duration", duration_value.c_str());
+                }
+                else
+                {
+                    nodeElem->SetAttribute("duration", "15.0");
+                }
             }
             else if (blockId == "ProtectiveGuardian")
             {
-                if (!assignment.agentSpecificParams.contains(blockId + ".target_agent_id"))
+                // Check protection mode
+                QString modeKey = QString("%1.protection_mode").arg(blockId);
+                QString mode = assignment.agentSpecificParams.value(modeKey, "specific_protected").toString();
+                
+                if (mode == "protect_nearest_threatened")
                 {
-                    nodeElem->SetAttribute("target_agent_id", "2");
+                    // Approach the agent found by FindNearestAgent
+                    nodeElem->SetAttribute("target_agent_id", "{target_agent_id}");
+                }
+                else // specific_protected
+                {
+                    // Approach the protected agent to intervene
+                    if (assignment.agentSpecificParams.contains(blockId + ".target_agent_id"))
+                    {
+                        std::string target_agent_id_value = assignment.agentSpecificParams[blockId + ".target_agent_id"].toString().toStdString();
+                        nodeElem->SetAttribute("target_agent_id", target_agent_id_value.c_str());
+                    }
+                    else
+                    {
+                        nodeElem->SetAttribute("target_agent_id", "2");
+                    }
+                }
+                
+                // Apply user-configured protective approach distance (used in both modes)
+                if (assignment.agentSpecificParams.contains(blockId + ".protective_approach_distance"))
+                {
+                    std::string closest_dist_value = assignment.agentSpecificParams[blockId + ".protective_approach_distance"].toString().toStdString();
+                    nodeElem->SetAttribute("closest_dist", closest_dist_value.c_str());
+                }
+                else
+                {
+                    nodeElem->SetAttribute("closest_dist", "1.8");
+                }
+                
+                // Apply user-configured protective approach velocity (used in both modes)
+                if (assignment.agentSpecificParams.contains(blockId + ".protective_approach_velocity"))
+                {
+                    std::string max_vel_value = assignment.agentSpecificParams[blockId + ".protective_approach_velocity"].toString().toStdString();
+                    nodeElem->SetAttribute("max_vel", max_vel_value.c_str());
+                }
+                else
+                {
+                    nodeElem->SetAttribute("max_vel", "1.8");
+                }
+                
+                // No duration limit for protective intervention (approach until close enough)
+            }
+        }
+        else if (nodeId == "IsAnyoneSpeaking")
+        {
+            nodeElem->SetAttribute("agent_id", "{id}");
+            
+            if (blockId == "SpeechDetection")
+            {
+                // Explicitly set the output port speaker_id (like FindNearestAgent's target_agent_id)
+                nodeElem->SetAttribute("speaker_id", "{speaker_id}");
+                
+                // Apply user-configured speech detection distance
+                if (assignment.agentSpecificParams.contains(blockId + ".speech_distance"))
+                {
+                    std::string distance_threshold_value = assignment.agentSpecificParams[blockId + ".speech_distance"].toString().toStdString();
+                    nodeElem->SetAttribute("distance_threshold", distance_threshold_value.c_str());
+                }
+                else
+                {
+                    nodeElem->SetAttribute("distance_threshold", "8.0");
+                }
+                
+                // Apply user-configured speech detection duration
+                if (assignment.agentSpecificParams.contains(blockId + ".speaking_duration"))
+                {
+                    std::string duration_value = assignment.agentSpecificParams[blockId + ".speaking_duration"].toString().toStdString();
+                    nodeElem->SetAttribute("duration", duration_value.c_str());
+                }
+                else
+                {
+                    nodeElem->SetAttribute("duration", "5.0");
                 }
             }
         }
-        else if (nodeId == "IsAnyoneSpeaking" || nodeId == "IsAnyoneLookingAtMe")
+        else if (nodeId == "IsAnyoneLookingAtMe")
         {
             nodeElem->SetAttribute("agent_id", "{id}");
+            
+            if (blockId == "AttentionSeeking")
+            {
+                // Explicitly set the output port (like FindNearestAgent's target_agent_id or IsAnyoneSpeaking's speaker_id)
+                nodeElem->SetAttribute("observer_id", "{observer_id}");
+                
+                // Apply user-configured attention detection distance
+                if (assignment.agentSpecificParams.contains(blockId + ".attention_distance"))
+                {
+                    std::string distance_threshold_value = assignment.agentSpecificParams[blockId + ".attention_distance"].toString().toStdString();
+                    nodeElem->SetAttribute("distance_threshold", distance_threshold_value.c_str());
+                }
+                else
+                {
+                    nodeElem->SetAttribute("distance_threshold", "6.0");
+                }
+                
+                // Apply user-configured attention detection duration
+                if (assignment.agentSpecificParams.contains(blockId + ".looking_duration"))
+                {
+                    std::string duration_value = assignment.agentSpecificParams[blockId + ".looking_duration"].toString().toStdString();
+                    nodeElem->SetAttribute("duration", duration_value.c_str());
+                }
+                else
+                {
+                    nodeElem->SetAttribute("duration", "5.0");
+                }
+            }
         }
         else if (nodeId == "SaySomething")
         {
             nodeElem->SetAttribute("agent_id", "{id}");
+            
+            if (blockId == "AttentionSeeking")
+            {
+                // Apply user-configured response message
+                if (assignment.agentSpecificParams.contains(blockId + ".response_message"))
+                {
+                    std::string message_value = assignment.agentSpecificParams[blockId + ".response_message"].toString().toStdString();
+                    nodeElem->SetAttribute("message", message_value.c_str());
+                }
+                else
+                {
+                    nodeElem->SetAttribute("message", "I see you looking at me!");
+                }
+            }
+            else if (blockId == "GreetingInitiator")
+            {
+                // Apply user-configured greeting message
+                if (assignment.agentSpecificParams.contains(blockId + ".greeting_message"))
+                {
+                    std::string message_value = assignment.agentSpecificParams[blockId + ".greeting_message"].toString().toStdString();
+                    nodeElem->SetAttribute("message", message_value.c_str());
+                }
+                else
+                {
+                    nodeElem->SetAttribute("message", "Hello there!");
+                }
+            }
         }
         else if (nodeId == "FindNearestAgent")
         {
             nodeElem->SetAttribute("agent_id", "{id}");
+            // Explicitly set the output port (like IsAnyoneSpeaking's speaker_id)
+            nodeElem->SetAttribute("target_agent_id", "{target_agent_id}");
         }
         else if (nodeId == "SetGroupId")
         {
@@ -5556,12 +7540,18 @@ QString BTConfigDialog::mapParameterToXMLAttribute(const QString & /*blockId*/,
     {
         if (paramName == "detection_distance")
             return "distance";
+        if (paramName == "robot_detection_distance")
+            return "distance";
         return "";
     }
 
     if (nodeId == "IsRobotClose")
     {
         if (paramName == "close_threshold")
+            return "threshold";
+        if (paramName == "proximity_threshold")
+            return "threshold";
+        if (paramName == "robot_close_threshold")
             return "threshold";
         return "";
     }
@@ -5571,6 +7561,10 @@ QString BTConfigDialog::mapParameterToXMLAttribute(const QString & /*blockId*/,
         if (paramName == "target_agent_id")
             return "agent_id";
         if (paramName == "visibility_distance")
+            return "distance";
+        if (paramName == "agent_visibility_distance")
+            return "distance";
+        if (paramName == "detection_distance")
             return "distance";
         return "";
     }
@@ -5641,8 +7635,26 @@ QString BTConfigDialog::mapParameterToXMLAttribute(const QString & /*blockId*/,
     {
         if (paramName == "front_dist")
             return "front_dist";
+        if (paramName == "protective_front_distance")
+            return "front_dist";
         if (paramName == "duration")
             return "duration";
+        if (paramName == "blocking_duration")
+            return "duration";
+        return "";
+    }
+
+    if (nodeId == "FindNearestAgent")
+    {
+        // FindNearestAgent doesn't need configurable parameters - it uses agent_id from context
+        // and outputs target_agent_id automatically
+        return "";
+    }
+
+    if (nodeId == "LookAtAgent")
+    {
+        if (paramName == "yaw_tolerance")
+            return "yaw_tolerance";
         return "";
     }
 
@@ -5651,6 +7663,53 @@ QString BTConfigDialog::mapParameterToXMLAttribute(const QString & /*blockId*/,
         if (paramName == "non_main_agent_ids")
             return "non_main_agent_ids";
         if (paramName == "duration")
+            return "duration";
+        return "";
+    }
+    
+    if (nodeId == "IsAnyoneLookingAtMe")
+    {
+        if (paramName == "attention_distance")
+            return "distance_threshold";
+        if (paramName == "looking_duration")
+            return "duration";
+        return "";
+    }
+    
+    if (nodeId == "IsRobotFacingAgent")
+    {
+        if (paramName == "attention_distance")
+            return "distance";
+        return "";
+    }
+    
+    if (nodeId == "IsAnyoneSpeaking")
+    {
+        if (paramName == "speech_distance")
+            return "distance_threshold";
+        if (paramName == "speaking_duration")
+            return "duration";
+        return "";
+    }
+    
+    if (nodeId == "SaySomething")
+    {
+        if (paramName == "response_message")
+            return "message";
+        if (paramName == "greeting_message")
+            return "message";
+        return "";
+    }
+    
+    if (nodeId == "ApproachAgent")
+    {
+        if (paramName == "protective_approach_distance")
+            return "closest_dist";
+        if (paramName == "protective_approach_velocity")
+            return "max_vel";
+        if (paramName == "protective_approach_duration")
+            return "duration";
+        if (paramName == "interaction_duration")
             return "duration";
         return "";
     }
@@ -5703,6 +7762,13 @@ void BTConfigDialog::setupParameterUpdateConnections(const QString &blockId, int
     {
         if (!widget)
             return;
+        
+        // Bounds check for agentIndex
+        if (agentIndex < 0 || agentIndex >= agents_.size())
+        {
+            qWarning() << "createParameterUpdater: agentIndex" << agentIndex << "out of range (size:" << agents_.size() << ")";
+            return;
+        }
 
         // Create a unique key for this widget connection
         QString connectionKey = QString("%1_%2").arg(reinterpret_cast<quintptr>(widget)).arg(paramKey);
@@ -5798,11 +7864,13 @@ void BTConfigDialog::setupParameterUpdateConnections(const QString &blockId, int
         }
         else if (auto comboBox = qobject_cast<QComboBox *>(widget))
         {
-            connect(comboBox, QOverload<int>::of(&QComboBox::currentIndexChanged), comboBox, [this, agentIndex, paramKey, comboBox](int)
+            // Use QPointer to safely capture the comboBox
+            QPointer<QComboBox> comboBoxPtr(comboBox);
+            connect(comboBox, QOverload<int>::of(&QComboBox::currentIndexChanged), comboBox, [this, agentIndex, paramKey, comboBoxPtr](int)
                     {
-                if (agentIndex >= agents_.size() || !comboBox) return;
-                QVariant value = comboBox->currentData();
-                if (!value.isValid()) value = comboBox->currentText();
+                if (agentIndex >= agents_.size() || !comboBoxPtr) return;
+                QVariant value = comboBoxPtr->currentData();
+                if (!value.isValid()) value = comboBoxPtr->currentText();
                 agents_[agentIndex].agentSpecificParams[paramKey] = value;
                 qDebug() << "PARAM UPDATE: " << paramKey << "=" << value << "for agent" << agentIndex; });
 
@@ -5854,8 +7922,15 @@ void BTConfigDialog::setupParameterUpdateConnections(const QString &blockId, int
 
     qDebug() << "setupParameterUpdateConnections: Created" << connectionsCreated << "connections for block" << blockId << "agent" << agentIndex;
 
-    // Verify parameter storage immediately
-    qDebug() << "Current parameters for agent" << agentIndex << ":" << agents_[agentIndex].agentSpecificParams;
+    // Verify parameter storage immediately (with bounds check)
+    if (agentIndex >= 0 && agentIndex < agents_.size())
+    {
+        qDebug() << "Current parameters for agent" << agentIndex << ":" << agents_[agentIndex].agentSpecificParams;
+    }
+    else
+    {
+        qWarning() << "Cannot verify parameters: agentIndex" << agentIndex << "out of range (size:" << agents_.size() << ")";
+    }
 }
 
 void BTConfigDialog::setupAllParameterConnections()
@@ -5913,30 +7988,17 @@ void BTConfigDialog::setupAllParameterConnections()
 void BTConfigDialog::clearParameterConnectionTracking()
 {
     qDebug() << "clearParameterConnectionTracking: Clearing connection tracking data";
+    qDebug() << "Clearing setupTracker_...";
     setupTracker_.clear();
+    qDebug() << "setupTracker_ cleared";
+    
+    qDebug() << "Clearing connectedWidgets_...";
     connectedWidgets_.clear();
+    qDebug() << "connectedWidgets_ cleared";
 
-    // Clean up any orphaned widget pointers from blockConfigWidgets_
-    int removedCount = 0;
-    for (auto it = blockConfigWidgets_.begin(); it != blockConfigWidgets_.end();)
-    {
-        QWidget *widget = it.value();
-        // Remove entries with null widgets or widgets without parents
-        if (!widget || !widget->parent())
-        {
-            it = blockConfigWidgets_.erase(it);
-            removedCount++;
-        }
-        else
-        {
-            ++it;
-        }
-    }
-
-    if (removedCount > 0)
-    {
-        qDebug() << "Removed" << removedCount << "orphaned widget pointers from blockConfigWidgets_";
-    }
+    qDebug() << "Clearing blockConfigWidgets_ (had" << blockConfigWidgets_.size() << "entries)...";
+    blockConfigWidgets_.clear();
+    qDebug() << "blockConfigWidgets_ cleared";
 
     qDebug() << "Connection tracking cleared - ready for fresh parameter setup";
 }
@@ -6055,7 +8117,8 @@ bool BTConfigDialog::loadExistingConfiguration(const QStringList &btPaths)
 bool BTConfigDialog::parseAgentXML(const QString &xmlPath, int agentIndex)
 {
     tinyxml2::XMLDocument doc;
-    if (doc.LoadFile(xmlPath.toStdString().c_str()) != tinyxml2::XML_SUCCESS)
+    std::string xmlPath_str = xmlPath.toStdString();
+    if (doc.LoadFile(xmlPath_str.c_str()) != tinyxml2::XML_SUCCESS)
     {
         qWarning() << "Cannot parse XML file:" << xmlPath << "-" << doc.ErrorStr();
         return false;
@@ -6190,6 +8253,13 @@ bool BTConfigDialog::parseAgentXML(const QString &xmlPath, int agentIndex)
         if (!blockId.isEmpty())
         {
             qDebug() << "Identified block:" << blockId << "for agent" << agentIndex;
+            
+            // Bounds check for agentIndex before accessing agents_ array
+            if (agentIndex < 0 || agentIndex >= agents_.size())
+            {
+                qWarning() << "agentIndex" << agentIndex << "out of range (size:" << agents_.size() << ") - skipping block" << blockId;
+                continue;
+            }
 
             // Add to agent's assigned blocks
             if (!agents_[agentIndex].assignedBlocks.contains(blockId))
@@ -6210,17 +8280,150 @@ bool BTConfigDialog::parseAgentXML(const QString &xmlPath, int agentIndex)
             }
 
             // Extract parameters from nodes in this sequence
+            QStringList participantIds; // Collect agent IDs from multiple condition nodes
             for (auto *node = actualSequence->FirstChildElement();
                  node;
                  node = node->NextSiblingElement())
             {
                 extractParametersFromNode(node, blockId, agentIndex);
+                
+                // For TalkInteract, collect agent IDs from multiple IsAgentVisible/IsAgentClose nodes
+                if (blockId == "TalkInteract")
+                {
+                    QString nodeName = QString(node->Name());
+                    if (nodeName == "Condition")
+                    {
+                        const char *nodeId = node->Attribute("ID");
+                        if (nodeId && QString(nodeId) == "IsAgentVisible")
+                        {
+                            const char *agentId = node->Attribute("agent_id");
+                            if (agentId)
+                            {
+                                QString idStr = QString(agentId);
+                                // Skip blackboard references
+                                if (!idStr.startsWith("{") && !participantIds.contains(idStr))
+                                {
+                                    participantIds.append(idStr);
+                                }
+                            }
+                        }
+                    }
+                }
             }
+            
+            // Store collected participant IDs for multi-participant conversations
+            if (blockId == "TalkInteract" && participantIds.size() > 0)
+            {
+                QString key = QString("%1.non_main_agent_ids").arg(blockId);
+                // Only override if we collected more than what ConversationFormation had
+                // or if ConversationFormation had a blackboard reference
+                if (participantIds.size() > 1 || !agents_[agentIndex].agentSpecificParams.contains(key))
+                {
+                    agents_[agentIndex].agentSpecificParams[key] = participantIds.join(",");
+                    qDebug() << "Collected" << participantIds.size() << "participant IDs for TalkInteract:" << participantIds.join(",");
+                }
+            }
+            
+            // Detect and store mode for dual-mode blocks
+            inferBlockMode(actualSequence, blockId, agentIndex);
         }
     }
 
     qDebug() << "Agent" << agentIndex << "assigned blocks:" << agents_[agentIndex].assignedBlocks;
     return !agents_[agentIndex].assignedBlocks.isEmpty();
+}
+
+void BTConfigDialog::inferBlockMode(tinyxml2::XMLElement *sequence, const QString &blockId, int agentIndex)
+{
+    if (!sequence)
+        return;
+    
+    // Check for FindNearestAgent node to determine mode
+    bool hasFindNearest = false;
+    for (auto *node = sequence->FirstChildElement(); node; node = node->NextSiblingElement())
+    {
+        QString nodeName = QString(node->Name());
+        if (nodeName == "FindNearestAgent" || 
+            (nodeName == "Action" && node->Attribute("ID") && QString(node->Attribute("ID")) == "FindNearestAgent"))
+        {
+            hasFindNearest = true;
+            break;
+        }
+    }
+    
+    // Infer and store mode for dual-mode blocks
+    if (blockId == "TalkInteract" || blockId == "FollowAgent")
+    {
+        QString modeKey = QString("%1.interaction_mode").arg(blockId);
+        QString mode = hasFindNearest ? "find_nearest" : "specific_target";
+        agents_[agentIndex].agentSpecificParams[modeKey] = mode;
+        qDebug() << "Inferred" << blockId << "mode:" << mode << "for agent" << agentIndex;
+    }
+    else if (blockId == "AttentionSeeking")
+    {
+        // Check for IsRobotFacingAgent to determine robot vs agent attention
+        bool isRobotAttention = false;
+        for (auto *node = sequence->FirstChildElement(); node; node = node->NextSiblingElement())
+        {
+            QString nodeName = QString(node->Name());
+            if (nodeName == "IsRobotFacingAgent" ||
+                (nodeName == "Condition" && node->Attribute("ID") && QString(node->Attribute("ID")) == "IsRobotFacingAgent"))
+            {
+                isRobotAttention = true;
+                break;
+            }
+        }
+        QString modeKey = QString("%1.attention_mode").arg(blockId);
+        QString mode = isRobotAttention ? "robot_attention" : "agent_attention";
+        agents_[agentIndex].agentSpecificParams[modeKey] = mode;
+        qDebug() << "Inferred" << blockId << "mode:" << mode << "for agent" << agentIndex;
+    }
+    else if (blockId == "GreetingInitiator")
+    {
+        // Check for IsRobotVisible to detect greet_robot mode
+        bool isRobotGreeting = false;
+        for (auto *node = sequence->FirstChildElement(); node; node = node->NextSiblingElement())
+        {
+            QString nodeName = QString(node->Name());
+            if (nodeName == "IsRobotVisible" ||
+                (nodeName == "Condition" && node->Attribute("ID") && QString(node->Attribute("ID")) == "IsRobotVisible"))
+            {
+                isRobotGreeting = true;
+                break;
+            }
+        }
+        
+        QString modeKey = QString("%1.greeting_mode").arg(blockId);
+        QString mode;
+        if (isRobotGreeting)
+        {
+            mode = "greet_robot";
+        }
+        else if (hasFindNearest)
+        {
+            mode = "nearest_agent";
+        }
+        else
+        {
+            mode = "specific_agent";
+        }
+        
+        // Apply backward compatibility mapping for old mode names
+        if (mode == "find_nearest")
+            mode = "nearest_agent";
+        else if (mode == "specific_target")
+            mode = "specific_agent";
+            
+        agents_[agentIndex].agentSpecificParams[modeKey] = mode;
+        qDebug() << "Inferred" << blockId << "mode:" << mode << "for agent" << agentIndex;
+    }
+    else if (blockId == "ProtectiveGuardian")
+    {
+        QString modeKey = QString("%1.protection_mode").arg(blockId);
+        QString mode = hasFindNearest ? "protect_nearest_threatened" : "specific_protected";
+        agents_[agentIndex].agentSpecificParams[modeKey] = mode;
+        qDebug() << "Inferred" << blockId << "mode:" << mode << "for agent" << agentIndex;
+    }
 }
 
 QString BTConfigDialog::identifyBlockFromSequence(tinyxml2::XMLElement *sequence)
@@ -6317,57 +8520,186 @@ void BTConfigDialog::extractParametersFromNode(tinyxml2::XMLElement *node,
 {
     if (!node)
         return;
+    
+    // Bounds check for agentIndex
+    if (agentIndex < 0 || agentIndex >= agents_.size())
+    {
+        qWarning() << "extractParametersFromNode: agentIndex" << agentIndex << "out of range (size:" << agents_.size() << ")";
+        return;
+    }
 
     QString nodeName = QString(node->Name());
-
-    // Define parameter mappings for different nodes
-    QMap<QString, QString> parameterMap;
+    QString nodeId;
+    
+    // Get the node ID (for Condition and Action nodes)
+    if (nodeName == "Condition" || nodeName == "Action")
+    {
+        const char *id = node->Attribute("ID");
+        if (id)
+        {
+            nodeId = QString(id);
+        }
+    }
+    else
+    {
+        nodeId = nodeName;
+    }
 
     // Map XML attributes to our internal parameter keys
-    if (nodeName == "IsRobotVisible")
+    if (nodeId == "IsRobotVisible")
     {
         if (const char *dist = node->Attribute("distance"))
         {
-            QString key = QString("%1.robot_detection_distance").arg(blockId);
+            // Map to block-specific parameter name
+            QString paramName;
+            if (blockId == "EngageRobot" || blockId == "RobotAvoidance" || blockId == "BlockingBehavior")
+            {
+                paramName = "detection_distance";
+            }
+            else
+            {
+                paramName = "robot_detection_distance"; // Default for other blocks
+            }
+            QString key = QString("%1.%2").arg(blockId).arg(paramName);
             agents_[agentIndex].agentSpecificParams[key] = QString(dist).toDouble();
+            qDebug() << "Extracted IsRobotVisible distance:" << dist << "for block" << blockId << "agent" << agentIndex;
         }
     }
-    else if (nodeName == "ApproachRobot")
+    else if (nodeId == "ApproachRobot")
     {
         if (const char *dist = node->Attribute("closest_dist"))
         {
-            QString key = QString("%1.approach_distance").arg(blockId);
+            // Map to block-specific parameter name
+            QString paramName;
+            if (blockId == "EngageRobot")
+            {
+                paramName = "closest_dist";
+            }
+            else
+            {
+                paramName = "approach_distance"; // Default
+            }
+            QString key = QString("%1.%2").arg(blockId).arg(paramName);
             agents_[agentIndex].agentSpecificParams[key] = QString(dist).toDouble();
+            qDebug() << "Extracted ApproachRobot closest_dist:" << dist << "for block" << blockId << "agent" << agentIndex;
         }
         if (const char *vel = node->Attribute("max_vel"))
         {
-            QString key = QString("%1.approach_velocity").arg(blockId);
+            // Map to block-specific parameter name
+            QString paramName;
+            if (blockId == "EngageRobot")
+            {
+                paramName = "max_vel";
+            }
+            else
+            {
+                paramName = "approach_velocity"; // Default
+            }
+            QString key = QString("%1.%2").arg(blockId).arg(paramName);
             agents_[agentIndex].agentSpecificParams[key] = QString(vel).toDouble();
+            qDebug() << "Extracted ApproachRobot max_vel:" << vel << "for block" << blockId << "agent" << agentIndex;
         }
         if (const char *dur = node->Attribute("duration"))
         {
-            QString key = QString("%1.engagement_duration").arg(blockId);
+            // Map to block-specific parameter name
+            QString paramName;
+            if (blockId == "EngageRobot")
+            {
+                paramName = "duration";
+            }
+            else
+            {
+                paramName = "engagement_duration"; // Default
+            }
+            QString key = QString("%1.%2").arg(blockId).arg(paramName);
             agents_[agentIndex].agentSpecificParams[key] = QString(dur).toDouble();
+            qDebug() << "Extracted ApproachRobot duration:" << dur << "for block" << blockId << "agent" << agentIndex;
         }
     }
-    else if (nodeName == "IsRobotClose")
+    else if (nodeId == "IsRobotClose")
     {
         if (const char *thresh = node->Attribute("threshold"))
         {
-            QString key = QString("%1.proximity_threshold").arg(blockId);
+            // Different blocks use different parameter names
+            QString paramName;
+            if (blockId == "RobotAvoidance")
+            {
+                paramName = "close_threshold";
+            }
+            else if (blockId == "EngageRobot")
+            {
+                paramName = "proximity_threshold";
+            }
+            else if (blockId == "ProtectiveGuardian")
+            {
+                paramName = "robot_close_threshold";
+            }
+            else
+            {
+                paramName = "proximity_threshold"; // Default
+            }
+            QString key = QString("%1.%2").arg(blockId).arg(paramName);
             agents_[agentIndex].agentSpecificParams[key] = QString(thresh).toDouble();
+            qDebug() << "Extracted IsRobotClose threshold:" << thresh << "for block" << blockId << "agent" << agentIndex;
         }
     }
-    else if (nodeName == "IsAgentVisible")
+    else if (nodeId == "IsAgentVisible")
     {
         if (const char *dist = node->Attribute("distance"))
         {
-            QString key = QString("%1.visibility_distance").arg(blockId);
+            // Different blocks use different parameter names
+            QString paramName;
+            if (blockId == "ProtectiveGuardian")
+            {
+                paramName = "agent_visibility_distance";
+            }
+            else if (blockId == "GreetingInitiator")
+            {
+                paramName = "detection_distance";
+            }
+            else
+            {
+                paramName = "visibility_distance"; // Default for TalkInteract, FollowAgent, etc.
+            }
+            QString key = QString("%1.%2").arg(blockId).arg(paramName);
             agents_[agentIndex].agentSpecificParams[key] = QString(dist).toDouble();
         }
     }
-    else if (nodeName == "FollowAgent")
+    else if (nodeId == "IsAgentClose")
     {
+        if (const char *thresh = node->Attribute("threshold"))
+        {
+            // Different blocks use different parameter names for IsAgentClose threshold
+            QString paramName;
+            if (blockId == "TalkInteract")
+            {
+                paramName = "social_distance_threshold";
+            }
+            else if (blockId == "FollowAgent")
+            {
+                paramName = "is_close_threshold";
+            }
+            else
+            {
+                paramName = "social_distance_threshold"; // Default
+            }
+            QString key = QString("%1.%2").arg(blockId).arg(paramName);
+            agents_[agentIndex].agentSpecificParams[key] = QString(thresh).toDouble();
+        }
+    }
+    else if (nodeId == "FollowAgent")
+    {
+        if (const char *agentId = node->Attribute("target_agent_id"))
+        {
+            QString agentIdStr = QString(agentId);
+            // Skip if it's a blackboard reference (e.g., "{target_agent_id}")
+            if (!agentIdStr.startsWith("{"))
+            {
+                QString key = QString("%1.target_agent_id").arg(blockId);
+                agents_[agentIndex].agentSpecificParams[key] = agentIdStr.toInt();
+                qDebug() << "Extracted FollowAgent target_agent_id:" << agentIdStr << "for agent" << agentIndex;
+            }
+        }
         if (const char *dist = node->Attribute("closest_dist"))
         {
             QString key = QString("%1.following_distance").arg(blockId);
@@ -6375,24 +8707,50 @@ void BTConfigDialog::extractParametersFromNode(tinyxml2::XMLElement *node,
         }
         if (const char *vel = node->Attribute("max_vel"))
         {
-            QString key = QString("%1.max_velocity").arg(blockId);
+            QString key = QString("%1.max_vel").arg(blockId);
             agents_[agentIndex].agentSpecificParams[key] = QString(vel).toDouble();
         }
         if (const char *dur = node->Attribute("duration"))
         {
-            QString key = QString("%1.following_duration").arg(blockId);
+            QString key = QString("%1.duration").arg(blockId);
             agents_[agentIndex].agentSpecificParams[key] = QString(dur).toDouble();
         }
     }
-    else if (nodeName == "ConversationFormation")
+    else if (nodeId == "ConversationFormation")
     {
+        if (const char *agentId = node->Attribute("target_agent_id"))
+        {
+            QString agentIdStr = QString(agentId);
+            // Skip if it's a blackboard reference (e.g., "{target_agent_id}")
+            if (!agentIdStr.startsWith("{"))
+            {
+                QString key = QString("%1.target_agent_id").arg(blockId);
+                agents_[agentIndex].agentSpecificParams[key] = agentIdStr.toInt();
+                qDebug() << "Extracted ConversationFormation target_agent_id:" << agentIdStr << "for agent" << agentIndex;
+            }
+        }
         if (const char *dur = node->Attribute("conversation_duration"))
         {
             QString key = QString("%1.conversation_duration").arg(blockId);
             agents_[agentIndex].agentSpecificParams[key] = QString(dur).toDouble();
         }
+        if (const char *goalId = node->Attribute("goal_id"))
+        {
+            QString key = QString("%1.goal_id").arg(blockId);
+            agents_[agentIndex].agentSpecificParams[key] = QString(goalId).toInt();
+        }
+        if (const char *participants = node->Attribute("non_main_agent_ids"))
+        {
+            QString participantsStr = QString(participants);
+            // Skip if it's a blackboard reference (e.g., "{target_agent_id}")
+            if (!participantsStr.startsWith("{"))
+            {
+                QString key = QString("%1.non_main_agent_ids").arg(blockId);
+                agents_[agentIndex].agentSpecificParams[key] = participantsStr;
+            }
+        }
     }
-    else if (nodeName == "GoTo")
+    else if (nodeId == "GoTo")
     {
         if (const char *goals = node->Attribute("goal_ids"))
         {
@@ -6400,38 +8758,166 @@ void BTConfigDialog::extractParametersFromNode(tinyxml2::XMLElement *node,
             agents_[agentIndex].agentSpecificParams[key] = QString(goals);
         }
     }
-    else if (nodeName == "ApproachAgent")
+    else if (nodeId == "ApproachAgent")
     {
-        if (const char *dur = node->Attribute("duration"))
+        // Extract target_agent_id
+        if (const char *agentId = node->Attribute("target_agent_id"))
         {
-            QString key = QString("%1.interaction_duration").arg(blockId);
-            agents_[agentIndex].agentSpecificParams[key] = QString(dur).toDouble();
+            QString agentIdStr = QString(agentId);
+            // Skip if it's a blackboard reference (e.g., "{target_agent_id}")
+            if (!agentIdStr.startsWith("{"))
+            {
+                QString key = QString("%1.target_agent_id").arg(blockId);
+                agents_[agentIndex].agentSpecificParams[key] = agentIdStr.toInt();
+                qDebug() << "Extracted ApproachAgent target_agent_id:" << agentIdStr << "for agent" << agentIndex;
+            }
         }
-        // Note: target_agent_id would need special handling
+        
+        // Block-specific parameter extraction
+        if (blockId == "ProtectiveGuardian")
+        {
+            if (const char *dist = node->Attribute("closest_dist"))
+            {
+                QString key = QString("%1.protective_approach_distance").arg(blockId);
+                agents_[agentIndex].agentSpecificParams[key] = QString(dist).toDouble();
+            }
+            if (const char *vel = node->Attribute("max_vel"))
+            {
+                QString key = QString("%1.protective_approach_velocity").arg(blockId);
+                agents_[agentIndex].agentSpecificParams[key] = QString(vel).toDouble();
+            }
+        }
+        else // Default for other blocks
+        {
+            if (const char *dur = node->Attribute("duration"))
+            {
+                QString key = QString("%1.interaction_duration").arg(blockId);
+                agents_[agentIndex].agentSpecificParams[key] = QString(dur).toDouble();
+            }
+        }
     }
-    else if (nodeName == "BlockRobot")
+    else if (nodeId == "BlockRobot")
     {
         if (const char *dist = node->Attribute("front_dist"))
         {
-            QString key = QString("%1.protective_front_distance").arg(blockId);
+            // Map to block-specific parameter name
+            QString paramName;
+            if (blockId == "BlockingBehavior")
+            {
+                paramName = "front_dist";
+            }
+            else if (blockId == "ProtectiveGuardian")
+            {
+                paramName = "protective_front_distance";
+            }
+            else
+            {
+                paramName = "front_dist"; // Default
+            }
+            QString key = QString("%1.%2").arg(blockId).arg(paramName);
+            agents_[agentIndex].agentSpecificParams[key] = QString(dist).toDouble();
+            qDebug() << "Extracted BlockRobot front_dist:" << dist << "for block" << blockId << "agent" << agentIndex;
+        }
+        if (const char *dur = node->Attribute("duration"))
+        {
+            // Map to block-specific parameter name
+            QString paramName;
+            if (blockId == "BlockingBehavior")
+            {
+                paramName = "duration";
+            }
+            else if (blockId == "ProtectiveGuardian")
+            {
+                paramName = "blocking_duration";
+            }
+            else
+            {
+                paramName = "duration"; // Default
+            }
+            QString key = QString("%1.%2").arg(blockId).arg(paramName);
+            agents_[agentIndex].agentSpecificParams[key] = QString(dur).toDouble();
+            qDebug() << "Extracted BlockRobot duration:" << dur << "for block" << blockId << "agent" << agentIndex;
+        }
+    }
+    else if (nodeId == "GroupWalk" || nodeId == "SetGroupWalk")
+    {
+        if (const char *agents = node->Attribute("agent_ids"))
+        {
+            QString agentsStr = QString(agents);
+            // Skip if it's a blackboard reference
+            if (!agentsStr.startsWith("{"))
+            {
+                QString key = QString("%1.group_agent_ids").arg(blockId);
+                agents_[agentIndex].agentSpecificParams[key] = agentsStr;
+                qDebug() << "Extracted" << nodeId << "agent_ids:" << agentsStr << "for agent" << agentIndex;
+            }
+        }
+        if (const char *dur = node->Attribute("duration"))
+        {
+            QString key = QString("%1.duration").arg(blockId);
+            agents_[agentIndex].agentSpecificParams[key] = QString(dur).toDouble();
+            qDebug() << "Extracted" << nodeId << "duration:" << dur << "for block" << blockId << "agent" << agentIndex;
+        }
+    }
+    else if (nodeId == "IsAnyoneLookingAtMe")
+    {
+        if (const char *dist = node->Attribute("distance_threshold"))
+        {
+            QString key = QString("%1.attention_distance").arg(blockId);
             agents_[agentIndex].agentSpecificParams[key] = QString(dist).toDouble();
         }
         if (const char *dur = node->Attribute("duration"))
         {
-            QString key = QString("%1.blocking_duration").arg(blockId);
+            QString key = QString("%1.looking_duration").arg(blockId);
             agents_[agentIndex].agentSpecificParams[key] = QString(dur).toDouble();
         }
     }
-    else if (nodeName == "GroupWalk")
+    else if (nodeId == "IsRobotFacingAgent")
     {
-        if (const char *agents = node->Attribute("agent_ids"))
+        if (const char *dist = node->Attribute("distance"))
         {
-            QString key = QString("%1.group_agent_ids").arg(blockId);
-            agents_[agentIndex].agentSpecificParams[key] = QString(agents);
+            QString key = QString("%1.attention_distance").arg(blockId);
+            agents_[agentIndex].agentSpecificParams[key] = QString(dist).toDouble();
+        }
+    }
+    else if (nodeId == "SaySomething")
+    {
+        if (const char *msg = node->Attribute("message"))
+        {
+            QString msgStr = QString(msg);
+            // Determine which block this belongs to based on context
+            if (blockId == "AttentionSeeking")
+            {
+                QString key = QString("%1.response_message").arg(blockId);
+                agents_[agentIndex].agentSpecificParams[key] = msgStr;
+            }
+            else if (blockId == "GreetingInitiator")
+            {
+                QString key = QString("%1.greeting_message").arg(blockId);
+                agents_[agentIndex].agentSpecificParams[key] = msgStr;
+            }
+            else if (blockId == "SpeechDetection")
+            {
+                QString key = QString("%1.response_message").arg(blockId);
+                agents_[agentIndex].agentSpecificParams[key] = msgStr;
+            }
+        }
+    }
+    else if (nodeId == "IsAnyoneSpeaking")
+    {
+        if (const char *dist = node->Attribute("distance_threshold"))
+        {
+            QString key = QString("%1.speech_distance").arg(blockId);
+            agents_[agentIndex].agentSpecificParams[key] = QString(dist).toDouble();
+        }
+        if (const char *dur = node->Attribute("duration"))
+        {
+            QString key = QString("%1.speaking_duration").arg(blockId);
+            agents_[agentIndex].agentSpecificParams[key] = QString(dur).toDouble();
         }
     }
 
-    qDebug() << "Extracted parameters from" << nodeName << "for agent" << agentIndex;
+    qDebug() << "Extracted parameters from" << nodeId << "for agent" << agentIndex;
 }
 
 #include "BTConfigDialog.moc"

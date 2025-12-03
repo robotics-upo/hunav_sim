@@ -222,6 +222,9 @@ private:
     void extractParametersFromNode(tinyxml2::XMLElement *node, 
                                    const QString &blockId,
                                    int agentIndex);
+    void inferBlockMode(tinyxml2::XMLElement *sequence,
+                       const QString &blockId,
+                       int agentIndex);
     
     // ===================== HELPER METHODS =====================
     
