@@ -27,6 +27,7 @@ class HunavEvaluatorNode(Node):
         self.metrics_lists = {}
         self.number_of_behaviors = 6
         self.use_map = False
+        self.occupancy_grid = None
 
         # The user start/stop the recording through the
         #    the services /hunav_start_recording and
@@ -54,6 +55,9 @@ class HunavEvaluatorNode(Node):
             if m.startswith("surprise_"):
                 self.use_map = True
 
+        # Store surprise metrics list for later filtering
+        self.surprise_metrics = [m for m in self.metrics_to_compute.keys() if m.startswith("surprise_")]
+
         if self.freq > 0.0:
             self.agents = Agents()
             self.robot = Agent()
@@ -77,17 +81,39 @@ class HunavEvaluatorNode(Node):
         )
 
         if self.use_map:
-            self.cli = self.create_client(GetMap, '/map_server/Map')
+            self.cli = self.create_client(GetMap, '/map_server/map')
+            
             counter = 1
-            while not self.cli.wait_for_service(timeout_sec=2.0) and counter < 5:
-                self.get_logger().info(f'/map_server/Map not available, waiting...{counter}')
+            while not self.cli.wait_for_service(timeout_sec=2.0) and counter < 3:
+                self.get_logger().info(f'/map_server/map not available, waiting...{counter}')
                 counter += 1
-            if counter >= 5:
-                self.get_logger().error('/map_server/Map service not available. Metrics requiring the map will not be computed.')
+            if counter >= 3:
+                self.get_logger().warn(
+                    '/map_server/map service not available. '
+                    'Surprise metrics (visibility, shock, react) will be excluded from computation. '
+                    'To enable these metrics, ensure map_server is running and a map is loaded.'
+                )
                 self.use_map = False
+                # Remove surprise metrics from computation list
+                for m in self.surprise_metrics:
+                    if m in self.metrics_to_compute:
+                        del self.metrics_to_compute[m]
+                        self.get_logger().info(f'   Removed metric: {m}')
             else:
-                self.get_logger().info('/map_server/Map service available.')
+                self.get_logger().info('/map_server/map service available.')
                 self.occupancy_grid = self.get_map()
+                
+                if self.occupancy_grid is None:
+                    self.get_logger().warn(
+                        'Failed to retrieve map from map_server. '
+                        'Surprise metrics will be excluded from computation.'
+                    )
+                    self.use_map = False
+                    # Remove surprise metrics from computation list
+                    for m in self.surprise_metrics:
+                        if m in self.metrics_to_compute:
+                            del self.metrics_to_compute[m]
+                            self.get_logger().info(f'   Removed metric: {m}')
 
 
     def get_map(self):
@@ -97,9 +123,18 @@ class HunavEvaluatorNode(Node):
         if future.result() is not None:
             occ_grid = future.result().map
             self.get_logger().info(f"Map received: {occ_grid.info.width} x {occ_grid.info.height}")
+            
+            # Validate that the map has valid dimensions and resolution
+            if occ_grid.info.width == 0 or occ_grid.info.height == 0:
+                self.get_logger().warn('Received map has invalid dimensions (0x0). Map cannot be used.')
+                return None
+            if occ_grid.info.resolution <= 0:
+                self.get_logger().warn(f'Received map has invalid resolution ({occ_grid.info.resolution}). Map cannot be used.')
+                return None
+            
             return occ_grid
         else:
-            self.get_logger().error('Failed to call /map_service/Map')
+            self.get_logger().error('Failed to call /map_server/map service')
             return None
 
     def occupancy_grid_to_numpy(self):
@@ -212,16 +247,10 @@ class HunavEvaluatorNode(Node):
         # for each metric, compute the value
         for m in self.metrics_to_compute.keys():
 
-            if m.startswith("surprise_") and self.use_map:
-                if self.occupancy_grid is None:
-                    self.get_logger().warn(f"Metric {m} requires the map, but it is not available. Setting to zero.")
-                    self.metrics_to_compute[m] = 0.0
-                    continue
-                else:
-                    # convert occupancy grid to numpy array
-                    occ_grid_np = self.occupancy_grid_to_numpy()
-                    # pass the occupancy grid to the metric function
-                    metric = hunav_metrics.metrics[m](self.agents_list, self.robot_list, occ_grid_np)
+            # Check if this is a surprise metric (requires map)
+            if m.startswith("surprise_"):
+                # pass the occupancy grid message to the metric function
+                metric = hunav_metrics.metrics[m](self.agents_list, self.robot_list, self.occupancy_grid)
             else:
                 # call the metric function with the agents and robot lists
                 metric = hunav_metrics.metrics[m](self.agents_list, self.robot_list)
@@ -277,7 +306,7 @@ class HunavEvaluatorNode(Node):
             ag = Agents()  # create a new Agents message
             ag.header = la.header  # copy the header from the Agents message
             for a in la.agents:  # iterate over the agents in the Agents message
-                if a.behavior == behavior:  # check if the agent has the behavior
+                if a.behavior.type == behavior:  # check if the agent has the behavior
                     ag.agents.append(a)  # add the agent to the Agents message
                 if (
                     a.behavior.state != a.behavior.BEH_NO_ACTIVE
@@ -298,7 +327,14 @@ class HunavEvaluatorNode(Node):
         )
         # then, compute the metrics for those agents
         for m in self.metrics_to_compute.keys():  # iterate over the metrics to compute
-            metric = hunav_metrics.metrics[m](beh_agents, beh_robot)
+            # Check if this is a surprise metric (requires map)
+            if m.startswith("surprise_"):
+                # pass the occupancy grid message (not numpy array) to the metric function
+                # The surprise metrics need the original OccupancyGrid with .info metadata
+                metric = hunav_metrics.metrics[m](beh_agents, beh_robot, self.occupancy_grid)
+            else:
+                metric = hunav_metrics.metrics[m](beh_agents, beh_robot)
+                
             self.metrics_to_compute[m] = metric[0]
             if len(metric) > 1:  # if the metric function returns more than one value,
                 self.metrics_lists[m] = metric[1]
@@ -314,34 +350,59 @@ class HunavEvaluatorNode(Node):
         self.store_metrics(store_file)  # store the metrics in a file
 
     def store_metrics(self, result_file: str):
-        """Store the computed metrics in a file."""
+        """Store the computed metrics in CSV format.
+        
+        Generates:
+        1. Primary results file: Per-metric aggregated values with metadata
+        2. Secondary steps file: Time-series metrics indexed by timestamps
+        """
 
         if not result_file.endswith(".csv"):
             result_file += ".csv"  # ensure the file has a .csv extension
-        # add extension if it does not have it
 
         file_was_created = os.path.exists(result_file)
-        # be sure thath the parent directory exists
-        os.makedirs(os.path.dirname(result_file), exist_ok=True)
+        
+        # be sure that the parent directory exists
+        result_dir = os.path.dirname(result_file)
+        if result_dir:  # Only create directory if path includes a directory component
+            os.makedirs(result_dir, exist_ok=True)
 
+        # 1. PRIMARY RESULTS FILE: Per-metric aggregated values with metadata
         df_metrics = pd.DataFrame(self.metrics_to_compute, index=[self.exp_tag])
         df_metrics.index.name = "experiment_tag"
-        df_metrics["run_id"] = self.run_id  # add the run id to the metrics
+        
+        # Insert run_id as the first column (right after the index)
+        df_metrics.insert(0, "run_id", self.run_id)
 
-        # save the metrics to a CSV file
+        # save the metrics to a CSV file (append mode for batch evaluation)
         df_metrics.to_csv(result_file, mode="a", header=not file_was_created)
-        # open and write the second file (metric for each step)
-
-        df_steps = pd.DataFrame(self.metrics_lists)
-        df_steps.index.name = "time_stamps"
-        # save the steps to a CSV file
-        steps_csv_file = result_file.replace(
-            ".csv", f"_steps_{self.exp_tag}_{self.run_id}.csv"
-        )
-        df_steps.to_csv(steps_csv_file, index=True)
-        self.get_logger().info(
-            f"Metrics steps stored in {result_file} and {steps_csv_file}"
-        )
+        self.get_logger().info(f"Summary metrics stored in {result_file}")
+        
+        # 2. SECONDARY "STEPS" FILE: Time-series metrics indexed by timestamps
+        if self.metrics_lists:
+            # Filter to only include per-timestep metrics (same length as time_stamps)
+            time_stamps = self.metrics_lists.get("time_stamps", [])
+            timesteps_length = len(time_stamps)
+            
+            per_timestep_metrics = {}
+            for key, value in self.metrics_lists.items():
+                if len(value) == timesteps_length:
+                    per_timestep_metrics[key] = value
+            
+            if per_timestep_metrics:
+                df_steps = pd.DataFrame(per_timestep_metrics)
+                # Set time_stamps as the index
+                if "time_stamps" in df_steps.columns:
+                    df_steps.set_index("time_stamps", inplace=True)
+                
+                # save the steps to a CSV file
+                steps_csv_file = result_file.replace(
+                    ".csv", f"_steps_{self.exp_tag}_{self.run_id}.csv"
+                )
+                df_steps.to_csv(steps_csv_file, index=True)
+                self.get_logger().info(
+                    f"Metrics steps stored in {steps_csv_file}"
+                )
 
     def check_data(self) -> bool:
         """Check that the data is valid for computing the metrics."""

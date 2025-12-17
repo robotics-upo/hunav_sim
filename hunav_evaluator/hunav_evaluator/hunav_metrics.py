@@ -373,7 +373,7 @@ def group_space_intrusions(
         for id in group_ids:
             group_center = get_group_center(agents[i].agents, id, d)
             dist = (
-                euclidean_distance(robot[i].position, group_center.position)
+                euclidean_distance(robot[i].position, group_center)
                 - robot[i].radius
             )
             min_dist = max(min(min_dist, dist), 0.0)  # Ensure non-negative distance
@@ -932,7 +932,7 @@ def obstacle_force_on_robot(agents: List[Agents], robot: List[Agent]) -> List[fl
 # Surprise cost: Visibility, Shock, React
 def danger_fear_cost(agents: List[Agents], robot: List[Agent]) -> List[int]:
     fc = 0.0
-    fc_list = []
+    fc_list = np.zeros(len(agents[0].agents))
     for agts, rb in zip(agents, robot):
         robot_pos = np.array([rb.position.position.x, rb.position.position.y])
         #robot_vel = rb.linear_vel * np.array([math.cos(rb.yaw), math.sin(rb.yaw)])
@@ -945,7 +945,7 @@ def danger_fear_cost(agents: List[Agents], robot: List[Agent]) -> List[int]:
             fc += f
             fc_list[idx]+=f
 
-    return [fc, fc_list]
+    return [fc, fc_list.tolist()]
     
 
 def cost_fear(robot_pos, robot_vel, human_pos, human_vel, rh=0.3, rr=0.3):
@@ -984,7 +984,7 @@ def cost_fear(robot_pos, robot_vel, human_pos, human_vel, rh=0.3, rr=0.3):
 
 def danger_panic_cost(agents: List[Agents], robot: List[Agent]) -> List[int]:
     pc = 0.0
-    pc_list = []
+    pc_list = np.zeros(len(agents[0].agents))
     for agts, rb in zip(agents, robot):
         robot_pos = np.array([rb.position.position.x, rb.position.position.y])
         #robot_vel = rb.linear_vel * np.array([math.cos(rb.yaw), math.sin(rb.yaw)])
@@ -997,7 +997,7 @@ def danger_panic_cost(agents: List[Agents], robot: List[Agent]) -> List[int]:
             pc += p
             pc_list[idx]+=p
 
-    return [pc, pc_list]
+    return [pc, pc_list.tolist()]
 
 
 def cost_panic(robot_pos, robot_vel, human_pos, human_vel, rh=0.3, rr=0.3):
@@ -1129,7 +1129,15 @@ def is_visible(robot_pos, human_pos, human_dir, occ_grid):
     # --- check line of sight ---
     human_grid = world_to_grid(human_pos, occ_grid)
     robot_grid = world_to_grid(robot_pos, occ_grid)
-    if not line_of_sight(human_grid, robot_grid, occ_grid):
+    
+    # Convert OccupancyGrid to numpy array for line_of_sight check
+    width = occ_grid.info.width
+    height = occ_grid.info.height
+    data = np.array(occ_grid.data).reshape((height, width))
+    # Convert to binary: 0=free, 1=occupied (treat unknown as occupied)
+    grid_np = np.where(data < 0, 1, np.where(data > 50, 1, 0))
+    
+    if not line_of_sight(human_grid, robot_grid, grid_np):
         return False  # occluded
     return True  # visible
 
@@ -1164,7 +1172,7 @@ def cost_visibility(robot_pos, human_pos, human_dir,
 
 def surprise_visibility_cost(agents: List[Agents], robot: List[Agent], grid) -> List[int]:
     vc = 0.0
-    vc_list = []
+    vc_list = np.zeros(len(agents[0].agents))
     for agts, rb in zip(agents, robot):
         robot_pos = np.array([rb.position.position.x, rb.position.position.y])
         for idx, agent in enumerate(agts.agents):
@@ -1177,7 +1185,7 @@ def surprise_visibility_cost(agents: List[Agents], robot: List[Agent], grid) -> 
             vc += v
             vc_list[idx]+=v
 
-    return [vc, vc_list]
+    return [vc, vc_list.tolist()]
 
 
 
@@ -1212,10 +1220,10 @@ def cost_shock(robot_pos, human_pos, t,
 
 def surprise_shock_cost(agents: List[Agents], robot: List[Agent], grid) -> List[int]:
     sc = 0.0
-    t1 = rclpy.time.Time.from_msg(agents[1].stamp)
-    t2 = rclpy.time.Time.from_msg(agents[0].stamp)
+    t1 = rclpy.time.Time.from_msg(agents[1].header.stamp)
+    t2 = rclpy.time.Time.from_msg(agents[0].header.stamp)
     dt = (t2 - t1).nanoseconds / 1e9  # Diferencia en segundos (float)
-    sc_list = []
+    sc_list = np.zeros(len(agents[0].agents))
     time_visible = np.zeros(len(agents[0].agents))
     for agts, rb in zip(agents, robot):
         robot_pos = np.array([rb.position.position.x, rb.position.position.y])
@@ -1231,7 +1239,7 @@ def surprise_shock_cost(agents: List[Agents], robot: List[Agent], grid) -> List[
             sc += s
             sc_list[idx]+=s
 
-    return [sc, sc_list]
+    return [sc, sc_list.tolist()]
 
 
 def cost_react(robot_pos, human_pos, t, treact=0.600, d_proxemics=0.45):
@@ -1259,10 +1267,10 @@ def cost_react(robot_pos, human_pos, t, treact=0.600, d_proxemics=0.45):
 
 def surprise_react_cost(agents: List[Agents], robot: List[Agent], grid) -> List[int]:
     rc = 0.0
-    t1 = rclpy.time.Time.from_msg(agents[1].stamp)
-    t2 = rclpy.time.Time.from_msg(agents[0].stamp)
+    t1 = rclpy.time.Time.from_msg(agents[1].header.stamp)
+    t2 = rclpy.time.Time.from_msg(agents[0].header.stamp)
     dt = (t2 - t1).nanoseconds / 1e9  # Diferencia en segundos (float)
-    rc_list = []
+    rc_list = np.zeros(len(agents[0].agents))
     time_visible = np.zeros(len(agents[0].agents))
     for agts, rb in zip(agents, robot):
         robot_pos = np.array([rb.position.position.x, rb.position.position.y])
@@ -1278,7 +1286,7 @@ def surprise_react_cost(agents: List[Agents], robot: List[Agent], grid) -> List[
             rc += r
             rc_list[idx]+=r
 
-    return [rc, rc_list]
+    return [rc, rc_list.tolist()]
 
 
 
