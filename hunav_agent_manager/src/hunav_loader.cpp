@@ -1,5 +1,6 @@
 #include "hunav_agent_manager/hunav_loader.hpp"
 #include "random"
+#include <vector>
 #include <algorithm>
 #include <limits>
 #include <tf2/LinearMath/Quaternion.h>
@@ -21,27 +22,30 @@ HunavLoader::HunavLoader() : Node("hunav_loader")
 
   // Read yaml_base_name parameter (derive from the config file name)
   std::string yaml_base_name = this->declare_parameter<std::string>("yaml_base_name", std::string("warehouse_agents"));
+  RCLCPP_INFO(this->get_logger(), "yaml_base_name: %s", yaml_base_name.c_str());
 
   // Read simulator parameter (optional for backward compatibility)
   std::string simulator = this->declare_parameter<std::string>("simulator", std::string("Gazebo"));
+  RCLCPP_INFO(this->get_logger(), "simulator: %s", simulator.c_str());
 
   std::string map = this->declare_parameter<std::string>("map", std::string("warehouse"));
-  
+  RCLCPP_INFO(this->get_logger(), "map: %s", map.c_str());
+
   // Read publish_people parameter
   bool publish_people = this->declare_parameter<bool>("publish_people", true);
+  RCLCPP_INFO(this->get_logger(), "publish_people: %s", publish_people ? "true" : "false");
 
-  this->declare_parameter(std::string("agents"), rclcpp::ParameterType::PARAMETER_STRING_ARRAY);
-  rclcpp::Parameter array_agents = this->get_parameter("agents");
-  auto agent_names = array_agents.as_string_array();
-
+  //this->declare_parameter(std::string("agents"), rclcpp::ParameterType::PARAMETER_STRING_ARRAY);
+  //rclcpp::Parameter array_agents = this->get_parameter("agents");
+  //auto agent_names = array_agents.as_string_array();
+  // Declare `agents` as a string array with an empty default to avoid
+  // ParameterUninitializedException when the param is not provided.
+  auto agent_names = this->declare_parameter<std::vector<std::string>>("agents", std::vector<std::string>{});
+  RCLCPP_INFO(this->get_logger(), "Number of agents: %zu", agent_names.size());
+  
   //   rclcpp::Parameter agents_array;
   //   this->get_parameter_or("agents", agents_array,
   //                          rclcpp::Parameter("agents", "[]"));
-
-  RCLCPP_INFO(this->get_logger(), "map params: %s", map.c_str());
-  RCLCPP_INFO(this->get_logger(), "simulator: %s", simulator.c_str());
-  RCLCPP_INFO(this->get_logger(), "yaml_base_name: %s", yaml_base_name.c_str());
-  RCLCPP_INFO(this->get_logger(), "publish_people: %s", publish_people ? "true" : "false");
   
   // Read and display global goals
   RCLCPP_INFO(this->get_logger(), "Global goals:");

@@ -1958,7 +1958,7 @@ namespace hunav_rviz2_panel
         auto shareDir = QString::fromStdString(
             ament_index_cpp::get_package_share_directory("hunav_agent_manager"));
         std::string srcDir = share_to_src_path(shareDir.toStdString());
-        fullPath = QString::fromStdString(srcDir) + "behavior_trees/" + filepath;
+        fullPath = QString::fromStdString(srcDir) + "/behavior_trees/" + filepath;
       }
       catch (const std::exception &e)
       {
