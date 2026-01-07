@@ -1530,7 +1530,7 @@ namespace hunav_rviz2_panel
     {
       QString shareDir = QString::fromStdString(
           ament_index_cpp::get_package_share_directory(packageName.toStdString()));
-      std::string srcDir = share_to_src_path(shareDir.toStdString());
+      std::string srcDir = this->share_to_src_path(shareDir.toStdString());
       btDir = QString::fromStdString(srcDir + "/behavior_trees");
       RCLCPP_INFO(get_logger(), "Found ROS2 package '%s', behavior trees at: %s",
                   packageName.toStdString().c_str(), btDir.toStdString().c_str());
@@ -1958,7 +1958,7 @@ namespace hunav_rviz2_panel
       {
         auto shareDir = QString::fromStdString(
             ament_index_cpp::get_package_share_directory("hunav_agent_manager"));
-        std::string srcDir = share_to_src_path(shareDir.toStdString());
+        std::string srcDir = this->share_to_src_path(shareDir.toStdString());
         fullPath = QString::fromStdString(srcDir) + "/behavior_trees/" + filepath;
       }
       catch (const std::exception &e)
@@ -3270,7 +3270,7 @@ namespace hunav_rviz2_panel
       {
         QString shareDir = QString::fromStdString(
             ament_index_cpp::get_package_share_directory(packageName.toStdString()));
-        std::string srcDir = share_to_src_path(shareDir.toStdString());
+        std::string srcDir = this->share_to_src_path(shareDir.toStdString());
         baseDir = QString::fromStdString(srcDir + "/maps");
       }
       catch (const std::exception &e)
@@ -4718,7 +4718,7 @@ namespace hunav_rviz2_panel
       {
         QString shareDir = QString::fromStdString(
             ament_index_cpp::get_package_share_directory(packageName.toStdString()));
-        std::string srcDir = share_to_src_path(shareDir.toStdString());
+        std::string srcDir = this->share_to_src_path(shareDir.toStdString());
         configDir = QString::fromStdString(srcDir + "/scenarios");
         mapDir = QString::fromStdString(srcDir + "/maps");
       }
@@ -4813,7 +4813,7 @@ namespace hunav_rviz2_panel
         {
           QString shareDir = QString::fromStdString(
               ament_index_cpp::get_package_share_directory(packageName.toStdString()));
-          std::string srcDir = share_to_src_path(shareDir.toStdString());
+          std::string srcDir = this->share_to_src_path(shareDir.toStdString());
           mapDir = QString::fromStdString(srcDir + "/maps");
           RCLCPP_INFO(get_logger(), "Found ROS2 package '%s', maps at: %s",
                       packageName.toStdString().c_str(), mapDir.toStdString().c_str());
@@ -5460,7 +5460,7 @@ namespace hunav_rviz2_panel
       {
         QString shareDir = QString::fromStdString(
             ament_index_cpp::get_package_share_directory(packageName.toStdString()));
-        std::string srcDir = share_to_src_path(shareDir.toStdString());
+        std::string srcDir = this->share_to_src_path(shareDir.toStdString());
         configDir = QString::fromStdString(srcDir + "/scenarios");
       }
       catch (const std::exception &e)
@@ -5926,7 +5926,7 @@ namespace hunav_rviz2_panel
       {
         QString shareDir = QString::fromStdString(
             ament_index_cpp::get_package_share_directory(packageName.toStdString()));
-        std::string srcDir = share_to_src_path(shareDir.toStdString());
+        std::string srcDir = this->share_to_src_path(shareDir.toStdString());
         configDir = QString::fromStdString(srcDir + "/scenarios");
         btDir = QString::fromStdString(srcDir + "/behavior_trees");
       }
@@ -7466,7 +7466,7 @@ namespace hunav_rviz2_panel
    *       hunav_agent_manager, hunav_behavior_tree_generator, hunav_evaluator,
    *       hunav_msgs, hunav_rviz2_panel, hunav_webots_wrapper
    */
-  std::string share_to_src_path(const std::string& install_share_path)
+  std::string ActorPanel::share_to_src_path(const std::string& install_share_path)
   {
 
     // Example:
@@ -7491,7 +7491,8 @@ namespace hunav_rviz2_panel
     // Expected format: .../install/<package_name>/share/<package_name>
     size_t install_pos = install_share_path.find("/install/");
     if (install_pos == std::string::npos) {
-      return ""; // Invalid path format
+      //return ""; // Invalid path format
+      throw std::runtime_error("The path does not have the expected structure. Install directory not found.");
     }
 
     // Extract workspace root
@@ -7501,7 +7502,8 @@ namespace hunav_rviz2_panel
     size_t start = install_pos + 9; // length of "/install/"
     size_t end = install_share_path.find("/share/", start);
     if (end == std::string::npos) {
-      return ""; // Invalid path format
+      //return ""; // Invalid path format
+      throw std::runtime_error("The path does not have the expected structure. share directory not found.");
     }
 
     std::string package_name = install_share_path.substr(start, end - start);
