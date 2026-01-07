@@ -1313,47 +1313,48 @@ namespace hunav_rviz2_panel
 
 
 
-  std::string ActorPanel::share_to_src_path(const std::string& share_path) 
-  {
-    // Example:
-    // input: /home/hunav_gz_classic_ws/install/hunav_gazebo_wrapper/share/hunav_gazebo_wrapper
-    // output: /home/hunav_gz_classic_ws/src/hunav_gazebo_wrapper
+  // std::string ActorPanel::share_to_src_path(const std::string& share_path) 
+  // {
+  //   // Example:
+  //   // input: /home/hunav_gz_classic_ws/install/hunav_gazebo_wrapper/share/hunav_gazebo_wrapper
+  //   // output: /home/hunav_gz_classic_ws/src/hunav_gazebo_wrapper
 
-    std::vector<std::string> parts;
-    std::stringstream ss(share_path);
-    std::string item;
-    while (std::getline(ss, item, '/')) {
-        if (!item.empty()) parts.push_back(item);
-    }
+  //   std::vector<std::string> parts;
+  //   std::stringstream ss(share_path);
+  //   std::string item;
+  //   while (std::getline(ss, item, '/')) {
+  //       if (!item.empty()) parts.push_back(item);
+  //   }
 
-    auto it = std::find(parts.begin(), parts.end(), "install");
-    if (it == parts.end() || (it + 1) == parts.end()) {
-        throw std::runtime_error("The path does not have the expected structure  ../install/share/package_name");
-    }
-    size_t install_idx = std::distance(parts.begin(), it);
-    std::string pkg_name = parts[install_idx + 1];
+  //   auto it = std::find(parts.begin(), parts.end(), "install");
+  //   if (it == parts.end() || (it + 1) == parts.end()) {
+  //       throw std::runtime_error("The path does not have the expected structure  ../install/share/package_name");
+  //   }
+  //   size_t install_idx = std::distance(parts.begin(), it);
+  //   std::string pkg_name = parts[install_idx + 1];
 
-    std::ostringstream src_path;
-    for (size_t i = 0; i < install_idx; ++i) {
-        src_path << "/" << parts[i];
-    }
+  //   std::ostringstream src_path;
+  //   for (size_t i = 0; i < install_idx; ++i) {
+  //       src_path << "/" << parts[i];
+  //   }
 
-    src_path << "/src/" << pkg_name;
+  //   src_path << "/src/" << pkg_name;
     
-    // Check if this is hunav_agent_manager or hunav_rviz2_panel (nested in hunav_sim) (local only)
-    // if (pkg_name == "hunav_agent_manager" || pkg_name == "hunav_rviz2_panel") {
-    //     src_path << "/src/hunav_sim/" << pkg_name << "/";
-    // } else {
-    //     // For wrapper packages (Isaac, Gazebo, etc.) - use direct src path
-    //     src_path << "/src/";
-    // }
+  //   // Check if this is hunav_agent_manager or hunav_rviz2_panel (nested in hunav_sim) (local only)
+  //   // if (pkg_name == "hunav_agent_manager" || pkg_name == "hunav_rviz2_panel") {
+  //   //     src_path << "/src/hunav_sim/" << pkg_name << "/";
+  //   // } else {
+  //   //     // For wrapper packages (Isaac, Gazebo, etc.) - use direct src path
+  //   //     src_path << "/src/";
+  //   // }
 
-    RCLCPP_INFO(this->get_logger(), "Path to store the scenario file: %s!!!",
-                  src_path.str().c_str());
+  //   RCLCPP_INFO(this->get_logger(), "Path to store the scenario file: %s!!!",
+  //                 src_path.str().c_str());
 
-    return src_path.str();
-  }
+  //   return src_path.str();
+  // }
 
+  
 
 
 
@@ -1980,6 +1981,8 @@ namespace hunav_rviz2_panel
     QTextStream in(&file);
     return in.readAll();
   }
+
+
 
   void ActorPanel::addAgent()
   {
@@ -7444,6 +7447,77 @@ namespace hunav_rviz2_panel
       output_topic_editor_->setText(topic);
       updateTopic();
     }*/
+  }
+
+  /**
+   * @brief Convert an install share directory path to the corresponding src directory path
+   *
+   * Converts a path from the ROS2 install directory structure to the src directory structure.
+   * Handles special cases where packages are located inside metapackages.
+   *
+   * Example:
+   * Input:  /home/hunav_gz_classic_ws/install/hunav_agent_manager/share/hunav_agent_manager
+   * Output: /home/hunav_gz_classic_ws/src/hunav_sim/hunav_agent_manager
+   *
+   * @param install_share_path Full path to a package's share directory in the install folder
+   * @return Full path to the package in the src directory
+   *
+   * @note Special handling for packages inside hunav_sim metapackage:
+   *       hunav_agent_manager, hunav_behavior_tree_generator, hunav_evaluator,
+   *       hunav_msgs, hunav_rviz2_panel, hunav_webots_wrapper
+   */
+  std::string share_to_src_path(const std::string& install_share_path)
+  {
+
+    // Example:
+    // input: /home/hunav_gz_classic_ws/install/hunav_gazebo_wrapper/share/hunav_gazebo_wrapper
+    // output: /home/hunav_gz_classic_ws/src/hunav_gazebo_wrapper
+    // Special case for hunav_sim metapackage:
+    // input: /home/hunav_gz_classic_ws/install/hunav_agent_manager/share/hunav_agent_manager
+    // output: /home/hunav_gz_classic_ws/src/hunav_sim/hunav_agent_manager
+
+
+    // Packages that are located inside the hunav_sim metapackage
+    static const std::set<std::string> metapackage_children = {
+      "hunav_agent_manager",
+      "hunav_behavior_tree_generator",
+      "hunav_evaluator",
+      "hunav_msgs",
+      "hunav_rviz2_panel",
+      "hunav_sim"
+    };
+
+    // Extract package name from path
+    // Expected format: .../install/<package_name>/share/<package_name>
+    size_t install_pos = install_share_path.find("/install/");
+    if (install_pos == std::string::npos) {
+      return ""; // Invalid path format
+    }
+
+    // Extract workspace root
+    std::string workspace_root = install_share_path.substr(0, install_pos);
+
+    // Extract package name - find it between /install/ and /share/
+    size_t start = install_pos + 9; // length of "/install/"
+    size_t end = install_share_path.find("/share/", start);
+    if (end == std::string::npos) {
+      return ""; // Invalid path format
+    }
+
+    std::string package_name = install_share_path.substr(start, end - start);
+
+    // Build src path
+    std::string src_path = workspace_root + "/src/";
+
+    // Check if this package is inside the hunav_sim metapackage
+    if (metapackage_children.find(package_name) != metapackage_children.end() &&
+        package_name != "hunav_sim") {
+      src_path += "hunav_sim/";
+    }
+
+    src_path += package_name;
+
+    return src_path;
   }
 
 } // namespace hunav_rviz2_panel

@@ -124,7 +124,7 @@ namespace hunav_rviz2_panel
      * Input: /home/workspace/install/hunav_gazebo_wrapper/share/hunav_gazebo_wrapper
      * Output: /home/workspace/src/hunav_gazebo_wrapper
      */
-    std::string share_to_src_path(const std::string& share_path);
+    std::string share_to_src_path(const std::string& install_share_path);
 
   public Q_SLOTS:
     /**
