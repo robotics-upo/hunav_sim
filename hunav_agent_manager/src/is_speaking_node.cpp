@@ -44,11 +44,10 @@ namespace hunav
         auto now = std::chrono::steady_clock::now();
         double elapsed = std::chrono::duration_cast<std::chrono::duration<double>>(now - start_time_).count();
 
-        double dt;
         auto dt_msg = getInput<double>("time_step");
         if (!dt_msg)
             throw BT::RuntimeError("IsSpeakingNode: missing input [time_step] during onRunning", dt_msg.error());
-        dt = dt_msg.value();
+        //double dt = dt_msg.value();
 
         // Ensure normal navigation
         // agent_manager_->updatePosition(listener_id_, dt);
