@@ -28,6 +28,8 @@ class ActionMonitorNode(Node):
         self.start_record_cli = self.create_client(StartEvaluation, '/hunav_start_recording')
         self.stop_record_cli = self.create_client(Empty, '/hunav_stop_recording')
 
+        self.run_id = 1
+
         self.current_goal_id = None
         self.recording_active = False
         self.goal_pose_published = False
@@ -84,7 +86,8 @@ class ActionMonitorNode(Node):
         req = StartEvaluation.Request()
         req.robot_goal = goal_pose
         req.experiment_tag = 'nav2_experiment'
-        req.run_id = 1
+        req.run_id = self.run_id
+        self.run_id += 1
         
         # We don't block waiting for response to avoid hanging the node's callbacks
         self.start_record_cli.call_async(req)

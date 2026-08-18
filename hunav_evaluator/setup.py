@@ -25,7 +25,8 @@ setup(
     entry_points={
         'console_scripts': [
             'hunav_evaluator_node = hunav_evaluator.hunav_evaluator_node:main',
-            'action_monitor_node = hunav_evaluator.action_monitor_node:main'
+            'action_monitor_node = hunav_evaluator.action_monitor_node:main',
+            'teleop_monitor_node = hunav_evaluator.teleop_monitor_node:main'
         ],
     },
 )
