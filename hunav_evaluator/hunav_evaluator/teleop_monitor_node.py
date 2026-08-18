@@ -16,15 +16,22 @@ class TeleopMonitorNode(Node):
     def __init__(self):
         super().__init__('teleop_monitor_node')
 
+        self.declare_parameter('topic_goal', '/hunav_goal_pose')
+        self.topic_goal = self.get_parameter('topic_goal').value
+        self.goal_pub = self.create_publisher(PoseStamped, self.topic_goal, 10)
+
         self.goal_sub = self.create_subscription(
             PointStamped,
             '/clicked_point',
             self.goal_callback,
             10)
 
+        self.declare_parameter('odom_topic', '/mobile_base_controller/odom')
+        self.odom_topic = self.get_parameter('odom_topic').value
+
         self.odom_sub = self.create_subscription(
             Odometry,
-            '/odom',
+            self.odom_topic,
             self.odom_callback,
             10)
 
@@ -45,20 +52,21 @@ class TeleopMonitorNode(Node):
     def goal_callback(self, msg: PointStamped):
         self.current_goal = msg
         
+        # Publish goal
+        goal_pose = PoseStamped()
+        goal_pose.header = msg.header
+        goal_pose.pose.position = msg.point
+        goal_pose.pose.orientation.w = 1.0
+        self.goal_pub.publish(goal_pose)
+        #self.get_logger().info(f'Published goal: {goal_pose}')
+        
         # Publish start recording
         if not self.start_record_cli.wait_for_service(timeout_sec=1.0):
             self.get_logger().warn('Service /hunav_start_recording not available yet...')
             
         req = StartEvaluation.Request()
-        
-        # Create PoseStamped from PointStamped
-        goal_pose = PoseStamped()
-        goal_pose.header = msg.header
-        goal_pose.pose.position = msg.point
-        goal_pose.pose.orientation.w = 1.0
-        
         req.robot_goal = goal_pose
-        req.experiment_tag = 'teleop_experiment'
+        req.experiment_tag = 'teleop'
         req.run_id = self.run_id
         self.run_id += 1
         

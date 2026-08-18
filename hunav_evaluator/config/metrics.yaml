@@ -1,6 +1,8 @@
 hunav_evaluator_node:
   ros__parameters:
 
+    use_sim_time: true
+
     # Specify the frecuency of data capture (Hz).
     # value 0.0 indicates that data is captured as the same 
     # freq than data is published.

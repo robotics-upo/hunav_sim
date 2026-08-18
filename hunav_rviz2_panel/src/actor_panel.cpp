@@ -2189,7 +2189,7 @@ namespace hunav_rviz2_panel
     basic_layout->addWidget(new QLabel("Maximum velocity (m/s):"));
     agent_desired_vel = new QLineEdit(window);
     agent_desired_vel->setText(QString::number(1.5, 'f', 1));
-    agent_desired_vel->setPlaceholderText("0.0 - 1.5 m/s");
+    agent_desired_vel->setPlaceholderText("0.0 - 1.5 m/s (use decimal format)");
     basic_layout->addWidget(agent_desired_vel);
 
     // Cyclic goals

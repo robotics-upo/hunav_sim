@@ -11,7 +11,9 @@ class ActionMonitorNode(Node):
     def __init__(self):
         super().__init__('action_monitor_node')
 
-        self.goal_pub = self.create_publisher(PoseStamped, '/hunav_goal_pose', 10)
+        self.declare_parameter('topic_goal', '/hunav_goal_pose')
+        self.goal_topic = self.get_parameter('topic_goal').value
+        self.goal_pub = self.create_publisher(PoseStamped, self.goal_topic, 10)
 
         self.plan_sub = self.create_subscription(
             Path,
