@@ -118,7 +118,7 @@ def main():
                         plot_data = df_step[metric].dropna()
                         if not plot_data.empty:
                             label = f"{filename} ({exp_tag})"
-                            plt.plot(plot_data.index, plot_data.values, label=label)
+                            plt.plot(plot_data.index.to_numpy(), plot_data.to_numpy(), label=label)
                             plotted_something = True
             
             if plotted_something:
