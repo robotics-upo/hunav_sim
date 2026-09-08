@@ -13,6 +13,7 @@ hunav_evaluator_node:
     # and a new line of results will be added at the end
     # of the file. 
     result_file: 'metrics'
+    result_path: '/home/hunav_gz_classic_ws/src/hunav_sim/hunav_evaluator/results/'
 
     # The list of metrics to be computed.
     metrics:

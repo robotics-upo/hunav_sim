@@ -42,7 +42,13 @@ class HunavEvaluatorNode(Node):
         )
 
         # base name of the result files
-        self.declare_parameter("result_file", "metrics")
+        #self.declare_parameter("result_file", "metrics")
+        self.result_file = self.declare_parameter("result_file", "metrics").get_parameter_value().string_value
+        #self.result_file = self.get_parameter("result_file").get_parameter_value().string_value
+        self.result_path = self.declare_parameter("result_path", "/home/hunav_gz_classic_ws/src/hunav_sim/hunav_evaluator/results/").get_parameter_value().string_value
+        #self.result_path = self.get_parameter("result_path").get_parameter_value().string_value
+
+
 
         self.metrics_to_compute = self.get_metrics_to_compute()
 
@@ -264,7 +270,8 @@ class HunavEvaluatorNode(Node):
         rclpy.logging.get_logger("hunav_evaluator").info(
             f"Metrics computed: {self.metrics_to_compute.keys()}"
         )
-        self.store_metrics(self.result_file_path)
+        result_file_path = os.path.join(self.result_path, self.result_file)
+        self.store_metrics(result_file_path)  # store the metrics in a file
 
         # Now, filter according to the different behaviors
         for i in range(1, (self.number_of_behaviors + 1)):
@@ -342,10 +349,10 @@ class HunavEvaluatorNode(Node):
         rclpy.logging.get_logger("hunav_evaluator").debug(
             f"Metrics computed for behavior {behavior}: {self.metrics_to_compute}"
         )
-        store_file = self.result_file_path  # base name of the result file
-        if not store_file.endswith(".csv"):
-            store_file += ".csv"
-        store_file = store_file.replace(".csv", f"_beh_{behavior}.csv")
+        result_file_path = os.path.join(self.result_path, self.result_file)  # combine path and file name 
+        if not result_file_path.endswith(".csv"):
+            result_file_path += ".csv"
+        store_file = result_file_path.replace(".csv", f"_beh_{behavior}.csv")
 
         self.store_metrics(store_file)  # store the metrics in a file
 
